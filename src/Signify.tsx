@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Algos } from "signify-ts";
+import { SignifyClient, ready, Algos } from "@kentbull/signify-ts";
 import { SignifyDemo } from './SignifyDemo';
 
 const KERIA_URL = "http://localhost:3901"

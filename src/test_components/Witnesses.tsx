@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder } from "signify-ts";
+import { SignifyClient, ready, Serder, EventResult, Operation } from "@kentbull/signify-ts";
 import {strict as assert} from "assert";
 import { useState } from 'react';
 
@@ -28,18 +28,18 @@ export function Witnesses() {
                             let aids = await identifiers.list()
                             assert.equal(aids.aids.length, 0)
 
-                            let op = await identifiers.create('aid1', {
+                            const result: EventResult = await identifiers.create('aid1', {
                                 bran: 'canIGetAWitnessSaltGreaterThan21',
                                 toad: 2,
                                 wits: [
                                     "BBilc4-L3tFUnfM_wJr4S4OJanAv_VmF_dJNN6vkf2Ha",
                                     "BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM",
                                     "BIKKuvBwpmDVA4Ds-EpL5bt9OqPzWPja2LigFYZN2YfX"]
-                                })
-
+                                });
+                            let op = await result.op();
 
                             while (!op["done"] ) {
-                                op = await operations.get(op["name"]);
+                                op = await operations.get<any>(op["name"]);
                                 await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
                             }
 

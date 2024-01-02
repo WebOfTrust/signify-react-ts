@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex, CredentialTypes } from "signify-ts";
+import { SignifyClient, ready, Serder, Diger, MtrDex, CredentialTypes } from "@kentbull/signify-ts";
 import { strict as assert } from "assert";
 import { useState, useEffect } from 'react';
 
@@ -33,13 +33,14 @@ export function Challenges() {
                             assert.equal(challenge1_small.words.length, 12)
                             let challenge1_big = await challenges1.generate(256)
                             assert.equal(challenge1_big.words.length, 24)
-                            let op1 = await identifiers1.create('alex',  {
+                            let result1 = await identifiers1.create('alex',  {
                                 toad: 2,
                                 wits: [
                                     "BBilc4-L3tFUnfM_wJr4S4OJanAv_VmF_dJNN6vkf2Ha",
                                     "BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM",
                                     "BIKKuvBwpmDVA4Ds-EpL5bt9OqPzWPja2LigFYZN2YfX"]
                                 })
+                            let op1 = await result1.op()
                             while (!op1["done"] ) {
                                     op1 = await operations1.get(op1["name"]);
                                     await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
@@ -53,24 +54,25 @@ export function Challenges() {
                             const challenges2 = client2.challenges()
                             const operations2 = client2.operations()
                             const oobis2 = client2.oobis()
-                            let op2 = await identifiers2.create('rodo', {
+                            let result2 = await identifiers2.create('rodo', {
                                 toad: 2,
                                 wits: [
                                     "BBilc4-L3tFUnfM_wJr4S4OJanAv_VmF_dJNN6vkf2Ha",
                                     "BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM",
                                     "BIKKuvBwpmDVA4Ds-EpL5bt9OqPzWPja2LigFYZN2YfX"]
-                                })
+                                });
+                            let op2 = await result2.op();
                             while (!op2["done"] ) {
                                     op2 = await operations2.get(op2["name"]);
                                     await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
                                 }
                             const aid2 = op2['response']
-                            
+
                             await identifiers1.addEndRole("alex", 'agent', client1!.agent!.pre)
                             await identifiers2.addEndRole("rodo", 'agent', client2!.agent!.pre)
                             let oobi1 = await oobis1.get("alex","agent")
                             let oobi2 = await oobis2.get("rodo","agent")
-                            
+
                             op1 = await oobis1.resolve(oobi2.oobis[0],"rodo")
                             while (!op1["done"]) {
                                 op1 = await operations1.get(op1["name"]);
@@ -95,7 +97,7 @@ export function Challenges() {
                                 }
                                 await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
                             }
-                            await challenges1.accept('alex', aid2.i, contacts[0].challenges[0].said)
+                            await challenges1.responded('alex', aid2.i, contacts[0].challenges[0].said)
                             await contacts1.list(undefined, undefined, undefined)
                             setTestResult("Passed")
                         }

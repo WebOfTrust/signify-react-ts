@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, Identifier} from 'signify-ts';
+import { SignifyClient, Identifier} from '@kentbull/signify-ts';
 import  { SetStateAction, useEffect, useState } from 'react';
 import {
   AppBar,

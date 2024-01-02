@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex } from "signify-ts";
+import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "@kentbull/signify-ts";
 import {strict as assert} from "assert";
 import { useState, useEffect } from 'react';
 
@@ -30,7 +30,7 @@ export function Rotation() {
                             assert.equal(client.agent?.anchor, 'ELI7pg979AdhmvrjDeam2eAO2SR5niCgnjAJXJHtJose')
                             const identifiers = client.identifiers()
 
-                            let op_rand = await identifiers.create('aid1', {algo: 'randy'})
+                            let op_rand = await identifiers.create('aid1', {algo: Algos.randy})
                             assert.equal(op_rand['done'], true)
 
                             let op_salt = await identifiers.create('aid2', {})
@@ -46,7 +46,7 @@ export function Rotation() {
                             client.rotate('1111123456789abcdefghijk', aids)
 
                             setTestResult("Passed")
-                      
+
                     }} >Rotation Integration Test</button>{testResult}
             </div>
         </>

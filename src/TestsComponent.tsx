@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder } from "signify-ts";
+import { SignifyClient, ready, Serder } from "@kentbull/signify-ts";
 import { Salty } from "./test_components/Salty";
 import { Randy } from "./test_components/Randy";
 import { Delegation } from "./test_components/Delegation";
