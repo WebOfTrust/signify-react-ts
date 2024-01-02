@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "signify-ts";
+import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "@kentbull/signify-ts";
 import {strict as assert} from "assert";
 import { useState, useEffect } from 'react';
 
@@ -29,18 +29,20 @@ export function Multisig() {
                             assert.notEqual(client.agent, undefined)
                             assert.equal(client.agent?.pre, 'EEXekkGu9IAzav6pZVJhkLnjtjM5v3AcyA-pdKUcaGei')
                             assert.equal(client.agent?.anchor, 'ELI7pg979AdhmvrjDeam2eAO2SR5niCgnjAJXJHtJose')
-                                                        
-                            
+
+
                             const identifiers = client.identifiers()
                             const operations = client.operations()
                             const oobis = client.oobis()
 
-                            let op = await identifiers.create('aid1', {bran: '0123456789abcdefghijk' })
+                            let issueResult = await identifiers.create('aid1', {bran: '0123456789abcdefghijk' })
+
+                            let op = await issueResult.op()
                             assert.equal(op['done'], true)
                             const icp = op['response']
                             let serder = new Serder(icp)
                             assert.equal(serder.pre, "ELUvZ8aJEHAQE-0nsevyYTP98rBbGJUrTj5an-pCmwrK")
-                            
+
                             await identifiers.addEndRole("aid1", 'agent', client.agent.pre)
 
                             let oobi = await oobis.get("aid1")
@@ -68,7 +70,7 @@ export function Multisig() {
                             op = await identifiers.create("multisig",{
                                 algo: Algos.group,
                                 mhab: aid1,
-                                isith: 3, 
+                                isith: 3,
                                 nsith: 3,
                                 toad: 3,
                                 wits: [
@@ -83,7 +85,7 @@ export function Multisig() {
                                 op = await operations.get(op["name"]);
                                 await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
                             }
-                            
+
                             // Join an interaction event with the group
                             const data = {i: "EE77q3_zWb5ojgJr-R1vzsL5yiL4Nzm-bfSOQzQl02dy"}
                             op = await identifiers.interact("multisig", data)

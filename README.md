@@ -8,8 +8,14 @@ The code is built using React, Vite, Typescript and running code locally require
 -   Install [Node.js](https://nodejs.org)
 
 -   To install dependencies of Signify, in the `project root directory` run:
+    for NPM:
     ```bash
     npm install
+    ```
+    
+    for [PNPM](https://pnpm.io/):
+    ```bash
+    pnpm install
     ```
 
 -   Navigate to `examples/signify-react-ts` directory

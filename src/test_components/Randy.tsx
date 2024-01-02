@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "signify-ts";
+import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "@kentbull/signify-ts";
 import {strict as assert} from "assert";
 import { useState, useEffect } from 'react';
 
