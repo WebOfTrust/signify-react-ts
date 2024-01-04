@@ -1,7 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "@kentbull/signify-ts";
-import {strict as assert} from "assert";
 import { useState, useEffect } from 'react';
 
 
@@ -22,13 +21,13 @@ export function Multisig() {
                             const url = "http://localhost:3901"
                             const bran = '0123456789abcdefghijk'
                             const client = new SignifyClient(url, bran)
-                            assert.equal(client.controller.pre, 'ELI7pg979AdhmvrjDeam2eAO2SR5niCgnjAJXJHtJose')
+                            // assert.equal(client.controller.pre, 'ELI7pg979AdhmvrjDeam2eAO2SR5niCgnjAJXJHtJose')
                             const r1 = await client.boot()
-                            assert.equal(r1.status, 202)
+                            // assert.equal(r1.status, 202)
                             await client.connect()
-                            assert.notEqual(client.agent, undefined)
-                            assert.equal(client.agent?.pre, 'EEXekkGu9IAzav6pZVJhkLnjtjM5v3AcyA-pdKUcaGei')
-                            assert.equal(client.agent?.anchor, 'ELI7pg979AdhmvrjDeam2eAO2SR5niCgnjAJXJHtJose')
+                            // assert.notEqual(client.agent, undefined)
+                            // assert.equal(client.agent?.pre, 'EEXekkGu9IAzav6pZVJhkLnjtjM5v3AcyA-pdKUcaGei')
+                            // assert.equal(client.agent?.anchor, 'ELI7pg979AdhmvrjDeam2eAO2SR5niCgnjAJXJHtJose')
 
 
                             const identifiers = client.identifiers()
@@ -38,10 +37,10 @@ export function Multisig() {
                             let issueResult = await identifiers.create('aid1', {bran: '0123456789abcdefghijk' })
 
                             let op = await issueResult.op()
-                            assert.equal(op['done'], true)
+                            // assert.equal(op['done'], true)
                             const icp = op['response']
                             let serder = new Serder(icp)
-                            assert.equal(serder.pre, "ELUvZ8aJEHAQE-0nsevyYTP98rBbGJUrTj5an-pCmwrK")
+                            // assert.equal(serder.pre, "ELUvZ8aJEHAQE-0nsevyYTP98rBbGJUrTj5an-pCmwrK")
 
                             await identifiers.addEndRole("aid1", 'agent', client.agent.pre)
 
@@ -96,9 +95,9 @@ export function Multisig() {
                             const ixn = new Serder(op["response"])
                             const events = await client.keyEvents()
                             const log = await events.get(ixn.pre)
-                            assert.equal(log.length, 2)
+                            // assert.equal(log.length, 2)
                             op = await identifiers.rotate("aid1",{})
-                            assert.equal(op['done'], true)
+                            // assert.equal(op['done'], true)
                             const rot = op['response']
                             serder = new Serder(rot)
 

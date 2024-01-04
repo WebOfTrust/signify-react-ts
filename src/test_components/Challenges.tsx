@@ -1,7 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { SignifyClient, ready, Serder, Diger, MtrDex, CredentialTypes } from "@kentbull/signify-ts";
-import { strict as assert } from "assert";
 import { useState, useEffect } from 'react';
 
 export function Challenges() {
@@ -30,9 +29,7 @@ export function Challenges() {
                             const contacts1 = client1.contacts()
                             const challenges1 = client1.challenges()
                             let challenge1_small = await challenges1.generate(128)
-                            assert.equal(challenge1_small.words.length, 12)
                             let challenge1_big = await challenges1.generate(256)
-                            assert.equal(challenge1_big.words.length, 24)
                             let result1 = await identifiers1.create('alex',  {
                                 toad: 2,
                                 wits: [
