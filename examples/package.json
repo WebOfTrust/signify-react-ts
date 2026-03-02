@@ -1,0 +1,22 @@
+{
+  "name": "signify-ts-extern-kms-example",
+  "version": "1.0.0",
+  "description": "Example project for Extern (Incept & Rotate)",
+  "type": "module",
+  "scripts": {
+  "create": "tsx src/extern_createAccount.ts",
+  "rotate": "tsx src/extern_rotation.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-kms": "^3.998.0",
+    "signify-ts": "^0.3.0-rc2"
+  },
+  "overrides": {
+    "libsodium-wrappers-sumo": "0.7.15"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
