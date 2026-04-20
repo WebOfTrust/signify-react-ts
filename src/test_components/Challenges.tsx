@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex, CredentialTypes } from "@kentbull/signify-ts";
+import { SignifyClient, ready, Serder, Diger, MtrDex, CredentialTypes } from "signify-ts";
 import { useState, useEffect } from 'react';
 
 export function Challenges() {
@@ -84,7 +84,7 @@ export function Challenges() {
                             await challenges2.respond('rodo', aid1.i, challenge1_small.words)
 
                             let challenge_received = false
-                            let contacts = []
+                            let contacts: any[] = []
                             while (!challenge_received) {
                                 contacts = await contacts1.list(undefined, undefined, undefined)
                                 if (contacts[0].challenges.length > 0 ){
@@ -94,7 +94,7 @@ export function Challenges() {
                                 }
                                 await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
                             }
-                            await challenges1.responded('alex', aid2.i, contacts[0].challenges[0].said)
+                            await challenges1.responded(aid2.i, contacts[0].challenges[0].said)
                             await contacts1.list(undefined, undefined, undefined)
                             setTestResult("Passed")
                         }
@@ -107,5 +107,4 @@ export function Challenges() {
         </>
     )
 }
-
 

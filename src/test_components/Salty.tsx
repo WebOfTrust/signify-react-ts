@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Tier } from "@kentbull/signify-ts";
+import { SignifyClient, ready, Serder, Tier } from "signify-ts";
 import { useState } from 'react';
 
 export function Salty() {

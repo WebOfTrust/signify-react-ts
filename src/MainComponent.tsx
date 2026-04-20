@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, Identifier} from '@kentbull/signify-ts';
+import { SignifyClient, Identifier} from 'signify-ts';
 import  { SetStateAction, useEffect, useState } from 'react';
 import {
   AppBar,
@@ -294,12 +294,12 @@ const MainComponent = () => {
             </Button>
           </Stack>
         </DialogContent>
-        <Box mt={2}>
+        <Box sx={{ mt: 2 }}>
           <Divider />
         </Box>
         <DialogActions>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Button fullWidth disabled
                 sx={{
                   "&.Mui-disabled": {
@@ -311,7 +311,7 @@ const MainComponent = () => {
               </Button>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Button onClick={handleClose} color='primary' fullWidth>
                 Close
               </Button>
@@ -353,7 +353,7 @@ const MainComponent = () => {
 
 
   return <>
-    <Box position='relative'>
+    <Box sx={{ position: 'relative' }}>
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -758,7 +758,7 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
         <Grid container spacing={2}>
           {Object.entries(data).map(([key, value]) =>
             typeof value === 'string' ? (
-              <Grid item xs={12} key={key}>
+              <Grid size={12} key={key}>
                 <Typography variant="subtitle1" gutterBottom align='left'>
                   <strong>{tableObject[key].title}</strong> {value}
                 </Typography>

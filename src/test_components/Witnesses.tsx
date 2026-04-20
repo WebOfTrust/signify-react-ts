@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, EventResult, Operation } from "@kentbull/signify-ts";
+import { SignifyClient, ready, Serder, EventResult, Operation } from "signify-ts";
 import { useState } from 'react';
 
 export function Witnesses() {
