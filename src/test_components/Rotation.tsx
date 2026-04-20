@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "@kentbull/signify-ts";
+import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "signify-ts";
 import { useState, useEffect } from 'react';
 
 
@@ -42,7 +42,7 @@ export function Rotation() {
                                 let _aid = await identifiers.get(pre.name)
                                 aids.push(_aid)
                             }
-                            client.rotate('1111123456789abcdefghijk', aids)
+                            client.rotate('1111123456789abcdefghijk', aids.map((aid) => aid.prefix))
 
                             setTestResult("Passed")
 
@@ -51,5 +51,3 @@ export function Rotation() {
         </>
     )
 }
-
-

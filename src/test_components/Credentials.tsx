@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex, CredentialTypes } from "@kentbull/signify-ts";
+import { SignifyClient, ready, Serder, Diger, MtrDex, CredentialTypes } from "signify-ts";
 import { useState, useEffect } from 'react';
 
 
@@ -157,13 +157,15 @@ export function Credentials() {
                             const vcdata = {
                                 "LEI": "5493001KJTIIGC8Y1R17"
                               }
-                            op1 = await issuerClient.credentials().issue({
-                                issuerName: 'issuer',
-                                registryId: registries[0].regk,
-                                schemaId: 'EBfdlu8R27Fbx-ehrqwImnK-8Cm79sqbAQ4MmvEAYqao',
-                                recipient: aid2.i,
-                                data: vcdata
+                            const issued = await issuerClient.credentials().issue('issuer', {
+                                ri: registries[0].regk,
+                                s: 'EBfdlu8R27Fbx-ehrqwImnK-8Cm79sqbAQ4MmvEAYqao',
+                                a: {
+                                    i: aid2.i,
+                                    ...vcdata
+                                }
                             })
+                            op1 = issued.op
                             while (!op1["done"]) {
                                 op1 = await operations1.get(op1["name"]);
                                 await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
@@ -173,7 +175,7 @@ export function Credentials() {
                             await issuerClient.credentials().list()
                             await recipientClient.credentials().list()
 
-                            await issuerClient.credentials().present('issuer', creds[0].sad.d, 'verifier', true)
+                            await (issuerClient.credentials() as any).present('issuer', creds[0].sad.d, 'verifier', true)
                             await new Promise(resolve => setTimeout(resolve, 5000))
                             await verifierClient.credentials().list()
 
@@ -187,7 +189,7 @@ export function Credentials() {
                             await recipientClient.credentials().list()
                             await verifierClient.credentials().list()
 
-                            await issuerClient.credentials().present('issuer', creds[0].sad.d, 'verifier', true)
+                            await (issuerClient.credentials() as any).present('issuer', creds[0].sad.d, 'verifier', true)
                             await new Promise(resolve => setTimeout(resolve, 5000))
                             await verifierClient.credentials().list()
                             setTestResult("Passed")
@@ -201,5 +203,4 @@ export function Credentials() {
         </>
     )
 }
-
 

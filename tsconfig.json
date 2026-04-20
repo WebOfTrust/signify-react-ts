@@ -11,10 +11,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
-    "paths": {
-      "signify-ts": ["../../src"]
-    }
+    "jsx": "react-jsx"
   },
   "include": ["src"]
 }

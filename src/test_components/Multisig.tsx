@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "@kentbull/signify-ts";
+import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "signify-ts";
 import { useState, useEffect } from 'react';
 
 
@@ -42,7 +42,7 @@ export function Multisig() {
                             let serder = new Serder(icp)
                             // assert.equal(serder.pre, "ELUvZ8aJEHAQE-0nsevyYTP98rBbGJUrTj5an-pCmwrK")
 
-                            await identifiers.addEndRole("aid1", 'agent', client.agent.pre)
+                            await identifiers.addEndRole("aid1", 'agent', client.agent!.pre)
 
                             let oobi = await oobis.get("aid1")
                             console.log(oobi)
@@ -104,14 +104,14 @@ export function Multisig() {
                             aid1 = await identifiers.get("aid1")
                             agent0 = aid1["state"]
                             const keyState = await client.keyStates()
-                            op = await keyState.query("EKYLUMmNPZeEs77Zvclf0bSN5IN-mLfLpx2ySb-HDlk4",0)
+                            op = await keyState.query("EKYLUMmNPZeEs77Zvclf0bSN5IN-mLfLpx2ySb-HDlk4", "0")
                             while (!op["done"]) {
                                 op = await operations.get(op["name"]);
                                 await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
                             }
                             multisig1 = op["response"]
 
-                            op = await keyState.query("EJccSRTfXYF6wrUVuenAIHzwcx3hJugeiJsEKmndi5q1", 0)
+                            op = await keyState.query("EJccSRTfXYF6wrUVuenAIHzwcx3hJugeiJsEKmndi5q1", "0")
                             while (!op["done"]) {
                                 op = await operations.get(op["name"]);
                                 await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
@@ -133,5 +133,4 @@ export function Multisig() {
         </>
     )
 }
-
 
