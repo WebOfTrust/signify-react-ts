@@ -69,11 +69,24 @@ try {
   await page.waitForSelector('[data-testid="connect-dialog"]');
   await page.click('[data-testid="generate-passcode"]');
   await page.click('[data-testid="connect-submit"]');
-  await page.waitForSelector('[data-testid="connection-status-connected"]', {
+  await page.waitForSelector('[data-testid="connect-dialog"]', {
+    hidden: true,
     timeout: 30000,
   });
+  await page.waitForSelector('[data-testid="identifier-table"]', {
+    timeout: 10000,
+  });
+  const identifierStatus = await page.$('[data-testid="identifier-action-status"]');
+  if (identifierStatus !== null) {
+    const identifierStatusText = await textContent(
+      page,
+      '[data-testid="identifier-action-status"]'
+    );
+    if (identifierStatusText.includes('Unable to load identifiers')) {
+      throw new Error(identifierStatusText);
+    }
+  }
 
-  await page.click('[data-testid="connect-close"]');
   await sleep(500);
   await page.click('[data-testid="nav-open"]');
   await page.waitForSelector('[data-testid="nav-client"]', {

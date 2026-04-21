@@ -40,12 +40,14 @@ The code is built using React, Vite, Typescript and running code locally require
     npm install
     ```
 
--   Run the development server:
+-   Run the development server with Vite live reload / React Fast Refresh:
     ```bash
-    npm run dev
+    pnpm run dev
     ```
 
-- Open [http://127.0.0.1:5173/](http://127.0.0.1:5173/) in browser
+- Open [http://127.0.0.1:5173/](http://127.0.0.1:5173/) in browser. Source
+  edits under `src/` should update the page automatically without a manual
+  refresh.
 
 ### Smoke tests
 

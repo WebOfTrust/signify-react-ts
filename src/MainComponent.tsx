@@ -197,12 +197,17 @@ const MainComponent = () => {
   };
 
   const handleConnect = async () => {
-    await connect({
+    const connected = await connect({
       adminUrl: url,
       bootUrl: appConfig.keria.bootUrl,
       passcode,
       tier: appConfig.defaultTier,
     });
+
+    if (connected !== null) {
+      setSelectedComponent('Identifiers');
+      setOpen(false);
+    }
   };
 
   const renderConnectionRequired = () => (
@@ -392,7 +397,7 @@ const IdentifierTable = ({ client }:{client:SignifyClient}) => {
       const normalized = toError(error);
       setActionState({
         status: 'error',
-        message: `Unable to load identifiers: ${normalized.message}`,
+        message: `Unable to load identifiers: ${normalized.message}. Connect can succeed even when the browser blocks signed KERIA resource requests; check that ${client.url} is reachable from this page and allows the Signify signed-request headers.`,
         error: normalized,
       });
     })
@@ -609,7 +614,7 @@ const IdentifierTable = ({ client }:{client:SignifyClient}) => {
             </Typography>
           </Box>
         )}
-        <TableContainer component={Paper}>
+        <TableContainer component={Paper} data-testid="identifier-table">
           <Table sx={{ minWidth: 650 }} aria-label="simple table">
             <TableHead>
               <TableRow>

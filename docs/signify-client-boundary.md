@@ -27,7 +27,9 @@ scenario code should take a connected client or call the boundary.
 
 The app reads Vite-style environment variables in the browser and ordinary
 `process.env` variables in Node smoke scripts. Defaults target the local KERIA
-and witness demo setup.
+and witness demo setup. Local browser use requires KERIA to be started with CORS
+enabled, for example `KERI_AGENT_CORS=true`, because Signify browser calls send
+signed custom headers.
 
 | Variable                      | Default                   | Purpose                                                |
 |-------------------------------|---------------------------|--------------------------------------------------------|
@@ -56,7 +58,7 @@ does not exist. Other connection failures are surfaced as errors.
 controller AID, agent AID, rotation index, passcode index, and the raw Signify
 state object.
 
-`waitForOperation(client, op, options)` wraps `client.operations().wait(...)`
+`waitOperation(client, op, options)` wraps `client.operations().wait(...)`
 with app defaults, timeout support, and labels that identify the phase that
 failed.
 
