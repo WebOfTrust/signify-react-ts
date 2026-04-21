@@ -1,5 +1,6 @@
-import { SignifyClient, ready, Serder, type Operation } from "signify-ts";
-import { useState, useEffect } from 'react';
+import { Serder, type Operation, type SignifyClient } from "signify-ts";
+import { useState } from 'react';
+import { createSignifyClient } from '../signify/client';
 
 const waitOperation = (client: SignifyClient, op: Operation) =>
     client.operations().wait(op, { minSleep: 1000 });
@@ -7,12 +8,6 @@ const waitOperation = (client: SignifyClient, op: Operation) =>
 
 export function Credentials() {
     const [testResult, setTestResult] = useState('');
-    useEffect(() => {
-        ready().then(() => {
-            console.log("signify client is ready")
-        })
-    }, [])
-
     return (
         <>
             <div className="card">
@@ -24,7 +19,7 @@ export function Credentials() {
                             const bran2 = '1123456789abcdefghijk'
                             const bran3 = '2123456789abcdefghijk'
 
-                            const issuerClient = new SignifyClient(url, bran1)
+                            const issuerClient = await createSignifyClient({ adminUrl: url, passcode: bran1 })
                             await issuerClient.boot()
                             await issuerClient.connect()
                             const identifiers1 = issuerClient.identifiers()
@@ -38,7 +33,7 @@ export function Credentials() {
                                 })
                             await waitOperation(issuerClient, await result1.op())
 
-                            const recipientClient = new SignifyClient(url, bran2)
+                            const recipientClient = await createSignifyClient({ adminUrl: url, passcode: bran2 })
                             await recipientClient.boot()
                             await recipientClient.connect()
                             const identifiers2 = recipientClient.identifiers()
@@ -57,7 +52,7 @@ export function Credentials() {
                             await waitOperation(recipientClient, await result2.op())
                             const aid2 = await identifiers2.get('recipient')
 
-                            const verifierClient = new SignifyClient(url, bran3)
+                            const verifierClient = await createSignifyClient({ adminUrl: url, passcode: bran3 })
                             await verifierClient.boot()
                             await verifierClient.connect()
                             const identifiers3 = verifierClient.identifiers()
