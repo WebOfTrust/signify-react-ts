@@ -3,6 +3,7 @@ import {
   randomPasscode,
   ready,
   type CompletedOperation,
+  type KeyState,
   type Operation,
   type Tier,
 } from 'signify-ts';
@@ -16,7 +17,14 @@ import { appConfig, type KeriaConfig, type OperationConfig } from '../config';
  * for KERIA operations. React components, smoke scripts, and Vitest scenarios
  * should call this boundary instead of duplicating lifecycle code.
  */
-type SignifyState = Awaited<ReturnType<SignifyClient['state']>>;
+interface SignifyState {
+  agent: KeyState;
+  controller: {
+    state: KeyState;
+  };
+  ridx: number | null;
+  pidx: number;
+}
 
 /**
  * Minimal inputs needed to create a Signify client.
@@ -94,6 +102,24 @@ const isMissingAgentError = (error: unknown): boolean =>
 
 export const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isKeyState = (value: unknown): value is KeyState =>
+  isObjectRecord(value) &&
+  typeof value.i === 'string' &&
+  typeof value.s === 'string' &&
+  typeof value.d === 'string' &&
+  Array.isArray(value.k);
+
+const requireKeyState = (value: unknown, label: string): KeyState => {
+  if (isKeyState(value)) {
+    return value;
+  }
+
+  throw new Error(`KERIA state did not include a valid ${label} key state.`);
+};
 
 /**
  * Minimal shape consumed by `waitOperation`.
@@ -203,10 +229,23 @@ export const randomSignifyPasscode = async (): Promise<string> => {
 export const getSignifyState = async (
   client: SignifyClient
 ): Promise<SignifyStateSummary> => {
-  const state = await client.state();
-  const controllerPre =
-    state.controller?.state?.i ?? state.controller?.i ?? client.controller.pre;
-  const agentPre = state.agent?.i ?? client.agent?.pre ?? '';
+  const rawState = await client.state();
+  const rawController = rawState.controller;
+  const controllerState = requireKeyState(
+    isObjectRecord(rawController) ? rawController.state : null,
+    'controller'
+  );
+  const agent = requireKeyState(rawState.agent, 'agent');
+  const state: SignifyState = {
+    agent,
+    controller: {
+      state: controllerState,
+    },
+    ridx: rawState.ridx ?? null,
+    pidx: rawState.pidx,
+  };
+  const controllerPre = state.controller.state.i ?? client.controller.pre;
+  const agentPre = state.agent.i ?? client.agent?.pre ?? '';
 
   return {
     controllerPre,

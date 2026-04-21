@@ -19,11 +19,8 @@ export const ClientView = () => {
     }
 
     const { summary } = loaderData;
-    const agent = (summary.state.agent ?? {}) as Record<string, unknown>;
-    const controller = (summary.state.controller?.state ?? {}) as Record<
-        string,
-        unknown
-    >;
+    const agent = summary.state.agent;
+    const controller = summary.state.controller.state;
 
     return (
         <>

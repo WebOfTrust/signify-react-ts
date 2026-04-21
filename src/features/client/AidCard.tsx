@@ -1,11 +1,12 @@
 import { Card, CardContent, Divider, Grid, Typography } from '@mui/material';
+import type { KeyState } from 'signify-ts';
 import { keyStateFieldDescriptions } from './keyStateFieldDescriptions';
 
 /**
  * Props for one raw AID/key-state summary card.
  */
 export interface AidCardProps {
-    data: Record<string, unknown>;
+    data: KeyState;
     text: string;
 }
 

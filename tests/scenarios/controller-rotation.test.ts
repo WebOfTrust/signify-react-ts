@@ -23,13 +23,10 @@ describe.sequential('controller rotation', () => {
         algo: Algos.randy,
       });
       const saltyAid = await createIdentifier(role, saltyAlias);
-      const managedAids = [
-        await role.client.identifiers().get(randyAlias),
-        await role.client.identifiers().get(saltyAlias),
-      ];
+      const managedAids = [randyAid.prefix, saltyAid.prefix];
       const response = await role.client.rotate(
         await randomSignifyPasscode(),
-        managedAids as unknown as string[]
+        managedAids
       );
 
       expect(response.ok).toBe(true);
