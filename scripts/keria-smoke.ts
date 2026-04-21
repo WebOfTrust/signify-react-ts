@@ -1,7 +1,7 @@
 import {
   runClientBoundarySmoke,
   type ClientBoundarySmokeMode,
-} from '../tests/scenarios/clientBoundarySmoke';
+} from '../tests/smoke/clientBoundarySmoke';
 
 /**
  * Thin CLI wrapper for `runClientBoundarySmoke`.

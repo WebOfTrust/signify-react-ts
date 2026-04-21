@@ -9,9 +9,9 @@ import {
 /**
  * Shared implementation for the `pnpm keria:smoke` CLI.
  *
- * This sits with test scenarios because it is an integration check, but it uses
- * the production Signify boundary so smoke tests and app code exercise the same
- * client lifecycle behavior.
+ * This sits with smoke tests because it is a boundary integration check, but it
+ * uses the production Signify boundary so smoke tests and app code exercise the
+ * same client lifecycle behavior.
  */
 
 export type ClientBoundarySmokeMode = 'connect' | 'witness';

@@ -7,12 +7,12 @@
   "scripts": {
     "dev": "vite",
     "build": "npx tsc && vite build",
-    "lint": "eslint src --max-warnings 0",
+    "lint": "eslint src tests scripts eslint.config.mjs vite.config.ts vitest.config.ts --max-warnings 0",
     "preview": "vite preview",
     "keria:smoke": "tsx scripts/keria-smoke.ts",
     "browser:smoke": "node tests/browser-smoke.mjs",
-    "scenario:test": "vitest run tests/scenarios.test.ts",
-    "scenario:test:all": "SCENARIO_INCLUDE_OPTIONAL=true vitest run tests/scenarios.test.ts",
+    "scenario:test": "vitest run tests/scenarios/salty.test.ts tests/scenarios/randy.test.ts tests/scenarios/witnessed.test.ts tests/scenarios/challenge.test.ts tests/scenarios/controller-rotation.test.ts",
+    "scenario:test:all": "vitest run tests/scenarios",
     "test:ci": "pnpm lint && pnpm build && pnpm keria:smoke -- --mode connect && pnpm keria:smoke && pnpm scenario:test && pnpm browser:smoke"
   },
   "engines": {

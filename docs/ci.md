@@ -1,7 +1,7 @@
 # CI
 
 The repository uses GitHub Actions to run the Signify boundary smoke tests
-and scenario runners against a real local KERIA stack.
+and scenario tests against a real local KERIA stack.
 
 Workflow: `.github/workflows/ci.yml`
 
@@ -34,9 +34,10 @@ pnpm browser:smoke
 Future tests that require the same local KERIA stack should be added to
 `test:ci` or called from that script.
 
-`pnpm scenario:test` runs only CI-safe Vitest scenarios. Optional schema and
-external-fixture scenarios are available through `pnpm scenario:test:all`, but
-they skip unless their required config is present.
+`pnpm scenario:test` runs only the top-level scenario test files. Optional
+schema and external-fixture scenarios live under `tests/scenarios/optional` and
+are available through `pnpm scenario:test:all`, where they skip unless their
+required config is present.
 
 ## Pinned Python Stack
 
