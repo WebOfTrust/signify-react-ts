@@ -1,7 +1,5 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { SignifyClient, Identifier} from 'signify-ts';
-import  { SetStateAction, useEffect, useState } from 'react';
+import { type Identifier } from 'signify-ts';
+import  { useEffect, useState } from 'react';
 import {
   AppBar,
   Paper,
@@ -35,6 +33,9 @@ import {
 import { Circle, Delete, Menu } from '@mui/icons-material';
 import AddIcon from '@mui/icons-material/Add';
 import { TestsComponent } from './TestsComponent';
+import { appConfig } from './config';
+import { useSignifyClient } from './signify/useSignifyClient';
+import { randomSignifyPasscode, type SignifyStateSummary } from './signify/client';
 
 
 
@@ -157,13 +158,20 @@ const tableObject:any = {
 };
 
 const MainComponent = () => {
-  const [selectedComponent, setSelectedComponent] = useState(null);
-  const [client, setClient] = useState<SignifyClient|null>(null); 
+  const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false); // Open drawer by default
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(appConfig.keria.adminUrl);
   const [passcode, setPasscode] = useState('');
-  const [status, setStatus] = useState('Not Connected');
+  const { connection, client, state, connect } = useSignifyClient();
+  const isConnected = connection.status === 'connected';
+  const status = connection.status === 'idle'
+    ? 'Not Connected'
+    : connection.status === 'connecting'
+      ? 'Connecting'
+      : connection.status === 'connected'
+        ? 'Connected'
+        : 'Error';
 
   const toggleDrawer = (open:boolean) => (event:any) => {
     if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
@@ -181,24 +189,25 @@ const MainComponent = () => {
     setOpen(false);
   };
 
-  const renderComponent = (componentName: SetStateAction<any>) => {
+  const renderComponent = (componentName: string) => {
     setSelectedComponent(componentName);
   };
 
-  const connectToAgent = async (client: SignifyClient) => {
-    try {
-      await client.connect()
-      const controller = await client.state();
-      console.log(JSON.stringify(controller.controller, null, 2))
+  const handleConnect = async () => {
+    await connect({
+      adminUrl: url,
+      bootUrl: appConfig.keria.bootUrl,
+      passcode,
+      tier: appConfig.defaultTier,
+    }).catch(() => undefined);
+  };
 
-    } catch (e) {
-      console.log('controller not found')
-      await client.boot();
-      await client.connect()
-      const controller = await client.state();
-      console.log(JSON.stringify(controller, null, 2))
-    }
-  }
+  const renderConnectionRequired = () => (
+    <Box sx={{ p: 3 }} data-testid="connection-required">
+      <Typography>Connect to KERIA before opening this view.</Typography>
+    </Box>
+  );
+
   return (
     <div>
       <AppBar position="fixed" sx={{ width: '100%' }}>
@@ -206,15 +215,15 @@ const MainComponent = () => {
           display: 'flex',
           justifyContent: 'space-between',
         }}>
-          <IconButton edge="start" color="inherit" aria-label="menu" onClick={toggleDrawer(!drawerOpen)}>
+          <IconButton edge="start" color="inherit" aria-label="menu" data-testid="nav-open" onClick={toggleDrawer(!drawerOpen)}>
             <Menu />
           </IconButton>
           <Typography variant="h6">
             Signify Client
           </Typography>
-          <Button color="inherit" sx={{ marginLeft: 'auto' }} onClick={handleClickOpen}>
+          <Button color="inherit" sx={{ marginLeft: 'auto' }} onClick={handleClickOpen} data-testid="connect-open">
             <Circle sx={{
-              color: status === 'Not Connected' ? 'red' : 'green'
+              color: isConnected ? 'green' : 'red'
             }} />
             Connect
           </Button>
@@ -230,7 +239,7 @@ const MainComponent = () => {
         >
           <List>
             {['Identifiers', 'Credentials', 'Client', 'Tests'].map((text) => (
-              <ListItem key={text} onClick={() => renderComponent(text)}>
+              <ListItem key={text} onClick={() => renderComponent(text)} data-testid={`nav-${text.toLowerCase()}`}>
                 <ListItemText primary={text} />
               </ListItem>
             ))}
@@ -238,13 +247,13 @@ const MainComponent = () => {
         </div>
       </Drawer>
 
-      <Dialog open={open} onClose={handleClose}>
+      <Dialog open={open} onClose={handleClose} data-testid="connect-dialog">
         <DialogTitle>Connect</DialogTitle>
         <DialogContent>
           <Stack spacing={3}>
             <Autocomplete
               id="combo-box-demo"
-              options={['https://keria-dev.rootsid.cloud', 'http://localhost:3901']}
+              options={['https://keria-dev.rootsid.cloud', appConfig.keria.adminUrl]}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -255,7 +264,7 @@ const MainComponent = () => {
               value={url}
               fullWidth
               onChange={(_event, newValue) => {
-                setUrl(newValue!);
+                setUrl(newValue ?? appConfig.keria.adminUrl);
               }}
 
             />
@@ -272,7 +281,7 @@ const MainComponent = () => {
                 onChange={(e) => setPasscode(e.target.value)}
                 helperText="Passcode must be at least 21 characters"
               />
-              <Button variant="contained" color="primary" onClick={() => setPasscode('0123456789abcdefghijk')} sx={{
+              <Button variant="contained" color="primary" data-testid="generate-passcode" onClick={async () => setPasscode(await randomSignifyPasscode())} sx={{
                 padding: '4px',
                 height: '40px',
                 marginTop: '10px'
@@ -281,17 +290,20 @@ const MainComponent = () => {
               </Button>
             </Stack>
 
-            <Button variant="contained" color="primary" onClick={
-              () => {
-                const client = new SignifyClient(url, passcode);
-                console.log(client.controller.pre)
-                setClient(client)
-                connectToAgent(client)
-                return setStatus('Connected')
-              }
-            }>
-              Connect
+            <Button
+              variant="contained"
+              color="primary"
+              data-testid="connect-submit"
+              disabled={connection.status === 'connecting' || passcode.length < 21}
+              onClick={handleConnect}
+            >
+              {connection.status === 'connecting' ? 'Connecting...' : 'Connect'}
             </Button>
+            {connection.status === 'error' && (
+              <Typography color="error" data-testid="connection-error">
+                {connection.error.message}
+              </Typography>
+            )}
           </Stack>
         </DialogContent>
         <Box sx={{ mt: 2 }}>
@@ -300,10 +312,10 @@ const MainComponent = () => {
         <DialogActions>
           <Grid container spacing={2}>
             <Grid size={12}>
-              <Button fullWidth disabled
+              <Button fullWidth disabled data-testid={`connection-status-${connection.status}`}
                 sx={{
                   "&.Mui-disabled": {
-                    background: status === 'Not Connected' ? 'red' : 'green',
+                    background: isConnected ? 'green' : 'red',
                     color: "black"
                   }
                 }}>
@@ -312,17 +324,17 @@ const MainComponent = () => {
             </Grid>
 
             <Grid size={12}>
-              <Button onClick={handleClose} color='primary' fullWidth>
+              <Button onClick={handleClose} color='primary' fullWidth data-testid="connect-close">
                 Close
               </Button>
             </Grid>
           </Grid>
         </DialogActions>
       </Dialog>
-      {selectedComponent === 'Identifiers' && <IdentifierTable client={client!.identifiers()} />}
+      {selectedComponent === 'Identifiers' && (client ? <IdentifierTable client={client.identifiers()} /> : renderConnectionRequired())}
 
       {selectedComponent === 'Credentials' && <CredentialsComponent />}
-      {selectedComponent === 'Client' && <ClientComponent client={client} />}
+      {selectedComponent === 'Client' && (state ? <ClientComponent summary={state} /> : renderConnectionRequired())}
       {selectedComponent === 'Tests' && <TestsComponent />}
     </div>
   );
@@ -769,25 +781,21 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
       </CardContent>
     </Card>)
   }
-  const ClientComponent = ({ client }:{client:SignifyClient|null}) => {
-    //write an async function to get the client in the client component
-    const [controller, setController] = useState(null)
-    const [agent, setAgent] = useState(null)
-    useEffect(() => {
-      const getController = async () => {
-        if (client !== null) {
-          const controller = await client.state();
-          setAgent(controller.agent)
-          setController(controller.controller.state)
-        }
-      }
-      getController();
-    }
-      , [client])
+  const ClientComponent = ({ summary }:{summary:SignifyStateSummary}) => {
+    const agent = summary.state.agent ?? {}
+    const controller = summary.state.controller.state ?? {}
+
     return (
-      agent !== null ?
         <>
-          <Grid container >
+          <Box sx={{ p: 2 }} data-testid="client-summary">
+            <Typography data-testid="controller-aid">
+              Controller AID: {summary.controllerPre}
+            </Typography>
+            <Typography data-testid="agent-aid">
+              Agent AID: {summary.agentPre}
+            </Typography>
+          </Box>
+          <Grid container>
             <AidComponent data={agent} text={'Agent'} />
             <AidComponent data={controller} text={'Controller'} />
           </Grid>
@@ -798,7 +806,6 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
             Rotate
           </Button>
         </>
-        : <div key='identifiers'>Loading client data...</div>
     );
 
   };

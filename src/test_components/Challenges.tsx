@@ -1,16 +1,8 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex, CredentialTypes } from "signify-ts";
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { createSignifyClient } from '../signify/client';
 
 export function Challenges() {
     const [testResult, setTestResult] = useState('');
-    useEffect(() => {
-        ready().then(() => {
-            console.log("signify client is ready")
-        })
-    }, [])
-
     return (
         <>
             <div className="card">
@@ -20,7 +12,7 @@ export function Challenges() {
                             const url = "http://localhost:3901"
                             const bran1 = '0123456789abcdefghijk'
                             const bran2 = '1123456789abcdefghijk'
-                            const client1 = new SignifyClient(url, bran1)
+                            const client1 = await createSignifyClient({ adminUrl: url, passcode: bran1 })
                             await client1.boot()
                             await client1.connect()
                             const identifiers1 = client1.identifiers()
@@ -44,7 +36,7 @@ export function Challenges() {
                                 }
                             const aid1 = op1['response']
 
-                            const client2 = new SignifyClient(url, bran2)
+                            const client2 = await createSignifyClient({ adminUrl: url, passcode: bran2 })
                             await client2.boot()
                             await client2.connect()
                             const identifiers2 = client2.identifiers()

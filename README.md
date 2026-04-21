@@ -1,5 +1,13 @@
 # Signify React sample app
 
+## Maintainer docs
+
+- [Signify client boundary](./docs/signify-client-boundary.md): ownership,
+  configuration, and public boundary API.
+- [Smoke tests](./docs/smoke-tests.md): how the CLI and browser smoke checks
+  work, how to run them, required local services, configuration, outputs, and
+  failure triage.
+
 ### Run locally
 
 
@@ -35,5 +43,25 @@ The code is built using React, Vite, Typescript and running code locally require
 
 - Open [http://127.0.0.1:5173/](http://127.0.0.1:5173/) in browser
 
+### Smoke tests
 
+Fast KERIA-only check:
 
+```bash
+pnpm keria:smoke -- --mode connect
+```
+
+Full boundary check with witnessed identifier creation:
+
+```bash
+pnpm keria:smoke
+```
+
+Browser wiring check for the React connect flow:
+
+```bash
+pnpm browser:smoke
+```
+
+See [Smoke tests](./docs/smoke-tests.md) for prerequisites, environment
+variables, output shape, and failure triage.

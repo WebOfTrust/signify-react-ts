@@ -1,16 +1,11 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex, Algos } from "signify-ts";
-import { useState, useEffect } from 'react';
+import { Serder, Diger, MtrDex, Algos } from "signify-ts";
+import { useState } from 'react';
+import { createSignifyClient } from '../signify/client';
 
 export function Randy() {
     const [testResult, setTestResult] = useState('');
-    useEffect(() => {
-        ready().then(() => {
-            console.log("signify client is ready")
-        })
-    }, [])
-
     return (
         <>
             <div className="card">
@@ -19,7 +14,7 @@ export function Randy() {
                         try {
                             const url = "http://localhost:3901"
                             const bran = '0123456789abcdefghijk'
-                            const client = new SignifyClient(url, bran)
+                            const client = await createSignifyClient({ adminUrl: url, passcode: bran })
                             // assert.equal(client.controller.pre, 'ELI7pg979AdhmvrjDeam2eAO2SR5niCgnjAJXJHtJose')
                             const r1 = await client.boot()
                             // assert.equal(r1.status, 202)
