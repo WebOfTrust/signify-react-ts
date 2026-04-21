@@ -146,7 +146,7 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
                 id: 'identifiers',
                 path: 'identifiers',
                 handle: APP_FEATURE_ROUTES[0].handle,
-                loader: () => loadIdentifiers(runtime),
+                loader: ({ request }) => loadIdentifiers(runtime, request),
                 action: ({ request }) => identifiersAction(runtime, request),
                 element: <IdentifiersView />,
                 errorElement: (
@@ -167,7 +167,7 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
                 id: 'client',
                 path: 'client',
                 handle: APP_FEATURE_ROUTES[2].handle,
-                loader: () => loadClient(runtime),
+                loader: ({ request }) => loadClient(runtime, request),
                 element: <ClientView />,
                 errorElement: <RouteErrorBoundary title="Client route failed" />,
             },

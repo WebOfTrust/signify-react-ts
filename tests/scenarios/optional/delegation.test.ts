@@ -7,11 +7,20 @@ import {
     uniqueAlias,
 } from '../../support/keria';
 
+/*
+ * Optional delegation fixture scenario.
+ *
+ * This verifies the delegated-AID path only when an external delegator prefix
+ * and OOBI have been supplied by the local test environment.
+ */
 const delegationConfig = testConfig.fixtures.delegation;
 const hasDelegationConfig =
     delegationConfig.delegatorPre !== null &&
     delegationConfig.delegatorOobi !== null;
 
+/**
+ * Narrow nullable fixture values after `it.skipIf` has guarded the scenario.
+ */
 const requireFixtureValue = (value: string | null, message: string): string => {
     if (value === null) {
         throw new Error(message);

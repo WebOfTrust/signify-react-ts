@@ -7,6 +7,12 @@ import {
   waitForChallenge,
 } from '../support/keria';
 
+/*
+ * Challenge/response scenario.
+ *
+ * Two fresh witnessed roles exchange agent OOBIs, then one role responds to a
+ * generated challenge and the other verifies receipt through contacts.
+ */
 describe.sequential('challenge response', () => {
   it(
     'exchanges OOBIs, sends a challenge response, and marks it accepted',

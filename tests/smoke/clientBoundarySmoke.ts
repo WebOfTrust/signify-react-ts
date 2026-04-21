@@ -14,6 +14,9 @@ import {
  * same client lifecycle behavior.
  */
 
+/**
+ * Smoke mode selector for fast connect-only checks or witnessed AID checks.
+ */
 export type ClientBoundarySmokeMode = 'connect' | 'witness';
 
 export interface ClientBoundarySmokeOptions {
@@ -31,19 +34,33 @@ export interface ClientBoundarySmokeOptions {
  * Compact result emitted by CLI smoke checks and usable by future tests.
  */
 export interface ClientBoundarySmokeSummary {
+  /** Smoke mode that produced this summary. */
   mode: ClientBoundarySmokeMode;
+  /** KERIA admin URL used for signed client calls. */
   adminUrl: string;
+  /** KERIA boot URL used for missing-agent bootstrapping. */
   bootUrl: string;
+  /** Passcode used for the smoke controller; printed for reproducibility. */
   passcode: string;
+  /** True when this run booted a new KERIA agent before connecting. */
   booted: boolean;
+  /** Controller AID read from normalized Signify state. */
   controllerAID: string;
+  /** Agent AID read from normalized Signify state. */
   agentAID: string;
+  /** Number of identifiers listed before optional witness creation. */
   identifierCount: number;
+  /** Alias created by witness mode. */
   identifierAlias?: string;
+  /** Prefix of the identifier created by witness mode. */
   identifierPrefix?: string;
+  /** Completed KERIA operation name from witness mode. */
   operationName?: string;
 }
 
+/**
+ * Count identifiers from either raw array or Signify response envelope.
+ */
 const identifierCount = (identifiers: unknown): number => {
   if (Array.isArray(identifiers)) {
     return identifiers.length;
@@ -61,6 +78,9 @@ const identifierCount = (identifiers: unknown): number => {
   return 0;
 };
 
+/**
+ * Generate a collision-resistant alias for smoke-created identifiers.
+ */
 const uniqueAlias = (): string =>
   `smoke-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;
 

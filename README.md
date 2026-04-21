@@ -9,6 +9,9 @@
 - [Runtime config](./docs/runtime-config.md): app/runtime config ownership,
   supported `VITE_*` variables, test fixture config, and how to add new config
   safely.
+- [Workflow and state architecture](./docs/workflow-state-architecture.md):
+  Effection workflows, service boundaries, Redux slices, and where new KERIA
+  behavior belongs.
 - [Smoke tests](./docs/smoke-tests.md): how the CLI and browser smoke checks
   work, how to run them, required local services, configuration, outputs, and
   failure triage.

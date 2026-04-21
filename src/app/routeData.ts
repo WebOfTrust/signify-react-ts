@@ -101,17 +101,26 @@ export interface RouteDataRuntime {
     /** Return the latest normalized Signify state, or `null` when disconnected. */
     getState(): SignifyStateSummary | null;
     /** Connect and publish runtime connection state. */
-    connect(config: SignifyClientConfig): Promise<ConnectedSignifyClient | null>;
+    connect(
+        config: SignifyClientConfig,
+        options?: { signal?: AbortSignal; requestId?: string }
+    ): Promise<ConnectedSignifyClient | null>;
     /** Generate a Signify passcode after Signify WASM readiness completes. */
-    generatePasscode(): Promise<string>;
+    generatePasscode(options?: { signal?: AbortSignal }): Promise<string>;
     /** Refresh the normalized Signify state through the connected client. */
-    refreshState(): Promise<SignifyStateSummary | null>;
+    refreshState(options?: { signal?: AbortSignal }): Promise<SignifyStateSummary | null>;
     /** Load and normalize identifiers through the connected client. */
-    listIdentifiers(): Promise<IdentifierSummary[]>;
+    listIdentifiers(options?: { signal?: AbortSignal }): Promise<IdentifierSummary[]>;
     /** Create an identifier and wait for its KERIA operation to complete. */
-    createIdentifier(draft: IdentifierCreateDraft): Promise<IdentifierSummary[]>;
+    createIdentifier(
+        draft: IdentifierCreateDraft,
+        options?: { signal?: AbortSignal; requestId?: string }
+    ): Promise<IdentifierSummary[]>;
     /** Rotate an identifier and wait for its KERIA operation to complete. */
-    rotateIdentifier(aid: string): Promise<IdentifierSummary[]>;
+    rotateIdentifier(
+        aid: string,
+        options?: { signal?: AbortSignal; requestId?: string }
+    ): Promise<IdentifierSummary[]>;
 }
 
 /**
@@ -155,7 +164,8 @@ const parseIdentifierCreateDraft = (
  * able to retry after fixing KERIA CORS or network setup.
  */
 export const loadIdentifiers = async (
-    runtime: RouteDataRuntime
+    runtime: RouteDataRuntime,
+    request?: Request
 ): Promise<IdentifiersLoaderData> => {
     const client = runtime.getClient();
     if (client === null) {
@@ -165,7 +175,9 @@ export const loadIdentifiers = async (
     try {
         return {
             status: 'ready',
-            identifiers: await runtime.listIdentifiers(),
+            identifiers: await runtime.listIdentifiers({
+                signal: request?.signal,
+            }),
         };
     } catch (error) {
         const normalized = toRouteError(error);
@@ -185,13 +197,16 @@ export const loadIdentifiers = async (
  * navigation and post-action revalidation.
  */
 export const loadClient = async (
-    runtime: RouteDataRuntime
+    runtime: RouteDataRuntime,
+    request?: Request
 ): Promise<ClientLoaderData> => {
     if (runtime.getClient() === null) {
         return { status: 'blocked' };
     }
 
-    const summary = (await runtime.refreshState()) ?? runtime.getState();
+    const summary =
+        (await runtime.refreshState({ signal: request?.signal })) ??
+        runtime.getState();
     return summary === null ? { status: 'blocked' } : { status: 'ready', summary };
 };
 
@@ -226,7 +241,9 @@ export const rootAction = async (
             return {
                 intent,
                 ok: true,
-                passcode: await runtime.generatePasscode(),
+                passcode: await runtime.generatePasscode({
+                    signal: request.signal,
+                }),
             };
         } catch (error) {
             return {
@@ -238,12 +255,15 @@ export const rootAction = async (
     }
 
     if (intent === 'connect') {
-        const connected = await runtime.connect({
-            adminUrl: formString(formData, 'adminUrl'),
-            bootUrl: formString(formData, 'bootUrl'),
-            passcode: formString(formData, 'passcode'),
-            tier: appConfig.defaultTier,
-        });
+        const connected = await runtime.connect(
+            {
+                adminUrl: formString(formData, 'adminUrl'),
+                bootUrl: formString(formData, 'bootUrl'),
+                passcode: formString(formData, 'passcode'),
+                tier: appConfig.defaultTier,
+            },
+            { signal: request.signal }
+        );
 
         if (connected !== null) {
             return redirect(DEFAULT_APP_PATH);
@@ -297,7 +317,10 @@ export const identifiersAction = async (
         }
 
         try {
-            await runtime.createIdentifier(draft);
+            await runtime.createIdentifier(draft, {
+                signal: request.signal,
+                requestId,
+            });
             return {
                 intent,
                 ok: true,
@@ -317,7 +340,9 @@ export const identifiersAction = async (
     if (intent === 'rotate') {
         const aid = formString(formData, 'aid');
         try {
-            await runtime.rotateIdentifier(aid);
+            await runtime.rotateIdentifier(aid, {
+                signal: request.signal,
+            });
             return {
                 intent,
                 ok: true,

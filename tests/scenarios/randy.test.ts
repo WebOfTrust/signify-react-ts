@@ -7,6 +7,12 @@ import {
   uniqueAlias,
 } from '../support/keria';
 
+/*
+ * Randy identifier scenario.
+ *
+ * This verifies random-key inception, interaction, rotation, and the structural
+ * next-key relationship exposed by Signify/KERI event material.
+ */
 describe.sequential('randy identifiers', () => {
   it(
     'creates a randy identifier, interacts, rotates, and changes key material',

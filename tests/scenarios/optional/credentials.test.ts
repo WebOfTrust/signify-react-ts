@@ -9,10 +9,19 @@ import {
     uniqueAlias,
 } from '../../support/keria';
 
+/*
+ * Optional credential scenario.
+ *
+ * This is excluded from default CI because it needs schema/OOBI configuration
+ * beyond the local KERIA + witness stack.
+ */
 const schemaConfig = appConfig.schemas.sediVoterId;
 const hasCredentialConfig =
     schemaConfig.said !== null && schemaConfig.oobiUrl !== null;
 
+/**
+ * Narrow nullable fixture values after `it.skipIf` has guarded the scenario.
+ */
 const requiredValue = <T>(value: T | null | undefined, message: string): T => {
     if (value === undefined || value === null) {
         throw new Error(message);

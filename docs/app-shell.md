@@ -7,6 +7,8 @@ error boundaries live under `src/app`.
 
 Feature UI remains under `src/features/*`. Feature components render loader and
 action state; they do not construct Signify clients or own route registration.
+For the Effection, service, workflow, and Redux state layers behind
+`AppRuntime`, see [Workflow and state architecture](./workflow-state-architecture.md).
 
 ## Runtime Boundary
 

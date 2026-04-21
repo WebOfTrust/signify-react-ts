@@ -7,6 +7,12 @@ import {
   uniqueAlias,
 } from '../support/keria';
 
+/*
+ * Salty identifier scenario.
+ *
+ * This verifies the default deterministic identifier path, a multi-key salty
+ * inception, rotation, interaction, and key-event log growth.
+ */
 describe.sequential('salty identifiers', () => {
   it(
     'creates salty identifiers, rotates one, and records an interaction',

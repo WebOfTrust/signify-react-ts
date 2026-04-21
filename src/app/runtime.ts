@@ -1,23 +1,38 @@
+import type { Operation as EffectionOperation, Task } from 'effection';
 import type { SignifyClient } from 'signify-ts';
-import { appConfig } from '../config';
+import { appConfig, type AppConfig } from '../config';
+import { toErrorText } from '../effects/promise';
+import { AppEffectionScopes, type RuntimeScopeKind } from '../effects/scope';
 import type {
     IdentifierCreateDraft,
     IdentifierSummary,
 } from '../features/identifiers/identifierTypes';
 import {
-    identifierCreateDraftToArgs,
-    identifiersFromResponse,
-} from '../features/identifiers/identifierHelpers';
-import {
-    connectSignifyClient,
-    getSignifyState,
     toError,
-    waitOperation,
     type ConnectedSignifyClient,
+    type OperationLogger,
     type SignifyClientConfig,
     type SignifyStateSummary,
-    randomSignifyPasscode,
 } from '../signify/client';
+import {
+    cancelRunningOperations,
+    operationCanceled,
+    operationFailed,
+    operationStarted,
+    operationSucceeded,
+} from '../state/operations.slice';
+import { sessionDisconnected } from '../state/session.slice';
+import { appStore, type AppStore } from '../state/store';
+import {
+    createIdentifierOp,
+    listIdentifiersOp,
+    rotateIdentifierOp,
+} from '../workflows/identifiers.op';
+import {
+    bootOrConnectOp,
+    getSignifyStateOp,
+    randomPasscodeOp,
+} from '../workflows/signify.op';
 
 /**
  * Complete connection-state model for the app runtime.
@@ -63,6 +78,36 @@ export interface AppRuntimeSnapshot {
 export type AppRuntimeListener = () => void;
 
 /**
+ * Optional dependencies for constructing an isolated app runtime.
+ */
+export interface AppRuntimeOptions {
+    /** Store instance; tests pass isolated stores, browser uses singleton. */
+    store?: AppStore;
+    /** Runtime config; tests may pass fixture config, browser uses app config. */
+    config?: AppConfig;
+    /** Optional logger called during KERIA operation waits. */
+    logger?: OperationLogger;
+}
+
+/**
+ * Per-call workflow controls used by route loaders/actions.
+ */
+export interface WorkflowRunOptions {
+    /** Abort signal from React Router request or caller-owned cancellation. */
+    signal?: AbortSignal;
+    /** Stable id for operation tracking; generated when omitted. */
+    requestId?: string;
+    /** User-facing pending label stored in the operations slice. */
+    label?: string;
+    /** Machine-readable operation category for diagnostics. */
+    kind?: string;
+    /** Effection scope lifetime for the launched workflow. */
+    scope?: RuntimeScopeKind;
+    /** Whether to write operation lifecycle records into Redux. */
+    track?: boolean;
+}
+
+/**
  * Initial disconnected runtime state.
  *
  * Reuse this immutable value when clearing a session so idle semantics stay
@@ -77,6 +122,34 @@ const idleConnection: SignifyConnectionState = {
 };
 
 /**
+ * Create a request id for operation tracking when a route does not supply one.
+ */
+const createRequestId = (): string =>
+    globalThis.crypto?.randomUUID?.() ??
+    `workflow-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+/**
+ * Recognize cancellation failures from router aborts and Effection halts.
+ */
+const isHaltedOrAborted = (error: unknown, signal?: AbortSignal): boolean =>
+    signal?.aborted === true ||
+    (error instanceof Error &&
+        (error.name === 'AbortError' || error.message === 'halted'));
+
+/**
+ * Convert an optional abort signal into a standard AbortError.
+ */
+const abortError = (signal?: AbortSignal): Error => {
+    if (signal?.reason instanceof Error) {
+        return signal.reason;
+    }
+
+    const error = new Error('Operation canceled.');
+    error.name = 'AbortError';
+    return error;
+};
+
+/**
  * Data-router-safe Signify session and command boundary.
  *
  * React Router loaders and actions cannot call React hooks, so all KERIA-backed
@@ -85,6 +158,14 @@ const idleConnection: SignifyConnectionState = {
  * actions, route loaders, and visible shell state on one source of truth.
  */
 export class AppRuntime {
+    private readonly store: AppStore;
+
+    private readonly config: AppConfig;
+
+    private readonly scopes: AppEffectionScopes;
+
+    private readonly activeTasks = new Map<string, Task<unknown>>();
+
     /**
      * Current runtime snapshot exposed to React and route functions.
      */
@@ -96,6 +177,19 @@ export class AppRuntime {
      * React/store subscribers notified after every snapshot replacement.
      */
     private readonly listeners = new Set<AppRuntimeListener>();
+
+    constructor(options: AppRuntimeOptions = {}) {
+        this.store = options.store ?? appStore;
+        this.config = options.config ?? appConfig;
+        const logger = options.logger ?? (() => undefined);
+
+        this.scopes = new AppEffectionScopes({
+            runtime: this,
+            config: this.config,
+            store: this.store,
+            logger,
+        });
+    }
 
     /**
      * Subscribe to runtime snapshot changes.
@@ -145,7 +239,8 @@ export class AppRuntime {
      * instead of throwing into the app error boundary.
      */
     connect = async (
-        config: SignifyClientConfig
+        config: SignifyClientConfig,
+        options: WorkflowRunOptions = {}
     ): Promise<ConnectedSignifyClient | null> => {
         this.setConnection({
             status: 'connecting',
@@ -156,7 +251,16 @@ export class AppRuntime {
         });
 
         try {
-            const connected = await connectSignifyClient(config);
+            const connected = await this.runWorkflow(
+                () => bootOrConnectOp(config),
+                {
+                    ...options,
+                    label: options.label ?? 'Connecting to KERIA...',
+                    kind: options.kind ?? 'connect',
+                    scope: 'app',
+                }
+            );
+            await this.scopes.startSession();
             this.setConnection({
                 status: 'connected',
                 client: connected.client,
@@ -182,24 +286,48 @@ export class AppRuntime {
      * Clear the connected session without making network calls.
      */
     disconnect = (): void => {
+        this.store.dispatch(
+            cancelRunningOperations({
+                reason: 'Session disconnected.',
+            })
+        );
+        void this.scopes.haltSession();
+        this.store.dispatch(sessionDisconnected());
         this.setConnection(idleConnection);
     };
 
     /**
      * Generate a Signify passcode through the shared client boundary.
      */
-    generatePasscode = async (): Promise<string> => randomSignifyPasscode();
+    generatePasscode = async (
+        options: WorkflowRunOptions = {}
+    ): Promise<string> =>
+        this.runWorkflow(() => randomPasscodeOp(), {
+            ...options,
+            label: options.label ?? 'Preparing Signify...',
+            kind: options.kind ?? 'generatePasscode',
+            scope: 'app',
+        });
 
     /**
      * Refresh normalized KERIA agent/controller state for the connected client.
      */
-    refreshState = async (): Promise<SignifyStateSummary | null> => {
+    refreshState = async (
+        options: WorkflowRunOptions = {}
+    ): Promise<SignifyStateSummary | null> => {
         const connection = this.snapshot.connection;
         if (connection.status !== 'connected') {
             return null;
         }
 
-        const state = await getSignifyState(connection.client);
+        const state = await this.runWorkflow(
+            () => getSignifyStateOp(connection.client),
+            {
+                ...options,
+                label: options.label ?? 'Refreshing client state...',
+                kind: options.kind ?? 'refreshState',
+            }
+        );
         this.setConnection({
             ...connection,
             state,
@@ -211,46 +339,145 @@ export class AppRuntime {
      * List identifiers through the connected Signify client and normalize the
      * response shape for route loader consumers.
      */
-    listIdentifiers = async (): Promise<IdentifierSummary[]> => {
-        const client = this.requireClient();
-        return identifiersFromResponse(await client.identifiers().list());
-    };
+    listIdentifiers = async (
+        options: WorkflowRunOptions = {}
+    ): Promise<IdentifierSummary[]> =>
+        this.runWorkflow(() => listIdentifiersOp(), {
+            ...options,
+            label: options.label ?? 'Loading identifiers...',
+            kind: options.kind ?? 'listIdentifiers',
+        });
 
     /**
      * Create an identifier, wait for the resulting KERIA operation, then return
      * a freshly loaded identifier list for router revalidation callers.
      */
     createIdentifier = async (
-        draft: IdentifierCreateDraft
+        draft: IdentifierCreateDraft,
+        options: WorkflowRunOptions = {}
     ): Promise<IdentifierSummary[]> => {
-        const client = this.requireClient();
-        const name = draft.name.trim();
-        const args = identifierCreateDraftToArgs(draft, appConfig);
-        const identifierClient = client.identifiers();
-        const result = await identifierClient.create(name, args);
-        const operation = await result.op();
-
-        await waitOperation(client, operation, {
-            label: `creating identifier ${name}`,
+        return this.runWorkflow(() => createIdentifierOp(draft), {
+            ...options,
+            label: options.label ?? 'Creating identifier...',
+            kind: options.kind ?? 'createIdentifier',
         });
-
-        return this.listIdentifiers();
     };
 
     /**
      * Rotate an identifier, wait for completion, then return a freshly loaded
      * identifier list for router revalidation callers.
      */
-    rotateIdentifier = async (aid: string): Promise<IdentifierSummary[]> => {
-        const client = this.requireClient();
-        const result = await client.identifiers().rotate(aid, {});
-        const operation = await result.op();
-
-        await waitOperation(client, operation, {
-            label: `rotating identifier ${aid}`,
+    rotateIdentifier = async (
+        aid: string,
+        options: WorkflowRunOptions = {}
+    ): Promise<IdentifierSummary[]> => {
+        return this.runWorkflow(() => rotateIdentifierOp(aid), {
+            ...options,
+            label: options.label ?? 'Rotating identifier...',
+            kind: options.kind ?? 'rotateIdentifier',
         });
+    };
 
-        return this.listIdentifiers();
+    /**
+     * Bridge React Router's Promise-facing APIs into Effection operations.
+     *
+     * Routes call this indirectly through runtime methods. The runtime owns
+     * task handles, route abort wiring, and serializable operation lifecycle
+     * facts; workflow files own the actual Signify/KERIA unit of work.
+     */
+    runWorkflow = async <T>(
+        operation: () => EffectionOperation<T>,
+        options: WorkflowRunOptions = {}
+    ): Promise<T> => {
+        const requestId = options.requestId ?? createRequestId();
+        const shouldTrack = options.track ?? options.label !== undefined;
+
+        if (shouldTrack) {
+            this.store.dispatch(
+                operationStarted({
+                    requestId,
+                    label: options.label ?? 'Loading...',
+                    kind: options.kind ?? 'workflow',
+                })
+            );
+        }
+
+        const task = this.scopes.run(operation, options.scope ?? 'session');
+        this.activeTasks.set(requestId, task);
+
+        let aborted = false;
+        let rejectAbort: ((error: Error) => void) | null = null;
+        const abortPromise = new Promise<never>((_, reject) => {
+            rejectAbort = reject;
+        });
+        const haltTask = () => {
+            if (aborted) {
+                return;
+            }
+
+            aborted = true;
+            void task.halt();
+            rejectAbort?.(abortError(options.signal));
+        };
+
+        if (options.signal?.aborted) {
+            haltTask();
+        } else {
+            options.signal?.addEventListener('abort', haltTask, { once: true });
+        }
+
+        try {
+            const result = await (options.signal === undefined
+                ? task
+                : Promise.race([task, abortPromise]));
+            if (shouldTrack) {
+                this.store.dispatch(operationSucceeded({ requestId }));
+            }
+            return result;
+        } catch (error) {
+            if (isHaltedOrAborted(error, options.signal) || aborted) {
+                if (shouldTrack) {
+                    this.store.dispatch(
+                        operationCanceled({
+                            requestId,
+                            reason: 'Operation canceled.',
+                        })
+                    );
+                }
+            } else if (shouldTrack) {
+                this.store.dispatch(
+                    operationFailed({
+                        requestId,
+                        error: toErrorText(error),
+                    })
+                );
+            }
+
+            throw error;
+        } finally {
+            options.signal?.removeEventListener('abort', haltTask);
+            this.activeTasks.delete(requestId);
+        }
+    };
+
+    /**
+     * Halt app-owned Effection work during React unmount, HMR, or page teardown.
+     */
+    destroy = async (): Promise<void> => {
+        this.store.dispatch(
+            cancelRunningOperations({
+                reason: 'App runtime destroyed.',
+            })
+        );
+
+        for (const task of this.activeTasks.values()) {
+            await task.halt();
+        }
+        this.activeTasks.clear();
+
+        await this.scopes.destroy();
+        this.store.dispatch(sessionDisconnected());
+        this.setConnection(idleConnection);
     };
 
     /**
@@ -260,7 +487,7 @@ export class AppRuntime {
      * connection state. Keeping the guard here prevents future callers from
      * bypassing route-level gating and silently operating on `null`.
      */
-    private requireClient = (): SignifyClient => {
+    requireConnectedClient = (): SignifyClient => {
         const client = this.getClient();
         if (client === null) {
             throw new Error('A connected Signify client is required.');
@@ -286,4 +513,5 @@ export class AppRuntime {
 /**
  * Create the one runtime instance used by the browser data router.
  */
-export const createAppRuntime = (): AppRuntime => new AppRuntime();
+export const createAppRuntime = (options?: AppRuntimeOptions): AppRuntime =>
+    new AppRuntime(options);

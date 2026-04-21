@@ -9,6 +9,8 @@ import { derivePendingState } from './pendingState';
 import { LoadingOverlay } from './LoadingOverlay';
 import { NavigationDrawer } from './NavigationDrawer';
 import { TopBar } from './TopBar';
+import { useAppSelector } from '../state/hooks';
+import { selectLatestActiveOperationLabel } from '../state/selectors';
 
 export interface RootLayoutProps {
     /** Runtime instance injected into the data-router route tree. */
@@ -29,11 +31,13 @@ const RootLayoutContent = () => {
     const navigation = useNavigation();
     const fetchers = useFetchers();
     const { connection } = useAppSession();
+    const activeOperationLabel = useAppSelector(selectLatestActiveOperationLabel);
     const connectDialogOpen = connectOpen && connection.status !== 'connected';
     const pending = derivePendingState({
         navigation,
         fetchers,
         connectionStatus: connection.status,
+        activeOperationLabel,
     });
 
     return (

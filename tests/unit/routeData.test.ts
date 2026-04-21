@@ -139,7 +139,8 @@ describe('route actions', () => {
                 adminUrl: 'http://admin.example',
                 bootUrl: 'http://boot.example',
                 passcode: '0123456789abcdefghijk',
-            })
+            }),
+            expect.objectContaining({ signal: expect.any(AbortSignal) })
         );
     });
 
@@ -182,7 +183,9 @@ describe('route actions', () => {
             ok: true,
             passcode: 'abcdefghijklmnopqrstu',
         });
-        expect(runtime.generatePasscode).toHaveBeenCalledOnce();
+        expect(runtime.generatePasscode).toHaveBeenCalledWith(
+            expect.objectContaining({ signal: expect.any(AbortSignal) })
+        );
     });
 
     it('creates identifiers through the identifiers action', async () => {
@@ -207,7 +210,13 @@ describe('route actions', () => {
             message: 'Created identifier alice',
             requestId: 'create-request-1',
         });
-        expect(runtime.createIdentifier).toHaveBeenCalledWith(draft);
+        expect(runtime.createIdentifier).toHaveBeenCalledWith(
+            draft,
+            expect.objectContaining({
+                signal: expect.any(AbortSignal),
+                requestId: 'create-request-1',
+            })
+        );
     });
 
     it('returns typed create action errors for malformed drafts', async () => {
@@ -246,7 +255,10 @@ describe('route actions', () => {
             ok: true,
             message: 'Rotated identifier alice',
         });
-        expect(runtime.rotateIdentifier).toHaveBeenCalledWith('alice');
+        expect(runtime.rotateIdentifier).toHaveBeenCalledWith(
+            'alice',
+            expect.objectContaining({ signal: expect.any(AbortSignal) })
+        );
     });
 
     it('returns typed identifier action errors while disconnected', async () => {
