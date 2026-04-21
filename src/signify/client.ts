@@ -57,19 +57,82 @@ export interface ConnectOptions {
   bootIfMissing?: boolean;
 }
 
+export type OperationLogEvent =
+  | {
+      status: 'start';
+      label: string;
+      operationName: string;
+      elapsedMs: number;
+    }
+  | {
+      status: 'success';
+      label: string;
+      operationName: string;
+      elapsedMs: number;
+    }
+  | {
+      status: 'failure';
+      label: string;
+      operationName: string;
+      elapsedMs: number;
+      error: Error;
+    };
+
+export type OperationLogger = (event: OperationLogEvent) => void;
+
 export interface WaitOperationOptions extends Partial<OperationConfig> {
   /** Human-readable phase included in timeout/failure messages. */
-  label?: string;
+  label: string;
   /** Optional caller cancellation signal, composed with the timeout signal. */
   signal?: AbortSignal;
+  /** Optional structured operation logger. Defaults to no logging. */
+  logger?: OperationLogger;
 }
 
 const isMissingAgentError = (error: unknown): boolean =>
   error instanceof Error && error.message.includes('agent does not exist');
 
-const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
+export const toError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error));
 
+/**
+ * Minimal shape consumed by `waitOperation`.
+ *
+ * This is deliberately narrower than `SignifyClient`: the helper does not wrap
+ * or reinterpret KERIA operations, and it must not grow into a parallel
+ * operation model. Signify's own `operations().wait(...)` remains the authority
+ * for polling, dependency operations, completed-operation typing, and operation
+ * failure payloads.
+ *
+ * The structural interface gives tests a small fake client without requiring a
+ * booted KERIA agent, while production callers still pass a real
+ * `SignifyClient`. If this interface starts accumulating methods beyond
+ * `operations().wait`, that is a sign the boundary is doing too much.
+ */
+interface OperationWaiter {
+  wait(
+    operation: Operation,
+    options: {
+      signal?: AbortSignal;
+      minSleep?: number;
+      maxSleep?: number;
+    }
+  ): Promise<CompletedOperation>;
+}
+
+interface OperationWaitClient {
+  operations(): OperationWaiter;
+}
+
+/**
+ * Compose the app-level timeout with an optional caller cancellation signal.
+ *
+ * Signify accepts a single `AbortSignal` for operation waits. The app needs two
+ * cancellation sources with consistent cleanup: a configured upper bound so
+ * waits cannot hang forever, and an optional caller signal for UI unmounts or
+ * explicit cancellation. This helper creates the one signal Signify expects and
+ * removes listeners/timers after every success or failure path.
+ */
 const combineWithTimeout = (
   timeoutMs: number,
   signal?: AbortSignal
@@ -198,32 +261,69 @@ export const connectSignifyClient = async (
 /**
  * Wait for a long-running KERIA operation with app defaults and useful errors.
  *
- * Signify already handles dependency operations and failed operation payloads.
- * This wrapper adds a timeout, supports caller cancellation, and prefixes
- * errors with the logical phase that was running. Always use this for KERIA
- * operations in app or scenario code; do not add ad hoc operation polling loops.
+ * This is intentionally a thin policy layer over Signify's
+ * `client.operations().wait(op, options)`. It does not inspect operation
+ * internals, poll manually, decide when an operation is complete, or change the
+ * completed operation returned by Signify.
+ *
+ * What the layer adds:
+ * - app-wide timeout defaults so no call site can wait indefinitely;
+ * - composition of timeout and caller abort signals into Signify's one signal;
+ * - required human labels so UI/test failures name the phase that was running;
+ * - operation name and elapsed time in every standardized failure message;
+ * - optional structured logging for consistent start/success/failure telemetry;
+ * - preserved original error causes for debugging.
+ *
+ * Always use this for KERIA operations in app or scenario code. Do not add
+ * manual `operations().get` polling loops or local done/error interpretation.
  */
-export const waitForOperation = async (
-  client: SignifyClient,
+export const waitOperation = async (
+  client: OperationWaitClient,
   op: Operation,
-  options: WaitOperationOptions = {}
+  options: WaitOperationOptions
 ): Promise<CompletedOperation> => {
   const timeoutMs = options.timeoutMs ?? appConfig.operations.timeoutMs;
   const minSleepMs = options.minSleepMs ?? appConfig.operations.minSleepMs;
   const maxSleepMs = options.maxSleepMs ?? appConfig.operations.maxSleepMs;
   const { signal, cleanup } = combineWithTimeout(timeoutMs, options.signal);
+  const startedAt = Date.now();
+  const operationName = op.name;
+  const elapsedMs = () => Date.now() - startedAt;
+
+  options.logger?.({
+    status: 'start',
+    label: options.label,
+    operationName,
+    elapsedMs: 0,
+  });
 
   try {
-    return await client.operations().wait(op, {
+    const completed = await client.operations().wait(op, {
       signal,
       minSleep: minSleepMs,
       maxSleep: maxSleepMs,
     });
+    options.logger?.({
+      status: 'success',
+      label: options.label,
+      operationName,
+      elapsedMs: elapsedMs(),
+    });
+    return completed;
   } catch (error) {
-    const prefix = options.label
-      ? `Operation failed while ${options.label}`
-      : 'Operation failed';
-    throw new Error(`${prefix}: ${errorMessage(error)}`, { cause: error });
+    const normalized = toError(error);
+    const elapsed = elapsedMs();
+    options.logger?.({
+      status: 'failure',
+      label: options.label,
+      operationName,
+      elapsedMs: elapsed,
+      error: normalized,
+    });
+    throw new Error(
+      `Operation failed while ${options.label} [operation=${operationName}, elapsed=${elapsed}ms]: ${normalized.message}`,
+      { cause: error }
+    );
   } finally {
     cleanup();
   }

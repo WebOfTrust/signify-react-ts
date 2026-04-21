@@ -2,7 +2,7 @@ import { appConfig, type AppConfig } from '../../src/config';
 import {
   connectSignifyClient,
   randomSignifyPasscode,
-  waitForOperation,
+  waitOperation,
   type SignifyClientConfig,
 } from '../../src/signify/client';
 
@@ -106,7 +106,7 @@ export const runClientBoundarySmoke = async (
     wits: config.witnesses.aids,
   });
   const operation = await createResult.op();
-  const completedOperation = await waitForOperation(
+  const completedOperation = await waitOperation(
     connected.client,
     operation,
     {
