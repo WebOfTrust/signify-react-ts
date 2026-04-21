@@ -30,7 +30,8 @@ export const TopBar = ({
         <Toolbar
             sx={{
                 display: 'flex',
-                justifyContent: 'space-between',
+                gap: { xs: 1, sm: 2 },
+                minWidth: 0,
             }}
         >
             <IconButton
@@ -42,10 +43,25 @@ export const TopBar = ({
             >
                 <MenuIcon />
             </IconButton>
-            <Typography variant="h6">Signify Client</Typography>
+            <Typography
+                variant="h6"
+                noWrap
+                sx={{
+                    flex: '1 1 auto',
+                    minWidth: 0,
+                }}
+            >
+                Signify Client
+            </Typography>
             <Button
                 color="inherit"
-                sx={{ marginLeft: 'auto' }}
+                aria-label={isConnected ? 'Connected' : 'Connect'}
+                sx={{
+                    flex: '0 0 auto',
+                    minWidth: { xs: 44, sm: 64 },
+                    px: { xs: 1, sm: 2 },
+                    gap: 0.75,
+                }}
                 onClick={onConnectClick}
                 data-testid="connect-open"
             >
@@ -54,7 +70,12 @@ export const TopBar = ({
                         color: isConnected ? 'green' : 'red',
                     }}
                 />
-                Connect
+                <Typography
+                    component="span"
+                    sx={{ display: { xs: 'none', sm: 'inline' } }}
+                >
+                    Connect
+                </Typography>
             </Button>
         </Toolbar>
     </AppBar>

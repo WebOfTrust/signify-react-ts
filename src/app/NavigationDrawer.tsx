@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
-import { Drawer, List, ListItem, ListItemText } from '@mui/material';
+import { Drawer, List, ListItemButton, ListItemText } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { APP_NAV_ITEMS } from './router';
 
@@ -32,11 +32,21 @@ export const NavigationDrawer = ({ open, onClose }: NavigationDrawerProps) => {
     };
 
     return (
-        <Drawer open={open} onClose={onClose}>
+        <Drawer
+            open={open}
+            onClose={onClose}
+            slotProps={{
+                paper: {
+                    sx: {
+                        width: 'min(80vw, 280px)',
+                    },
+                },
+            }}
+        >
             <div role="presentation" onKeyDown={handleKeyDown}>
                 <List>
                     {APP_NAV_ITEMS.map((view) => (
-                        <ListItem
+                        <ListItemButton
                             key={view.routeId}
                             onClick={() => {
                                 navigate(view.path);
@@ -45,7 +55,7 @@ export const NavigationDrawer = ({ open, onClose }: NavigationDrawerProps) => {
                             data-testid={view.testId}
                         >
                             <ListItemText primary={view.label} />
-                        </ListItem>
+                        </ListItemButton>
                     ))}
                 </List>
             </div>

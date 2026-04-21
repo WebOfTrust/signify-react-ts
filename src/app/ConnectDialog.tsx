@@ -15,7 +15,6 @@ import {
 } from '@mui/material';
 import { useFetcher } from 'react-router-dom';
 import { appConfig, type ConnectionOption } from '../config';
-import { randomSignifyPasscode } from '../signify/client';
 import type { RootActionData } from './routeData';
 import type { SignifyConnectionState } from './runtime';
 
@@ -61,21 +60,37 @@ const connectionStatusLabel = (connection: SignifyConnectionState): string => {
  * Modal form for selecting a configured KERIA target and passcode.
  *
  * Stable `data-testid` values here are part of the browser-smoke contract. The
- * passcode generator goes through `randomSignifyPasscode` so Signify WASM
- * readiness stays centralized in the client boundary.
+ * passcode generation goes through the root route action so Signify WASM
+ * readiness participates in the app-wide pending overlay.
  */
 export const ConnectDialog = ({
     open,
     connection,
     onClose,
 }: ConnectDialogProps) => {
-    const fetcher = useFetcher<RootActionData>();
+    const connectFetcher = useFetcher<RootActionData>();
+    const passcodeFetcher = useFetcher<RootActionData>();
     const [selectedConnection, setSelectedConnection] =
         useState<ConnectionOption>(appConfig.connectionOptions[0]);
-    const [passcode, setPasscode] = useState('');
+    const [draftPasscode, setDraftPasscode] = useState<string | null>(null);
     const isConnected = connection.status === 'connected';
     const isSubmitting =
-        connection.status === 'connecting' || fetcher.state !== 'idle';
+        connection.status === 'connecting' || connectFetcher.state !== 'idle';
+    const isGenerating = passcodeFetcher.state !== 'idle';
+    const generatedPasscode =
+        passcodeFetcher.data?.intent === 'generatePasscode' &&
+        passcodeFetcher.data.ok
+            ? passcodeFetcher.data.passcode
+            : null;
+    const passcode = draftPasscode ?? generatedPasscode ?? '';
+    const actionError =
+        connection.status === 'error'
+            ? connection.error.message
+            : connectFetcher.data?.ok === false
+              ? connectFetcher.data.message
+              : passcodeFetcher.data?.ok === false
+                ? passcodeFetcher.data.message
+                : null;
 
     const handleConnect = () => {
         const formData = new FormData();
@@ -83,13 +98,34 @@ export const ConnectDialog = ({
         formData.set('adminUrl', selectedConnection.adminUrl);
         formData.set('bootUrl', selectedConnection.bootUrl);
         formData.set('passcode', passcode);
-        fetcher.submit(formData, { method: 'post', action: '/' });
+        connectFetcher.submit(formData, { method: 'post', action: '/' });
+    };
+
+    const handleGeneratePasscode = () => {
+        const formData = new FormData();
+        formData.set('intent', 'generatePasscode');
+        setDraftPasscode(null);
+        passcodeFetcher.submit(formData, { method: 'post', action: '/' });
     };
 
     return (
-        <Dialog open={open} onClose={onClose} data-testid="connect-dialog">
+        <Dialog
+            open={open}
+            onClose={onClose}
+            data-testid="connect-dialog"
+            fullWidth
+            maxWidth="sm"
+            slotProps={{
+                paper: {
+                    sx: {
+                        m: { xs: 2, sm: 4 },
+                        width: { xs: 'calc(100% - 32px)', sm: '100%' },
+                    },
+                },
+            }}
+        >
             <DialogTitle>Connect</DialogTitle>
-            <DialogContent>
+            <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
                 <Stack spacing={3}>
                     <Autocomplete
                         id="combo-box-demo"
@@ -104,7 +140,6 @@ export const ConnectDialog = ({
                         renderInput={(params) => (
                             <TextField {...params} fullWidth />
                         )}
-                        sx={{ width: 300 }}
                         value={selectedConnection}
                         fullWidth
                         onChange={(_event, newValue) => {
@@ -113,7 +148,7 @@ export const ConnectDialog = ({
                             );
                         }}
                     />
-                    <Stack direction="row" spacing={2}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <TextField
                             id="outlined-password-input"
                             label="Passcode"
@@ -122,24 +157,27 @@ export const ConnectDialog = ({
                             variant="outlined"
                             value={passcode}
                             onChange={(event) =>
-                                setPasscode(event.target.value)
+                                setDraftPasscode(event.target.value)
                             }
                             helperText="Passcode must be at least 21 characters"
+                            fullWidth
                         />
                         <Button
                             variant="contained"
                             color="primary"
                             data-testid="generate-passcode"
-                            onClick={async () =>
-                                setPasscode(await randomSignifyPasscode())
-                            }
+                            disabled={isSubmitting || isGenerating}
+                            onClick={handleGeneratePasscode}
                             sx={{
-                                padding: '4px',
-                                height: '40px',
-                                marginTop: '10px',
+                                alignSelf: {
+                                    xs: 'stretch',
+                                    sm: 'flex-start',
+                                },
+                                minHeight: 40,
+                                mt: { xs: 0, sm: 1 },
                             }}
                         >
-                            Create
+                            {isGenerating ? 'Creating...' : 'Create'}
                         </Button>
                     </Stack>
 
@@ -147,20 +185,19 @@ export const ConnectDialog = ({
                         variant="contained"
                         color="primary"
                         data-testid="connect-submit"
-                        disabled={isSubmitting || passcode.length < 21}
+                        disabled={
+                            isSubmitting || isGenerating || passcode.length < 21
+                        }
                         onClick={handleConnect}
                     >
                         {isSubmitting ? 'Connecting...' : 'Connect'}
                     </Button>
-                    {(connection.status === 'error' ||
-                        fetcher.data?.ok === false) && (
+                    {actionError !== null && (
                         <Typography
                             color="error"
                             data-testid="connection-error"
                         >
-                            {connection.status === 'error'
-                                ? connection.error.message
-                                : fetcher.data?.message}
+                            {actionError}
                         </Typography>
                     )}
                 </Stack>
@@ -168,8 +205,8 @@ export const ConnectDialog = ({
             <Box sx={{ mt: 2 }}>
                 <Divider />
             </Box>
-            <DialogActions>
-                <Grid container spacing={2}>
+            <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: 2 }}>
+                <Grid container spacing={2} sx={{ width: '100%' }}>
                     <Grid size={12}>
                         <Button
                             fullWidth

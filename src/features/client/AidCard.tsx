@@ -17,7 +17,7 @@ export interface AidCardProps {
  * to the raw key. State extraction belongs in `ClientView`.
  */
 export const AidCard = ({ data, text }: AidCardProps) => (
-    <Card sx={{ maxWidth: 545, marginX: 4 }}>
+    <Card sx={{ width: '100%', height: '100%' }}>
         <CardContent>
             <Typography variant="h6" component="div" gutterBottom>
                 {text}
@@ -31,6 +31,7 @@ export const AidCard = ({ data, text }: AidCardProps) => (
                                 variant="subtitle1"
                                 gutterBottom
                                 align="left"
+                                sx={{ overflowWrap: 'anywhere' }}
                             >
                                 <strong>
                                     {keyStateFieldDescriptions[key]?.title ??

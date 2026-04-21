@@ -15,6 +15,7 @@ import {
     type ConnectedSignifyClient,
     type SignifyClientConfig,
     type SignifyStateSummary,
+    randomSignifyPasscode,
 } from '../signify/client';
 
 /**
@@ -182,6 +183,11 @@ export class AppRuntime {
     disconnect = (): void => {
         this.setConnection(idleConnection);
     };
+
+    /**
+     * Generate a Signify passcode through the shared client boundary.
+     */
+    generatePasscode = async (): Promise<string> => randomSignifyPasscode();
 
     /**
      * Refresh normalized KERIA agent/controller state for the connected client.

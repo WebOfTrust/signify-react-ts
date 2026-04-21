@@ -23,19 +23,29 @@ export const ClientView = () => {
     const controller = summary.state.controller.state;
 
     return (
-        <>
-            <Box sx={{ p: 2 }} data-testid="client-summary">
-                <Typography data-testid="controller-aid">
+        <Box sx={{ display: 'grid', gap: 2 }}>
+            <Box data-testid="client-summary">
+                <Typography
+                    data-testid="controller-aid"
+                    sx={{ overflowWrap: 'anywhere' }}
+                >
                     Controller AID: {summary.controllerPre}
                 </Typography>
-                <Typography data-testid="agent-aid">
+                <Typography
+                    data-testid="agent-aid"
+                    sx={{ overflowWrap: 'anywhere' }}
+                >
                     Agent AID: {summary.agentPre}
                 </Typography>
             </Box>
-            <Grid container>
-                <AidCard data={agent} text="Agent" />
-                <AidCard data={controller} text="Controller" />
+            <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                    <AidCard data={agent} text="Agent" />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                    <AidCard data={controller} text="Controller" />
+                </Grid>
             </Grid>
-        </>
+        </Box>
     );
 };

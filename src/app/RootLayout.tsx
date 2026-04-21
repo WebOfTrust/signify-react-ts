@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Box } from '@mui/material';
+import { Outlet, useFetchers, useNavigation } from 'react-router-dom';
 import type { AppRuntime } from './runtime';
 import { useAppSession } from './runtimeHooks';
 import { AppRuntimeProvider } from './runtimeContext';
 import { ConnectDialog } from './ConnectDialog';
+import { derivePendingState } from './pendingState';
+import { LoadingOverlay } from './LoadingOverlay';
 import { NavigationDrawer } from './NavigationDrawer';
 import { TopBar } from './TopBar';
 
@@ -23,12 +26,24 @@ export interface RootLayoutProps {
 const RootLayoutContent = () => {
     const [connectOpen, setConnectOpen] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const navigation = useNavigation();
+    const fetchers = useFetchers();
     const { connection } = useAppSession();
-    const connectDialogOpen =
-        connectOpen && connection.status !== 'connected';
+    const connectDialogOpen = connectOpen && connection.status !== 'connected';
+    const pending = derivePendingState({
+        navigation,
+        fetchers,
+        connectionStatus: connection.status,
+    });
 
     return (
-        <div>
+        <Box
+            sx={{
+                minHeight: '100dvh',
+                bgcolor: 'background.default',
+                color: 'text.primary',
+            }}
+        >
             <TopBar
                 isConnected={connection.status === 'connected'}
                 onMenuClick={() => setDrawerOpen(true)}
@@ -43,8 +58,27 @@ const RootLayoutContent = () => {
                 connection={connection}
                 onClose={() => setConnectOpen(false)}
             />
-            <Outlet />
-        </div>
+            <LoadingOverlay
+                active={pending.active}
+                label={pending.label}
+                source={pending.source}
+            />
+            <Box
+                component="main"
+                sx={{
+                    minHeight: '100dvh',
+                    overflowX: 'clip',
+                    px: { xs: 2, sm: 3 },
+                    pt: { xs: 'calc(56px + 16px)', sm: 'calc(64px + 24px)' },
+                    pb: {
+                        xs: 'calc(88px + env(safe-area-inset-bottom))',
+                        sm: 3,
+                    },
+                }}
+            >
+                <Outlet />
+            </Box>
+        </Box>
     );
 };
 

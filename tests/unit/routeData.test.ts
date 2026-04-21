@@ -49,6 +49,7 @@ const makeRuntime = (
     getClient: vi.fn(() => ({ url: 'http://keria.example' })),
     getState: vi.fn(() => summary),
     connect: vi.fn(async () => ({ state: summary } as ConnectedSignifyClient)),
+    generatePasscode: vi.fn(async () => '0123456789abcdefghijk'),
     refreshState: vi.fn(async () => summary),
     listIdentifiers: vi.fn(async () => [
         { name: 'alice', prefix: 'Ealice' } as IdentifierSummary,
@@ -161,6 +162,26 @@ describe('route actions', () => {
             ok: false,
             message: 'Unable to connect to KERIA with the supplied passcode.',
         });
+    });
+
+    it('generates passcodes through the root action', async () => {
+        const runtime = makeRuntime({
+            generatePasscode: vi.fn(async () => 'abcdefghijklmnopqrstu'),
+        });
+
+        await expect(
+            rootAction(
+                runtime,
+                makeRequest('/', {
+                    intent: 'generatePasscode',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'generatePasscode',
+            ok: true,
+            passcode: 'abcdefghijklmnopqrstu',
+        });
+        expect(runtime.generatePasscode).toHaveBeenCalledOnce();
     });
 
     it('creates identifiers through the identifiers action', async () => {

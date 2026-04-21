@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react';
 import {
-    Box,
     Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     FormControl,
     IconButton,
     InputLabel,
     MenuItem,
-    Modal,
     Select,
+    Stack,
     TextField,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -58,9 +61,8 @@ export const IdentifierCreateDialog = ({
     const [dynamicFields, setDynamicFields] = useState<
         DynamicIdentifierFieldRow[]
     >([]);
-    const [selectedField, setSelectedField] = useState<
-        IdentifierCreateField | null
-    >(null);
+    const [selectedField, setSelectedField] =
+        useState<IdentifierCreateField | null>(null);
     const nextDynamicFieldId = useRef(0);
 
     const handleComplete = () => {
@@ -99,96 +101,118 @@ export const IdentifierCreateDialog = ({
     };
 
     const removeField = (id: number) => {
-        setDynamicFields((fields) =>
-            fields.filter((field) => field.id !== id)
-        );
+        setDynamicFields((fields) => fields.filter((field) => field.id !== id));
     };
 
     return (
-        <Modal open={open} onClose={onClose}>
-            <Box
+        <Dialog
+            open={open}
+            onClose={onClose}
+            fullWidth
+            maxWidth="sm"
+            slotProps={{
+                paper: {
+                    sx: {
+                        m: { xs: 2, sm: 4 },
+                        width: { xs: 'calc(100% - 32px)', sm: '100%' },
+                    },
+                },
+            }}
+        >
+            <DialogTitle>Create Identifier</DialogTitle>
+            <DialogContent dividers>
+                <Stack spacing={2}>
+                    <FormControl fullWidth margin="normal">
+                        <Select value={type} onChange={handleTypeChange}>
+                            <MenuItem value={Algos.salty}>Salty</MenuItem>
+                            <MenuItem value={Algos.randy}>Randy</MenuItem>
+                            <MenuItem value={Algos.group}>Group</MenuItem>
+                        </Select>
+                    </FormControl>
+                    <TextField
+                        label="Name"
+                        placeholder="Enter name"
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                        fullWidth
+                        margin="normal"
+                        variant="outlined"
+                    />
+                    <FormControl fullWidth margin="normal">
+                        <InputLabel id="identifier-create-field-label">
+                            Field
+                        </InputLabel>
+                        <Select
+                            labelId="identifier-create-field-label"
+                            value={selectedField ?? ''}
+                            onChange={handleFieldChange}
+                        >
+                            {IDENTIFIER_CREATE_FIELDS.map((field) => (
+                                <MenuItem key={field} value={field}>
+                                    {field}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                    {dynamicFields.map(({ id, field, value }) => (
+                        <Stack
+                            key={id}
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1}
+                            sx={{
+                                alignItems: { xs: 'stretch', sm: 'center' },
+                            }}
+                        >
+                            <TextField
+                                label={field}
+                                placeholder="Enter value"
+                                fullWidth
+                                margin="normal"
+                                variant="outlined"
+                                value={value}
+                                onChange={(event) =>
+                                    handleFieldValueChange(
+                                        id,
+                                        event.target.value
+                                    )
+                                }
+                            />
+                            <IconButton
+                                aria-label={`Remove ${field}`}
+                                onClick={() => removeField(id)}
+                                sx={{
+                                    alignSelf: { xs: 'flex-end', sm: 'center' },
+                                }}
+                            >
+                                <DeleteIcon />
+                            </IconButton>
+                        </Stack>
+                    ))}
+                </Stack>
+            </DialogContent>
+            <DialogActions
                 sx={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: 400,
-                    bgcolor: 'background.paper',
-                    boxShadow: 24,
-                    p: 4,
+                    flexDirection: { xs: 'column-reverse', sm: 'row' },
+                    gap: 1,
+                    px: { xs: 2, sm: 3 },
+                    py: 2,
                 }}
             >
-                <FormControl fullWidth margin="normal">
-                    <Select value={type} onChange={handleTypeChange}>
-                        <MenuItem value={Algos.salty}>Salty</MenuItem>
-                        <MenuItem value={Algos.randy}>Randy</MenuItem>
-                        <MenuItem value={Algos.group}>Group</MenuItem>
-                    </Select>
-                </FormControl>
-                <TextField
-                    label="Name"
-                    placeholder="Enter name"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    fullWidth
-                    margin="normal"
-                    variant="outlined"
-                />
-                <FormControl fullWidth margin="normal">
-                    <InputLabel id="identifier-create-field-label">
-                        Field
-                    </InputLabel>
-                    <Select
-                        labelId="identifier-create-field-label"
-                        value={selectedField ?? ''}
-                        onChange={handleFieldChange}
-                    >
-                        {IDENTIFIER_CREATE_FIELDS.map((field) => (
-                            <MenuItem key={field} value={field}>
-                                {field}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-                {dynamicFields.map(({ id, field, value }) => (
-                    <Box
-                        key={id}
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            margin: '10px',
-                            width: '100%',
-                        }}
-                    >
-                        <TextField
-                            label={field}
-                            placeholder="Enter value"
-                            fullWidth
-                            margin="normal"
-                            variant="outlined"
-                            value={value}
-                            onChange={(event) =>
-                                handleFieldValueChange(
-                                    id,
-                                    event.target.value
-                                )
-                            }
-                        />
-                        <br />
-                        <IconButton onClick={() => removeField(id)}>
-                            <DeleteIcon />
-                        </IconButton>
-                    </Box>
-                ))}
+                <Button
+                    onClick={onClose}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
+                >
+                    Cancel
+                </Button>
                 <Button
                     variant="contained"
                     disabled={actionRunning || name.trim().length === 0}
                     onClick={handleComplete}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
                 >
                     {actionRunning ? 'Working...' : 'Complete'}
                 </Button>
-            </Box>
-        </Modal>
+            </DialogActions>
+        </Dialog>
     );
 };
