@@ -34,18 +34,19 @@ admin/boot on `3901`/`3903` and the demo witnesses on `5642`-`5644`.
 
 Open the failing test file first. Each file is a human-readable workflow:
 
-| File | Purpose |
-| --- | --- |
-| `tests/scenarios/salty.test.ts` | Salty AID creation, rotation, interaction, and event-log checks. |
-| `tests/scenarios/randy.test.ts` | Randy AID creation, interaction, rotation, and key-material checks. |
-| `tests/scenarios/witnessed.test.ts` | Witnessed AID creation using the configured demo witnesses. |
-| `tests/scenarios/challenge.test.ts` | Two-role OOBI exchange and challenge response. |
-| `tests/scenarios/controller-rotation.test.ts` | Skipped controller rotation flow kept for the upstream rotate fix. |
-| `tests/scenarios/optional/*.test.ts` | Schema or external-fixture scenarios that skip unless configured. |
+| File                                          | Purpose                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| `tests/scenarios/salty.test.ts`               | Salty AID creation, rotation, interaction, and event-log checks.    |
+| `tests/scenarios/randy.test.ts`               | Randy AID creation, interaction, rotation, and key-material checks. |
+| `tests/scenarios/witnessed.test.ts`           | Witnessed AID creation using the configured demo witnesses.         |
+| `tests/scenarios/challenge.test.ts`           | Two-role OOBI exchange and challenge response.                      |
+| `tests/scenarios/controller-rotation.test.ts` | Skipped controller rotation flow kept for the upstream rotate fix.  |
+| `tests/scenarios/optional/*.test.ts`          | Schema or external-fixture scenarios that skip unless configured.   |
 
 Shared KERIA mechanics live in `tests/support/keria.ts`. That file should stay
 small and boring: fresh roles, unique aliases, operation waits, witnessed AID
-helpers, OOBI exchange, challenge polling, and optional environment parsing.
+helpers, OOBI exchange, and challenge polling. Optional fixture configuration
+lives in `tests/support/config.ts`, not app runtime config.
 
 Smoke code lives under `tests/smoke`, not `tests/scenarios`. Smoke tests verify
 the Signify boundary and browser wiring; scenario tests verify KERIA flows.
@@ -72,11 +73,16 @@ beside the skip so re-enabling is a one-line change after upstream
 Optional scenarios live under `tests/scenarios/optional` and are included only
 by `pnpm scenario:test:all`.
 
-| Scenario | Required config |
-| --- | --- |
-| `credentials.test.ts` | `VITE_CREDENTIAL_SCHEMA_SAID`, `VITE_CREDENTIAL_SCHEMA_OOBI_URL` |
-| `delegation.test.ts` | `VITE_DELEGATOR_PRE`, `VITE_DELEGATOR_OOBI` |
-| `multisig.test.ts` | `VITE_MULTISIG_MEMBER_OOBIS` |
+| Scenario              | Required config                                                        |
+| --------------------- | ---------------------------------------------------------------------- |
+| `credentials.test.ts` | `VITE_SEDI_VOTER_ID_SCHEMA_SAID`, `VITE_SEDI_VOTER_ID_SCHEMA_OOBI_URL` |
+| `delegation.test.ts`  | `VITE_DELEGATOR_PRE`, `VITE_DELEGATOR_OOBI`                            |
+| `multisig.test.ts`    | `VITE_MULTISIG_MEMBER_OOBIS`                                           |
+
+`credentials.test.ts` still accepts the legacy
+`VITE_CREDENTIAL_SCHEMA_SAID` / `VITE_CREDENTIAL_SCHEMA_OOBI_URL` aliases
+through `src/config.ts`. Delegation and multisig fixture values are parsed only
+by `tests/support/config.ts`; do not add those fixtures to `src/config.ts`.
 
 These tests use `it.skipIf(...)`, so missing fixtures appear as Vitest skipped
 tests instead of custom pass/fail result objects.
@@ -93,3 +99,5 @@ tests instead of custom pass/fail result objects.
    them with `it.skipIf(...)`.
 7. Keep browser tests focused on UI wiring. Scenario correctness belongs in
    Vitest.
+8. Add test-only fixture env parsing to `tests/support/config.ts`; promote a
+   value to `src/config.ts` only when app or demo runtime code truly consumes it.

@@ -4,6 +4,9 @@
 
 - [Signify client boundary](./docs/signify-client-boundary.md): ownership,
   configuration, and public boundary API.
+- [Runtime config](./docs/runtime-config.md): app/runtime config ownership,
+  supported `VITE_*` variables, test fixture config, and how to add new config
+  safely.
 - [Smoke tests](./docs/smoke-tests.md): how the CLI and browser smoke checks
   work, how to run them, required local services, configuration, outputs, and
   failure triage.
@@ -14,33 +17,37 @@
 
 ### Run locally
 
-
 The code is built using React, Vite, Typescript and running code locally requires a Mac or Linux OS.
 
--   Install [Node.js](https://nodejs.org)
+- Install [Node.js](https://nodejs.org)
 
--   To install dependencies of Signify, in the `project root directory` run:
-    for NPM:
+- To install dependencies of Signify, in the `project root directory` run:
+  for NPM:
+
     ```bash
     npm install
     ```
-    
+
     for [PNPM](https://pnpm.io/):
+
     ```bash
     pnpm install
     ```
 
--   Navigate to `examples/signify-react-ts` directory
+- Navigate to `examples/signify-react-ts` directory
+
     ```bash
     cd examples/signify-react-ts
     ```
 
--   Install dependencies:
+- Install dependencies:
+
     ```bash
     npm install
     ```
 
--   Run the development server with Vite live reload / React Fast Refresh:
+- Run the development server with Vite live reload / React Fast Refresh:
+
     ```bash
     pnpm run dev
     ```

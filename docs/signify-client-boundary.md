@@ -25,24 +25,16 @@ scenario code should take a connected client or call the boundary.
 
 ## Configuration
 
-The app reads Vite-style environment variables in the browser and ordinary
-`process.env` variables in Node smoke scripts. Defaults target the local KERIA
-and witness demo setup. Local browser use requires KERIA to be started with CORS
-enabled, for example `KERI_AGENT_CORS=true`, because Signify browser calls send
-signed custom headers.
+The app reads typed runtime config from `src/config.ts`. That module accepts
+Vite-style environment variables in the browser and ordinary `process.env`
+variables in Node smoke scripts. Defaults target the local KERIA and witness
+demo setup. Local browser use requires KERIA to be started with CORS enabled,
+for example `KERI_AGENT_CORS=true`, because Signify browser calls send signed
+custom headers.
 
-| Variable                      | Default                   | Purpose                                                |
-|-------------------------------|---------------------------|--------------------------------------------------------|
-| `VITE_KERIA_ADMIN_URL`        | `http://127.0.0.1:3901`   | KERIA admin API used by Signify clients.               |
-| `VITE_KERIA_BOOT_URL`         | `http://127.0.0.1:3903`   | KERIA boot API.                                        |
-| `VITE_OPERATION_TIMEOUT_MS`   | `30000`                   | Default operation wait timeout.                        |
-| `VITE_OPERATION_MIN_SLEEP_MS` | `1000`                    | Minimum poll interval for operation waiting.           |
-| `VITE_OPERATION_MAX_SLEEP_MS` | `5000`                    | Maximum poll interval for operation waiting.           |
-| `VITE_WITNESS_AIDS`           | local 3-witness demo AIDs | Comma-separated witness AIDs for the smoke identifier. |
-| `VITE_WITNESS_TOAD`           | `2`                       | Witness threshold used by the smoke identifier.        |
-
-The schema server is intentionally not part of this boundary smoke. Credential
-issuance and schema/OOBI resolution belong to later scenario-runner work.
+Use [Runtime config](./runtime-config.md) for the complete list of supported
+variables, exported config types, parsing behavior, and the split between app
+runtime config and test-only fixture config.
 
 ## Public Boundary API
 
@@ -92,8 +84,8 @@ Use this sequence for new Signify/KERIA flows:
 
 1. Add direct Vitest scenario tests under `tests/scenarios`.
 2. Put repeated KERIA mechanics in `tests/support/keria.ts`.
-3. Use `waitForOperation`, `role.waitEvent`, or `role.waitOperation` for every
-   KERIA operation.
+3. Use `waitOperation`, `role.waitEvent`, or `role.waitOperation` for every KERIA
+   operation.
 4. Add a CLI or browser wrapper only after the flow can run without React.
 5. Keep UI components as thin render/dispatch wrappers.
 
