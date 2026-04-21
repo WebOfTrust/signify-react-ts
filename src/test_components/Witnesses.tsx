@@ -1,6 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { SignifyClient, ready, Serder, EventResult, Operation } from "signify-ts";
+import { SignifyClient, Serder, EventResult } from "signify-ts";
 import { useState } from 'react';
 
 export function Witnesses() {
@@ -35,14 +33,11 @@ export function Witnesses() {
                                     "BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM",
                                     "BIKKuvBwpmDVA4Ds-EpL5bt9OqPzWPja2LigFYZN2YfX"]
                                 });
-                            let op = await result.op();
+                            const op = await result.op();
 
-                            while (!op["done"] ) {
-                                op = await operations.get<any>(op["name"]);
-                                await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
-                            }
+                            const completedOp = await operations.wait(op, { minSleep: 1000 })
 
-                            const icp1 = await new Serder(op["response"])
+                            const icp1 = new Serder(completedOp.response)
                             // assert.equal(icp1.pre, 'EGTFIbnFoA7G-f4FHzzXUMp6VAgQfJ-2nXqzfb5hVwKa')
                             // assert.deepEqual(icp1.ked['b'], [
                             //                 "BBilc4-L3tFUnfM_wJr4S4OJanAv_VmF_dJNN6vkf2Ha",
@@ -71,5 +66,4 @@ export function Witnesses() {
         </>
     )
 }
-
 

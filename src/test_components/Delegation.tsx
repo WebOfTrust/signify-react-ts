@@ -1,6 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { SignifyClient, ready, Serder, Diger, MtrDex } from "signify-ts";
+import { SignifyClient, ready, Serder } from "signify-ts";
 import { useState, useEffect } from 'react';
 
 
@@ -39,23 +37,16 @@ export function Delegation() {
                             const operations = client.operations()
                             const oobis = client.oobis()
 
-                            let op = await oobis.resolve("http://127.0.0.1:5642/oobi/"+delpre+"/witness")
-                            let count = 0;
-                            while (!op["done"] && count <= 25) {
-                                op = await operations.get(op["name"]);
-                                await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
-                                count++;
-                            }
+                            const resolveOp = await oobis.resolve("http://127.0.0.1:5642/oobi/"+delpre+"/witness")
+                            await operations.wait(resolveOp, { minSleep: 1000 })
 
-                            op = await identifiers.create('aid1', {delpre: delpre})
-                            let pre = op["metadata"]["pre"]
+                            const createResult = await identifiers.create('aid1', {delpre: delpre})
+                            const pre = createResult.serder.pre
 
-                            while (!op["done"]) {
-                                op = await operations.get(op["name"]);
-                                await new Promise(resolve => setTimeout(resolve, 1000)); // sleep for 1 second
-                            }
+                            const createOp = await createResult.op()
+                            const completedCreateOp = await operations.wait(createOp, { minSleep: 1000 })
 
-                            let icp1 = new Serder(op["response"])
+                            const icp1 = new Serder(completedCreateOp.response)
                             // assert.equal(icp1.pre, pre)
 
                             setTestResult("Passed")
@@ -69,5 +60,4 @@ export function Delegation() {
         </>
     )
 }
-
 
