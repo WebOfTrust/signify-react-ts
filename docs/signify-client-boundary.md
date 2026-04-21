@@ -14,7 +14,10 @@ focused on rendering state.
 - `src/config.ts` owns environment parsing and local defaults.
 - `src/signify/client.ts` owns Signify readiness, passcode generation, client
   construction, boot/connect, state normalization, and operation waiting.
-- `src/signify/useSignifyClient.ts` owns React connection state.
+- `src/app/runtime.ts` owns app-session connection state for data-router
+  loaders/actions and React shell rendering.
+- `src/signify/useSignifyClient.ts` is a compatibility hook backed by a local
+  `AppRuntime` instance; new routed app code should use the app runtime instead.
 - `tests/smoke/clientBoundarySmoke.ts` owns the reusable local KERIA smoke
   scenario.
 - `scripts/keria-smoke.ts` and `tests/browser-smoke.mjs` are thin executable
@@ -60,16 +63,17 @@ Signify passcode. It waits for Signify readiness before calling
 
 ## React State Model
 
-`useSignifyClient()` exposes a discriminated union:
+The app runtime and `useSignifyClient()` expose a discriminated union:
 
 - `idle`: no client exists.
 - `connecting`: a connect attempt is in flight.
 - `connected`: a connected client and summarized state are available.
 - `error`: the latest connection attempt failed and no client is exposed.
 
-Components should branch on `connection.status` or the nullable `client` and
-`state` convenience fields. Do not use non-null assertions for connected-only
-views; render a blocked or disconnected state instead.
+Route loaders/actions should read and mutate Signify state through the injected
+`AppRuntime`. Components should branch on `connection.status` or route loader
+data. Do not use non-null assertions for connected-only views; render a blocked
+or disconnected state instead.
 
 ## Smoke Tests
 

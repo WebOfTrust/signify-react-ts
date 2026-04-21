@@ -5,8 +5,11 @@ import { Circle, Menu } from '@mui/icons-material';
  * Props for the fixed app bar.
  */
 export interface TopBarProps {
+    /** True when the shared app runtime has a connected Signify client. */
     isConnected: boolean;
+    /** Open the route navigation drawer. */
     onMenuClick: () => void;
+    /** Open the KERIA connection dialog. */
     onConnectClick: () => void;
 }
 

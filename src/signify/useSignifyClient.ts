@@ -1,45 +1,7 @@
-import { useCallback, useState } from 'react';
-import type { SignifyClient } from 'signify-ts';
-import {
-  connectSignifyClient,
-  getSignifyState,
-  toError,
-  type ConnectedSignifyClient,
-  type SignifyClientConfig,
-  type SignifyStateSummary,
-} from './client';
+import { useMemo, useSyncExternalStore } from 'react';
+import { AppRuntime, type SignifyConnectionState } from '../app/runtime';
 
-export type SignifyConnectionState =
-  | { status: 'idle'; client: null; state: null; error: null; booted: false }
-  | {
-      status: 'connecting';
-      client: null;
-      state: null;
-      error: null;
-      booted: false;
-    }
-  | {
-      status: 'connected';
-      client: SignifyClient;
-      state: SignifyStateSummary;
-      error: null;
-      booted: boolean;
-    }
-  | {
-      status: 'error';
-      client: null;
-      state: null;
-      error: Error;
-      booted: false;
-    };
-
-const idleState: SignifyConnectionState = {
-  status: 'idle',
-  client: null,
-  state: null,
-  error: null,
-  booted: false,
-};
+export type { SignifyConnectionState };
 
 /**
  * React state adapter for the Signify client boundary.
@@ -49,65 +11,19 @@ const idleState: SignifyConnectionState = {
  * state until `status === "connected"`.
  */
 export const useSignifyClient = () => {
-  const [connection, setConnection] =
-    useState<SignifyConnectionState>(idleState);
-
-  const connect = useCallback(async (config: SignifyClientConfig) => {
-    setConnection({
-      status: 'connecting',
-      client: null,
-      state: null,
-      error: null,
-      booted: false,
-    });
-
-    try {
-      const connected: ConnectedSignifyClient =
-        await connectSignifyClient(config);
-      setConnection({
-        status: 'connected',
-        client: connected.client,
-        state: connected.state,
-        error: null,
-        booted: connected.booted,
-      });
-      return connected;
-    } catch (error) {
-      const normalized = toError(error);
-      setConnection({
-        status: 'error',
-        client: null,
-        state: null,
-        error: normalized,
-        booted: false,
-      });
-      return null;
-    }
-  }, []);
-
-  const disconnect = useCallback(() => {
-    setConnection(idleState);
-  }, []);
-
-  const refreshState = useCallback(async () => {
-    if (connection.status !== 'connected') {
-      return null;
-    }
-
-    const state = await getSignifyState(connection.client);
-    setConnection({
-      ...connection,
-      state,
-    });
-    return state;
-  }, [connection]);
+  const runtime = useMemo(() => new AppRuntime(), []);
+  const { connection } = useSyncExternalStore(
+    runtime.subscribe,
+    runtime.getSnapshot,
+    runtime.getSnapshot
+  );
 
   return {
     connection,
-    client: connection.status === 'connected' ? connection.client : null,
-    state: connection.status === 'connected' ? connection.state : null,
-    connect,
-    disconnect,
-    refreshState,
+    client: runtime.getClient(),
+    state: runtime.getState(),
+    connect: runtime.connect,
+    disconnect: runtime.disconnect,
+    refreshState: runtime.refreshState,
   };
 };

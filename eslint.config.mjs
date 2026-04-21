@@ -8,7 +8,9 @@ const browserGlobals = {
     console: "readonly",
     document: "readonly",
     fetch: "readonly",
+    FormData: "readonly",
     Headers: "readonly",
+    Request: "readonly",
     setTimeout: "readonly",
     window: "readonly",
 };
@@ -16,8 +18,11 @@ const browserGlobals = {
 const nodeGlobals = {
     console: "readonly",
     fetch: "readonly",
+    FormData: "readonly",
     process: "readonly",
+    Request: "readonly",
     setTimeout: "readonly",
+    URL: "readonly",
 };
 
 export default [

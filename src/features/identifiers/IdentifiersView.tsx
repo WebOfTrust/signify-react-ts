@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { SignifyClient } from 'signify-ts';
+import { useEffect, useState } from 'react';
 import { Box, Fab, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import { toError, waitOperation } from '../../signify/client';
+import { useFetcher, useLoaderData } from 'react-router-dom';
+import { ConnectionRequired } from '../../app/ConnectionRequired';
+import type {
+    IdentifierActionData,
+    IdentifiersLoaderData,
+} from '../../app/routeData';
 import { IdentifierCreateDialog } from './IdentifierCreateDialog';
 import { IdentifierDetailsModal } from './IdentifierDetailsModal';
 import { IdentifierTable } from './IdentifierTable';
-import {
-    identifiersFromResponse,
-    parseIdentifierCreateArgs,
-} from './identifierHelpers';
 import {
     idleIdentifierAction,
     type DynamicIdentifierField,
@@ -18,114 +18,89 @@ import {
 } from './identifierTypes';
 
 /**
- * Props for the identifiers route.
- */
-export interface IdentifiersViewProps {
-    client: SignifyClient;
-}
-
-/**
  * Connected identifiers feature route.
  *
- * This is the owner for identifier list loading, create/rotate operation
- * waiting, and action feedback. Child components stay presentational and
- * receive callbacks/data through props.
+ * Identifier list loading and mutations are owned by the route loader/action.
+ * The component owns only selected-row, dialog, and visible action-feedback
+ * state while child components stay presentational.
  */
-export const IdentifiersView = ({ client }: IdentifiersViewProps) => {
+export const IdentifiersView = () => {
+    const loaderData = useLoaderData() as IdentifiersLoaderData;
+    const fetcher = useFetcher<IdentifierActionData>();
     const [selectedIdentifier, setSelectedIdentifier] =
         useState<IdentifierSummary | null>(null);
-    const [identifiers, setIdentifiers] = useState<IdentifierSummary[]>([]);
-    const [actionState, setActionState] =
-        useState<IdentifierActionState>(idleIdentifierAction);
     const [createOpen, setCreateOpen] = useState(false);
-    const actionRunning = actionState.status === 'running';
-
-    const getIdentifiers = useCallback(async () => {
-        const listIdentifiers = identifiersFromResponse(
-            await client.identifiers().list()
-        );
-        setIdentifiers(listIdentifiers);
-        return listIdentifiers;
-    }, [client]);
+    const [pendingMessage, setPendingMessage] = useState('');
+    const actionRunning = fetcher.state !== 'idle';
 
     useEffect(() => {
-        getIdentifiers().catch((error) => {
-            const normalized = toError(error);
-            setActionState({
-                status: 'error',
-                message: `Unable to load identifiers: ${normalized.message}. Connect can succeed even when the browser blocks signed KERIA resource requests; check that ${client.url} is reachable from this page and allows the Signify signed-request headers.`,
-                error: normalized,
-            });
-        });
-    }, [client.url, getIdentifiers]);
-
-    const handleRotate = async (aid: string) => {
-        setActionState({
-            status: 'running',
-            message: `Rotating identifier ${aid}`,
-            error: null,
-        });
-
-        try {
-            const result = await client.identifiers().rotate(aid, {});
-            const operation = await result.op();
-            await waitOperation(client, operation, {
-                label: `rotating identifier ${aid}`,
-            });
-            await getIdentifiers();
-            setActionState({
-                status: 'success',
-                message: `Rotated identifier ${aid}`,
-                error: null,
-            });
-        } catch (error) {
-            const normalized = toError(error);
-            setActionState({
-                status: 'error',
-                message: normalized.message,
-                error: normalized,
-            });
+        if (fetcher.data?.intent === 'create' && fetcher.data.ok) {
+            setCreateOpen(false);
         }
+    }, [fetcher.data]);
+
+    if (loaderData.status === 'blocked') {
+        return <ConnectionRequired />;
+    }
+
+    const identifiers = loaderData.identifiers;
+
+    const actionState: IdentifierActionState = (() => {
+        if (actionRunning) {
+            return {
+                status: 'running',
+                message: pendingMessage,
+                error: null,
+            };
+        }
+
+        if (fetcher.data !== undefined) {
+            if (fetcher.data.ok) {
+                return {
+                    status: 'success',
+                    message: fetcher.data.message,
+                    error: null,
+                };
+            }
+
+            return {
+                status: 'error',
+                message: fetcher.data.message,
+                error: new Error(fetcher.data.message),
+            };
+        }
+
+        if (loaderData.status === 'error') {
+            return {
+                status: 'error',
+                message: loaderData.message,
+                error: new Error(loaderData.message),
+            };
+        }
+
+        return idleIdentifierAction;
+    })();
+
+    const handleRotate = (aid: string) => {
+        setPendingMessage(`Rotating identifier ${aid}`);
+        const formData = new FormData();
+        formData.set('intent', 'rotate');
+        formData.set('aid', aid);
+        fetcher.submit(formData, { method: 'post' });
     };
 
     const handleCreate = async (
         name: string,
         algo: string,
         fields: readonly DynamicIdentifierField[]
-    ): Promise<boolean> => {
-        setActionState({
-            status: 'running',
-            message: `Creating identifier ${name}`,
-            error: null,
-        });
-
-        try {
-            const args = parseIdentifierCreateArgs(algo, fields);
-            const identifierClient = client.identifiers();
-            const result = await identifierClient.create(
-                name,
-                args as Parameters<typeof identifierClient.create>[1]
-            );
-            const operation = await result.op();
-            await waitOperation(client, operation, {
-                label: `creating identifier ${name}`,
-            });
-            await getIdentifiers();
-            setActionState({
-                status: 'success',
-                message: `Created identifier ${name}`,
-                error: null,
-            });
-            return true;
-        } catch (error) {
-            const normalized = toError(error);
-            setActionState({
-                status: 'error',
-                message: normalized.message,
-                error: normalized,
-            });
-            return false;
-        }
+    ): Promise<void> => {
+        setPendingMessage(`Creating identifier ${name}`);
+        const formData = new FormData();
+        formData.set('intent', 'create');
+        formData.set('name', name);
+        formData.set('algo', algo);
+        formData.set('fields', JSON.stringify(fields));
+        fetcher.submit(formData, { method: 'post' });
     };
 
     return (
