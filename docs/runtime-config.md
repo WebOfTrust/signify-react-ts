@@ -79,13 +79,20 @@ and optional trusted issuer AID.
 
 Use `.env.example` as the app/runtime reference.
 
-Local defaults:
+Local defaults are constants inside `src/config.ts`. They are intentionally
+local-demo values, not deployment recommendations:
 
 - `VITE_KERIA_ADMIN_URL=http://127.0.0.1:3901`
 - `VITE_KERIA_ROUTER_URL=http://127.0.0.1:3902`
 - `VITE_KERIA_BOOT_URL=http://127.0.0.1:3903`
 - `VITE_VERIFIER_DIRECT_URL=http://127.0.0.1:9723`
 - `VITE_VERIFIER_DASHBOARD_URL=http://127.0.0.1:9923`
+- `VITE_WITNESS_AIDS=<local 3-witness demo AIDs>`
+- `VITE_WITNESS_TOAD=2`
+
+`defaultTier` is currently `Tier.low`. Change that only when the Signify demo
+explicitly needs a different key derivation tier, and update config tests in the
+same change.
 
 Optional cloud KERIA values must be set as a pair:
 

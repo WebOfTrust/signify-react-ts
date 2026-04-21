@@ -8,14 +8,14 @@ driven by display strings. The app shell view registry lives in `src/views.ts`.
 `ViewId`
 
 : Closed union of valid app shell views:
-  `identifiers | credentials | client`. Use this instead of arbitrary strings
-  in navigation state.
+`identifiers | credentials | client`. Use this instead of arbitrary strings
+in navigation state.
 
 `DEFAULT_VIEW`
 
 : Startup and post-connect view. It is currently `identifiers` so a successful
-  KERIA connection lands on the identifier table, preserving browser smoke
-  behavior.
+KERIA connection lands on the identifier table, preserving browser smoke
+behavior.
 
 `ViewDefinition`
 
@@ -30,7 +30,7 @@ driven by display strings. The app shell view registry lives in `src/views.ts`.
 `VIEW_DEFINITIONS`
 
 : Ordered drawer/view registry. This is the source of truth for navigation
-  labels and selectors.
+labels and selectors.
 
 ## Adding a view
 
