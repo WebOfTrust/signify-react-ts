@@ -194,6 +194,11 @@ The smoke tests use the same config as the app:
 | `VITE_WITNESS_TOAD` | `2` | CLI witness mode. |
 | `BROWSER_SMOKE_URL` | `http://127.0.0.1:5173` | Browser smoke only. |
 
+Browser smoke calls local KERIA directly and requires KERIA CORS support to be
+enabled, for example `KERI_AGENT_CORS=true`. Without that, browser preflight for
+signed Signify resource calls such as `GET /identifiers` can fail even when
+KERIA itself is running.
+
 Node smoke scripts read ordinary environment variables. The browser app reads
 Vite-exposed variables. Use the `VITE_` prefix for values that must be available
 inside React.
