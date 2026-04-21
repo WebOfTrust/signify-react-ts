@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type {
-    DynamicIdentifierField,
+    IdentifierCreateDraft,
     IdentifierSummary,
 } from '../../src/features/identifiers/identifierTypes';
+import { defaultIdentifierCreateDraft } from '../../src/features/identifiers/identifierHelpers';
 import {
     identifiersAction,
     loadClient,
@@ -186,30 +187,47 @@ describe('route actions', () => {
 
     it('creates identifiers through the identifiers action', async () => {
         const runtime = makeRuntime();
-        const fields: DynamicIdentifierField[] = [
-            { field: 'count', value: '1' },
-        ];
+        const draft: IdentifierCreateDraft = {
+            ...defaultIdentifierCreateDraft(),
+            name: 'alice',
+        };
 
         await expect(
             identifiersAction(
                 runtime,
                 makeRequest('/identifiers', {
                     intent: 'create',
-                    name: 'alice',
-                    algo: 'salty',
-                    fields: JSON.stringify(fields),
+                    requestId: 'create-request-1',
+                    draft: JSON.stringify(draft),
                 })
             )
         ).resolves.toEqual({
             intent: 'create',
             ok: true,
             message: 'Created identifier alice',
+            requestId: 'create-request-1',
         });
-        expect(runtime.createIdentifier).toHaveBeenCalledWith(
-            'alice',
-            'salty',
-            fields
-        );
+        expect(runtime.createIdentifier).toHaveBeenCalledWith(draft);
+    });
+
+    it('returns typed create action errors for malformed drafts', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            identifiersAction(
+                runtime,
+                makeRequest('/identifiers', {
+                    intent: 'create',
+                    requestId: 'create-request-2',
+                    draft: JSON.stringify({ name: 'missing-required-fields' }),
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'create',
+            ok: false,
+            message: 'Invalid identifier create draft.',
+            requestId: 'create-request-2',
+        });
     });
 
     it('rotates identifiers through the identifiers action', async () => {

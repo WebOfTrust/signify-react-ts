@@ -1,4 +1,4 @@
-import type { CreateIdentiferArgs, HabState } from 'signify-ts';
+import { Algos, type CreateIdentiferArgs, type HabState } from 'signify-ts';
 
 /**
  * Managed identifier shape returned by Signify/KERIA.
@@ -25,63 +25,23 @@ export const idleIdentifierAction: IdentifierActionState = {
 
 export type IdentifierCreateArgs = CreateIdentiferArgs;
 
+export type IdentifierWitnessMode = 'none' | 'demo';
+
 /**
- * Dynamic create-form fields exposed by the legacy identifier creator.
+ * User-intent draft for the single-sig identifier creator.
  *
- * This is intentionally UI-local. Do not treat it as the authoritative Signify
- * identifier create schema.
+ * Keep this narrower than upstream `CreateIdentiferArgs`: the form should
+ * expose common identifier choices, while `identifierCreateDraftToArgs` owns
+ * the mapping into the broader Signify API shape.
  */
-export type IdentifierCreateField = Extract<
-    keyof CreateIdentiferArgs,
-    | 'transferable'
-    | 'isith'
-    | 'nsith'
-    | 'wits'
-    | 'toad'
-    | 'proxy'
-    | 'delpre'
-    | 'dcode'
-    | 'data'
-    | 'pre'
-    | 'states'
-    | 'rstates'
-    | 'prxs'
-    | 'nxts'
-    | 'mhab'
-    | 'keys'
-    | 'ndigs'
-    | 'bran'
-    | 'count'
-    | 'ncount'
->;
-
-export interface DynamicIdentifierField {
-    field: IdentifierCreateField;
-    value: string;
+export interface IdentifierCreateDraft {
+    name: string;
+    algo: Algos.salty | Algos.randy;
+    transferable: boolean;
+    witnessMode: IdentifierWitnessMode;
+    count: number;
+    ncount: number;
+    isith: string;
+    nsith: string;
+    bran: string;
 }
-
-/**
- * Ordered select options for `IdentifierCreateDialog`.
- */
-export const IDENTIFIER_CREATE_FIELDS: readonly IdentifierCreateField[] = [
-    'transferable',
-    'isith',
-    'nsith',
-    'wits',
-    'toad',
-    'proxy',
-    'delpre',
-    'dcode',
-    'data',
-    'pre',
-    'states',
-    'rstates',
-    'prxs',
-    'nxts',
-    'mhab',
-    'keys',
-    'ndigs',
-    'bran',
-    'count',
-    'ncount',
-] as const;

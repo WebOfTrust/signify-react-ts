@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Box, Fab, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useFetcher, useLoaderData } from 'react-router-dom';
-import type { Algos } from 'signify-ts';
 import { ConnectionRequired } from '../../app/ConnectionRequired';
 import type {
     IdentifierActionData,
@@ -13,8 +12,8 @@ import { IdentifierDetailsModal } from './IdentifierDetailsModal';
 import { IdentifierTable } from './IdentifierTable';
 import {
     idleIdentifierAction,
-    type DynamicIdentifierField,
     type IdentifierActionState,
+    type IdentifierCreateDraft,
     type IdentifierSummary,
 } from './identifierTypes';
 
@@ -31,8 +30,18 @@ export const IdentifiersView = () => {
     const [selectedIdentifier, setSelectedIdentifier] =
         useState<IdentifierSummary | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
+    const [activeCreateRequestId, setActiveCreateRequestId] = useState<
+        string | null
+    >(null);
     const [pendingMessage, setPendingMessage] = useState<string | null>(null);
     const actionRunning = fetcher.state !== 'idle';
+    const createSucceeded =
+        activeCreateRequestId !== null &&
+        fetcher.state === 'idle' &&
+        fetcher.data?.intent === 'create' &&
+        fetcher.data.ok &&
+        fetcher.data.requestId === activeCreateRequestId;
+    const createDialogOpen = createOpen && !createSucceeded;
 
     if (loaderData.status === 'blocked') {
         return <ConnectionRequired />;
@@ -84,18 +93,14 @@ export const IdentifiersView = () => {
         fetcher.submit(formData, { method: 'post' });
     };
 
-    const handleCreate = async (
-        name: string,
-        algo: Algos,
-        fields: readonly DynamicIdentifierField[]
-    ): Promise<void> => {
-        setPendingMessage(`Creating identifier ${name}`);
-        setCreateOpen(false);
+    const handleCreate = async (draft: IdentifierCreateDraft): Promise<void> => {
+        const requestId = globalThis.crypto.randomUUID();
+        setActiveCreateRequestId(requestId);
+        setPendingMessage(`Creating identifier ${draft.name}`);
         const formData = new FormData();
         formData.set('intent', 'create');
-        formData.set('name', name);
-        formData.set('algo', algo);
-        formData.set('fields', JSON.stringify(fields));
+        formData.set('requestId', requestId);
+        formData.set('draft', JSON.stringify(draft));
         fetcher.submit(formData, { method: 'post' });
     };
 
@@ -126,18 +131,24 @@ export const IdentifiersView = () => {
                 onClose={() => setSelectedIdentifier(null)}
                 onRotate={handleRotate}
             />
-            {createOpen && (
+            {createDialogOpen && (
                 <IdentifierCreateDialog
-                    open={createOpen}
+                    open={createDialogOpen}
                     actionRunning={actionRunning}
-                    onClose={() => setCreateOpen(false)}
+                    onClose={() => {
+                        setCreateOpen(false);
+                        setActiveCreateRequestId(null);
+                    }}
                     onCreate={handleCreate}
                 />
             )}
             <Fab
                 color="primary"
                 aria-label="add"
-                onClick={() => setCreateOpen(true)}
+                onClick={() => {
+                    setActiveCreateRequestId(null);
+                    setCreateOpen(true);
+                }}
                 disabled={actionRunning}
                 sx={{
                     position: 'fixed',
