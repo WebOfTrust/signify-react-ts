@@ -26,15 +26,32 @@ import {
  * typed app config boundary.
  */
 
+/**
+ * Identifier projection used by scenario tests after Signify normalization.
+ */
 export type IdentifierSummary = HabState;
 
+/**
+ * Connected Signify role used by scenario tests.
+ *
+ * A role is intentionally richer than a raw client: it carries reproducibility
+ * metadata, normalized controller/agent AIDs, and bound wait helpers so tests
+ * can read as a script instead of threading context through every call.
+ */
 export interface Role {
+    /** Human-readable role label used in operation labels and failures. */
     name: string;
+    /** Passcode used to create/connect the role's controller. */
     passcode: string;
+    /** Raw connected Signify client for direct resource APIs. */
     client: SignifyClient;
+    /** Normalized controller AID read immediately after connection. */
     controllerPre: string;
+    /** Normalized agent AID read immediately after connection. */
     agentPre: string;
+    /** Wait for a Signify EventResult through the shared operation boundary. */
     waitEvent(result: EventResult, label: string): Promise<CompletedOperation>;
+    /** Wait for a raw KERIA operation through the shared operation boundary. */
     waitOperation(
         operation: Operation,
         label: string
@@ -43,6 +60,9 @@ export interface Role {
 
 let sequence = 0;
 
+/**
+ * Return a configured passcode for long-lived demo roles when one is present.
+ */
 const configuredPasscodeForRole = (name: string): string | null => {
     if (name === appConfig.roles.issuer.alias) {
         return appConfig.roles.issuer.passcode;
@@ -59,6 +79,9 @@ const configuredPasscodeForRole = (name: string): string | null => {
     return null;
 };
 
+/**
+ * Create an alias that avoids collisions in persistent local KERIA state.
+ */
 export const uniqueAlias = (base: string): string => {
     sequence += 1;
     const timestamp = new Date()
@@ -68,6 +91,12 @@ export const uniqueAlias = (base: string): string => {
     return `${base}-${timestamp}-${sequence.toString(36)}`;
 };
 
+/**
+ * Create and connect a fresh Signify role for a scenario.
+ *
+ * Issuer/holder/verifier can reuse configured passcodes for scripted demos;
+ * every other role gets random passcode material by default.
+ */
 export const createRole = async (name: string): Promise<Role> => {
     const passcode =
         configuredPasscodeForRole(name) ?? (await randomSignifyPasscode());
@@ -92,6 +121,9 @@ export const createRole = async (name: string): Promise<Role> => {
     return role;
 };
 
+/**
+ * Wait for a KERIA operation using the app operation timeout policy.
+ */
 export const waitForKeriaOperation = async (
     role: Role,
     operation: Operation,
@@ -102,6 +134,9 @@ export const waitForKeriaOperation = async (
         ...appConfig.operations,
     });
 
+/**
+ * Convert a Signify EventResult into a KERIA operation and wait for completion.
+ */
 export const waitForEvent = async (
     role: Role,
     result: EventResult,
@@ -111,6 +146,9 @@ export const waitForEvent = async (
     return waitForKeriaOperation(role, operation, label);
 };
 
+/**
+ * Create a managed identifier and return its fetched HabState summary.
+ */
 export const createIdentifier = async (
     role: Role,
     alias: string,
@@ -121,6 +159,9 @@ export const createIdentifier = async (
     return role.client.identifiers().get(alias);
 };
 
+/**
+ * Create a witnessed identifier using the configured local demo witnesses.
+ */
 export const createWitnessedIdentifier = (
     role: Role,
     alias: string
@@ -130,17 +171,26 @@ export const createWitnessedIdentifier = (
         wits: appConfig.witnesses.aids,
     });
 
+/**
+ * Create an identifier with random key material.
+ */
 export const createRandyIdentifier = (
     role: Role,
     alias: string
 ): Promise<IdentifierSummary> =>
     createIdentifier(role, alias, { algo: Algos.randy });
 
+/**
+ * List identifiers and normalize Signify's response envelope.
+ */
 export const listIdentifiers = async (
     client: SignifyClient
 ): Promise<IdentifierSummary[]> =>
     identifiersFromResponse(await client.identifiers().list());
 
+/**
+ * Authorize the role's KERIA agent endpoint for one managed AID and return OOBI.
+ */
 export const addAgentEndRole = async (
     role: Role,
     alias: string
@@ -159,6 +209,9 @@ export const addAgentEndRole = async (
     return urls[0];
 };
 
+/**
+ * Resolve one OOBI into the role's contact/address book state.
+ */
 export const resolveOobi = async (
     role: Role,
     oobi: string,
@@ -168,6 +221,9 @@ export const resolveOobi = async (
     await role.waitOperation(operation, `resolves ${alias}`);
 };
 
+/**
+ * Exchange agent OOBIs between two roles so they can address each other.
+ */
 export const exchangeAgentOobis = async (
     left: Role,
     leftAlias: string,
@@ -183,9 +239,15 @@ export const exchangeAgentOobis = async (
 
 type SerderSad = ConstructorParameters<typeof Serder>[0];
 
+/**
+ * Runtime guard for operation responses that should be Serder-compatible SADs.
+ */
 const isSerderSad = (response: unknown): response is SerderSad =>
     typeof response === 'object' && response !== null;
 
+/**
+ * Parse a completed operation response as a Serder with a useful failure.
+ */
 export const serderFromOperation = (response: unknown): Serder => {
     if (!isSerderSad(response)) {
         throw new Error('Operation response was not a Serder-compatible SAD.');
@@ -194,11 +256,17 @@ export const serderFromOperation = (response: unknown): Serder => {
     return new Serder(response);
 };
 
+/**
+ * Compare challenge words exactly and positionally.
+ */
 const sameWords = (actual: string[] | undefined, expected: string[]): boolean =>
     Array.isArray(actual) &&
     actual.length === expected.length &&
     actual.every((word, index) => word === expected[index]);
 
+/**
+ * Poll contacts until a challenge response from the expected source appears.
+ */
 export const waitForChallenge = async (
     client: SignifyClient,
     sourcePrefix: string,

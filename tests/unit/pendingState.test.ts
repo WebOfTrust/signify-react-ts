@@ -100,4 +100,19 @@ describe('derivePendingState', () => {
             source: 'connection',
         });
     });
+
+    it('uses active RTK operation facts when router state is idle', () => {
+        expect(
+            derivePendingState({
+                navigation: idleNavigation,
+                fetchers: [],
+                connectionStatus: 'connected',
+                activeOperationLabel: 'Resolving contact...',
+            })
+        ).toEqual({
+            active: true,
+            label: 'Resolving contact...',
+            source: 'runtime',
+        });
+    });
 });

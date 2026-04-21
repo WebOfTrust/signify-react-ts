@@ -7,6 +7,12 @@ import {
     uniqueAlias,
 } from '../../support/keria';
 
+/*
+ * Optional multisig fixture scenario.
+ *
+ * This is a reachability check for externally supplied multisig member OOBIs,
+ * not a full multisig inception workflow.
+ */
 const memberOobis = testConfig.fixtures.multisig.memberOobis;
 
 describe.sequential('multisig fixture', () => {

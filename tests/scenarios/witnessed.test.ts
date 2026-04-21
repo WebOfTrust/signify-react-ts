@@ -7,6 +7,12 @@ import {
   uniqueAlias,
 } from '../support/keria';
 
+/*
+ * Witnessed identifier scenario.
+ *
+ * This is the smallest CI proof that the configured local witness set accepts
+ * and completes a witnessed inception.
+ */
 describe.sequential('witnessed identifier', () => {
   it(
     'creates a witnessed AID using the configured demo witnesses',

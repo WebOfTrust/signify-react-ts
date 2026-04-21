@@ -7,6 +7,12 @@ import {
   uniqueAlias,
 } from '../support/keria';
 
+/*
+ * Skipped controller rotation scenario.
+ *
+ * Keep the executable body here so the upstream rotate fix can be validated by
+ * changing `it.skip` to `it` without recreating the flow from old components.
+ */
 describe.sequential('controller rotation', () => {
   it.skip(
     'rotates the controller once SignifyClient.rotate is fixed upstream',
