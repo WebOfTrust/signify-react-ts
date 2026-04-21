@@ -8,6 +8,14 @@ import {
 } from 'signify-ts';
 import { appConfig, type KeriaConfig, type OperationConfig } from '../config';
 
+/**
+ * Signify client boundary for app and test code.
+ *
+ * This is the only module in `src` that should know how to prepare
+ * `signify-ts`, construct `SignifyClient`, boot/connect KERIA agents, and wait
+ * for KERIA operations. React components, smoke scripts, and Vitest scenarios
+ * should call this boundary instead of duplicating lifecycle code.
+ */
 type SignifyState = Awaited<ReturnType<SignifyClient['state']>>;
 
 /**
@@ -36,7 +44,9 @@ export interface SignifyStateSummary {
 }
 
 export interface ConnectedSignifyClient {
+  /** Connected raw Signify client. Callers may use resource APIs from here. */
   client: SignifyClient;
+  /** Normalized state snapshot read immediately after the connection succeeds. */
   state: SignifyStateSummary;
   /** True when this call created the KERIA agent before connecting. */
   booted: boolean;
@@ -64,6 +74,11 @@ const combineWithTimeout = (
   timeoutMs: number,
   signal?: AbortSignal
 ): { signal: AbortSignal; cleanup: () => void } => {
+  /*
+   * Signify's operation waiter accepts one AbortSignal. We compose the caller's
+   * optional signal with an internal timeout signal and return cleanup so each
+   * wait removes listeners and clears its timer in success and failure paths.
+   */
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => {
     controller.abort(new Error(`Operation timed out after ${timeoutMs}ms`));
@@ -185,7 +200,8 @@ export const connectSignifyClient = async (
  *
  * Signify already handles dependency operations and failed operation payloads.
  * This wrapper adds a timeout, supports caller cancellation, and prefixes
- * errors with the logical phase that was running.
+ * errors with the logical phase that was running. Always use this for KERIA
+ * operations in app or scenario code; do not add ad hoc operation polling loops.
  */
 export const waitForOperation = async (
   client: SignifyClient,

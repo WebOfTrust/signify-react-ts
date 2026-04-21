@@ -32,7 +32,6 @@ import {
 } from '@mui/material';
 import { Circle, Delete, Menu } from '@mui/icons-material';
 import AddIcon from '@mui/icons-material/Add';
-import { TestsComponent } from './TestsComponent';
 import { appConfig } from './config';
 import { useSignifyClient } from './signify/useSignifyClient';
 import { randomSignifyPasscode, type SignifyStateSummary } from './signify/client';
@@ -238,7 +237,7 @@ const MainComponent = () => {
           onKeyDown={toggleDrawer(false)}
         >
           <List>
-            {['Identifiers', 'Credentials', 'Client', 'Tests'].map((text) => (
+            {['Identifiers', 'Credentials', 'Client'].map((text) => (
               <ListItem key={text} onClick={() => renderComponent(text)} data-testid={`nav-${text.toLowerCase()}`}>
                 <ListItemText primary={text} />
               </ListItem>
@@ -335,7 +334,6 @@ const MainComponent = () => {
 
       {selectedComponent === 'Credentials' && <CredentialsComponent />}
       {selectedComponent === 'Client' && (state ? <ClientComponent summary={state} /> : renderConnectionRequired())}
-      {selectedComponent === 'Tests' && <TestsComponent />}
     </div>
   );
 };

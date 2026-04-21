@@ -39,13 +39,22 @@ pnpm test:ci
 See [CI](./ci.md) for the GitHub Actions service setup and pinned KERIpy/KERIA
 versions.
 
+Scenario-level KERIA flows run through Vitest:
+
+```bash
+pnpm scenario:test
+```
+
+See [Scenario runners](./scenario-runners.md) for the scenario catalog and
+fixture requirements.
+
 ## Infrastructure
 
 The smoke-test stack has one shared scenario and two executable wrappers.
 
 | Layer | File | Responsibility |
 | --- | --- | --- |
-| Shared scenario | `src/scenarios/clientBoundarySmoke.ts` | Boots/connects through the Signify boundary, reads client state, and optionally creates a witnessed identifier. |
+| Shared scenario | `tests/scenarios/clientBoundarySmoke.ts` | Boots/connects through the Signify boundary, reads client state, and optionally creates a witnessed identifier. |
 | CLI wrapper | `scripts/keria-smoke.ts` | Parses process args, calls the shared scenario, and prints JSON. |
 | Browser wrapper | `tests/browser-smoke.mjs` | Starts or reuses Vite, drives the React UI with Puppeteer, and verifies the client summary. |
 | Boundary | `src/signify/client.ts` | Owns `ready()`, `randomPasscode()`, `SignifyClient` construction, boot/connect, state reads, and operation waiting. |
@@ -209,12 +218,12 @@ the `data-testid` contract stable or update the test with the UI change.
 
 ## Extending Smoke Coverage
 
-Add smoke coverage only for narrow, high-signal checks. Full credential flows
-belong in scenario tests, not in browser smoke.
+Add smoke coverage only for narrow, high-signal checks. Full KERIA flows belong
+in scenario tests, not in browser smoke.
 
 Rules for new smoke tests:
 
-1. Put reusable KERIA behavior in `src/scenarios`.
+1. Put reusable KERIA test behavior in `tests/scenarios`.
 2. Keep executable scripts thin.
 3. Use `connectSignifyClient` and `waitForOperation`.
 4. Use fresh passcodes by default.
