@@ -7,8 +7,8 @@
 - [Smoke tests](./docs/smoke-tests.md): how the CLI and browser smoke checks
   work, how to run them, required local services, configuration, outputs, and
   failure triage.
-- [Scenario runners](./docs/scenario-runners.md): pure async KERIA scenario
-  flows, Vitest execution, and optional fixture requirements.
+- [Scenario tests](./docs/scenario-runners.md): direct Vitest KERIA flows and
+  optional fixture requirements.
 - [CI](./docs/ci.md): GitHub Actions setup for installing pinned KERIpy/KERIA,
   starting local services, caching dependencies, and running smoke tests.
 
@@ -78,14 +78,15 @@ KERIA scenario runners:
 pnpm scenario:test
 ```
 
-Full scenario catalog, including optional skipped flows:
+All scenario test files, including optional flows that may show as skipped:
 
 ```bash
 pnpm scenario:test:all
 ```
 
-See [Scenario runners](./docs/scenario-runners.md) for the catalog, fixture
-requirements, and maintainer navigation through the test source layout.
+See [Scenario tests](./docs/scenario-runners.md) for maintainer navigation
+through `tests/scenarios/*.test.ts`, optional fixture requirements, and the
+shared `tests/support/keria.ts` helper layer.
 
 ### CI test suite
 

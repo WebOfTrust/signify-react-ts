@@ -39,30 +39,31 @@ pnpm test:ci
 See [CI](./ci.md) for the GitHub Actions service setup and pinned KERIpy/KERIA
 versions.
 
-Scenario-level KERIA flows run through Vitest:
+Scenario-level KERIA flows run through plain Vitest test files:
 
 ```bash
 pnpm scenario:test
 ```
 
-See [Scenario runners](./scenario-runners.md) for the scenario catalog and
-fixture requirements.
+See [Scenario tests](./scenario-runners.md) for the test files and fixture
+requirements.
 
 ## Infrastructure
 
-The smoke-test stack has one shared scenario and two executable wrappers.
+The smoke-test stack has one shared smoke module and two executable wrappers.
 
 | Layer | File | Responsibility |
 | --- | --- | --- |
-| Shared scenario | `tests/scenarios/clientBoundarySmoke.ts` | Boots/connects through the Signify boundary, reads client state, and optionally creates a witnessed identifier. |
-| CLI wrapper | `scripts/keria-smoke.ts` | Parses process args, calls the shared scenario, and prints JSON. |
+| Shared smoke | `tests/smoke/clientBoundarySmoke.ts` | Boots/connects through the Signify boundary, reads client state, and optionally creates a witnessed identifier. |
+| CLI wrapper | `scripts/keria-smoke.ts` | Parses process args, calls the shared smoke module, and prints JSON. |
 | Browser wrapper | `tests/browser-smoke.mjs` | Starts or reuses Vite, drives the React UI with Puppeteer, and verifies the client summary. |
 | Boundary | `src/signify/client.ts` | Owns `ready()`, `randomPasscode()`, `SignifyClient` construction, boot/connect, state reads, and operation waiting. |
 | Config | `src/config.ts` | Supplies shared defaults and environment overrides for browser and Node execution. |
 
-The important design constraint is that KERIA behavior lives in the shared
-scenario and boundary, not in the CLI or Puppeteer script. Browser smoke should
-only prove that the UI can exercise the same boundary successfully.
+The important design constraint is that KERIA boundary behavior lives in shared
+smoke code and the Signify boundary, not in the CLI or Puppeteer script.
+Browser smoke should only prove that the UI can exercise the same boundary
+successfully.
 
 ## CLI Smoke
 
@@ -223,7 +224,7 @@ in scenario tests, not in browser smoke.
 
 Rules for new smoke tests:
 
-1. Put reusable KERIA test behavior in `tests/scenarios`.
+1. Put reusable smoke behavior in `tests/smoke`.
 2. Keep executable scripts thin.
 3. Use `connectSignifyClient` and `waitForOperation`.
 4. Use fresh passcodes by default.

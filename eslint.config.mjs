@@ -13,6 +13,13 @@ const browserGlobals = {
     window: "readonly",
 };
 
+const nodeGlobals = {
+    console: "readonly",
+    fetch: "readonly",
+    process: "readonly",
+    setTimeout: "readonly",
+};
+
 export default [
     {
         ignores: ["dist"],
@@ -49,6 +56,19 @@ export default [
             "@typescript-eslint/no-namespace": "warn",
             "@typescript-eslint/no-empty-object-type": "warn",
             "@typescript-eslint/no-unused-expressions": "off",
+            "@typescript-eslint/no-unused-vars": "off",
+        },
+    },
+    {
+        files: ["tests/**/*.{ts,js,mjs}", "scripts/**/*.{ts,js,mjs}", "*.config.ts"],
+        languageOptions: {
+            globals: nodeGlobals,
+        },
+        rules: {
+            "prefer-const": "off",
+            "no-unused-vars": "off",
+            "no-empty": "warn",
+            "@typescript-eslint/no-explicit-any": "off",
             "@typescript-eslint/no-unused-vars": "off",
         },
     },

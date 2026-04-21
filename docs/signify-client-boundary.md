@@ -15,7 +15,7 @@ focused on rendering state.
 - `src/signify/client.ts` owns Signify readiness, passcode generation, client
   construction, boot/connect, state normalization, and operation waiting.
 - `src/signify/useSignifyClient.ts` owns React connection state.
-- `tests/scenarios/clientBoundarySmoke.ts` owns the reusable local KERIA smoke
+- `tests/smoke/clientBoundarySmoke.ts` owns the reusable local KERIA smoke
   scenario.
 - `scripts/keria-smoke.ts` and `tests/browser-smoke.mjs` are thin executable
   wrappers around the app behavior.
@@ -88,10 +88,11 @@ triage.
 
 Use this sequence for new Signify/KERIA flows:
 
-1. Add pure test scenario logic under `tests/scenarios`.
-2. Pass in config and connected clients explicitly.
-3. Use `waitForOperation` for every KERIA operation.
-4. Add a CLI or browser wrapper only after the scenario can run without React.
+1. Add direct Vitest scenario tests under `tests/scenarios`.
+2. Put repeated KERIA mechanics in `tests/support/keria.ts`.
+3. Use `waitForOperation`, `role.waitEvent`, or `role.waitOperation` for every
+   KERIA operation.
+4. Add a CLI or browser wrapper only after the flow can run without React.
 5. Keep UI components as thin render/dispatch wrappers.
 
 Avoid reintroducing direct constructors, ad hoc polling loops, or hardcoded
