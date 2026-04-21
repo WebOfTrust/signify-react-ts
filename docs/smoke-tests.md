@@ -30,6 +30,15 @@ pnpm browser:smoke
 Run `pnpm keria:smoke -- --mode connect` first when debugging. It proves the
 admin and boot APIs work without involving witnesses or browser automation.
 
+CI runs all smoke checks through:
+
+```bash
+pnpm test:ci
+```
+
+See [CI](./ci.md) for the GitHub Actions service setup and pinned KERIpy/KERIA
+versions.
+
 ## Infrastructure
 
 The smoke-test stack has one shared scenario and two executable wrappers.

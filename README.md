@@ -7,6 +7,8 @@
 - [Smoke tests](./docs/smoke-tests.md): how the CLI and browser smoke checks
   work, how to run them, required local services, configuration, outputs, and
   failure triage.
+- [CI](./docs/ci.md): GitHub Actions setup for installing pinned KERIpy/KERIA,
+  starting local services, caching dependencies, and running smoke tests.
 
 ### Run locally
 
@@ -65,3 +67,13 @@ pnpm browser:smoke
 
 See [Smoke tests](./docs/smoke-tests.md) for prerequisites, environment
 variables, output shape, and failure triage.
+
+### CI test suite
+
+The GitHub Actions workflow runs the same checks through:
+
+```bash
+pnpm test:ci
+```
+
+See [CI](./docs/ci.md) for the pinned KERIpy/KERIA versions and service setup.
