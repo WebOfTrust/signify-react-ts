@@ -52,9 +52,13 @@ const startViteIfNeeded = async () => {
 const textContent = (page, selector) =>
   page.$eval(selector, (element) => element.textContent ?? '');
 
+const chromeArgs =
+  process.env.CI === 'true' ? ['--no-sandbox', '--disable-setuid-sandbox'] : [];
+
 const vite = await startViteIfNeeded();
 const browser = await puppeteer.launch({
   headless: 'new',
+  args: chromeArgs,
 });
 
 try {
