@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "keria:smoke": "tsx scripts/keria-smoke.ts",
     "browser:smoke": "node tests/browser-smoke.mjs",
-    "test:ci": "pnpm lint && pnpm build && pnpm keria:smoke -- --mode connect && pnpm keria:smoke && pnpm browser:smoke"
+    "scenario:test": "vitest run tests/scenarios.test.ts",
+    "scenario:test:all": "SCENARIO_INCLUDE_OPTIONAL=true vitest run tests/scenarios.test.ts",
+    "test:ci": "pnpm lint && pnpm build && pnpm keria:smoke -- --mode connect && pnpm keria:smoke && pnpm scenario:test && pnpm browser:smoke"
   },
   "engines": {
     "node": ">=20.19.0"
