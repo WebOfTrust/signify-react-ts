@@ -1,23 +1,10 @@
 import { Algos } from 'signify-ts';
+import type { AppConfig } from '../../config';
 import type {
     IdentifierCreateArgs,
-    DynamicIdentifierField,
+    IdentifierCreateDraft,
     IdentifierSummary,
 } from './identifierTypes';
-
-const NUMBER_FIELDS = new Set<keyof IdentifierCreateArgs>([
-    'count',
-    'ncount',
-    'toad',
-]);
-const BOOLEAN_FIELDS = new Set<keyof IdentifierCreateArgs>(['transferable']);
-const CSV_FIELDS = new Set<keyof IdentifierCreateArgs>([
-    'prxs',
-    'nxts',
-    'wits',
-    'keys',
-    'ndigs',
-]);
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null;
@@ -59,31 +46,76 @@ export const identifiersFromResponse = (
 };
 
 /**
- * Convert dynamic create-dialog field rows into Signify identifier create args.
- *
- * This preserves legacy UI behavior: only `count` and `ncount` are parsed as
- * numbers, `transferable` is parsed as a boolean, and CSV fields are split
- * without trimming. Tightening those semantics should be a deliberate follow-up
- * with scenario coverage.
+ * Default single-sig create draft used by the identifier create dialog.
  */
-export const parseIdentifierCreateArgs = (
-    algo: Algos,
-    fields: readonly DynamicIdentifierField[]
+export const defaultIdentifierCreateDraft = (): IdentifierCreateDraft => ({
+    name: '',
+    algo: Algos.salty,
+    transferable: true,
+    witnessMode: 'none',
+    count: 1,
+    ncount: 1,
+    isith: '1',
+    nsith: '1',
+    bran: '',
+});
+
+const isIdentifierCreateAlgo = (
+    value: unknown
+): value is IdentifierCreateDraft['algo'] =>
+    value === Algos.salty || value === Algos.randy;
+
+const isIdentifierWitnessMode = (
+    value: unknown
+): value is IdentifierCreateDraft['witnessMode'] =>
+    value === 'none' || value === 'demo';
+
+const isPositiveInteger = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isInteger(value) && value > 0;
+
+/**
+ * Runtime guard for identifier create submissions from route actions.
+ */
+export const isIdentifierCreateDraft = (
+    value: unknown
+): value is IdentifierCreateDraft =>
+    isObjectRecord(value) &&
+    typeof value.name === 'string' &&
+    value.name.trim().length > 0 &&
+    isIdentifierCreateAlgo(value.algo) &&
+    typeof value.transferable === 'boolean' &&
+    isIdentifierWitnessMode(value.witnessMode) &&
+    isPositiveInteger(value.count) &&
+    isPositiveInteger(value.ncount) &&
+    typeof value.isith === 'string' &&
+    value.isith.trim().length > 0 &&
+    typeof value.nsith === 'string' &&
+    value.nsith.trim().length > 0 &&
+    typeof value.bran === 'string';
+
+/**
+ * Convert the app's typed create draft into upstream Signify create args.
+ */
+export const identifierCreateDraftToArgs = (
+    draft: IdentifierCreateDraft,
+    config: AppConfig
 ): IdentifierCreateArgs => {
     const args: IdentifierCreateArgs = {
-        algo,
+        algo: draft.algo,
+        transferable: draft.transferable,
+        count: draft.count,
+        ncount: draft.ncount,
+        isith: draft.isith,
+        nsith: draft.nsith,
     };
 
-    for (const { field, value } of fields) {
-        if (NUMBER_FIELDS.has(field)) {
-            args[field] = Number.parseInt(value, 10);
-        } else if (BOOLEAN_FIELDS.has(field)) {
-            args[field] = value === 'true';
-        } else if (CSV_FIELDS.has(field)) {
-            args[field] = value.split(',');
-        } else {
-            args[field] = value;
-        }
+    if (draft.algo === Algos.salty && draft.bran.trim().length > 0) {
+        args.bran = draft.bran.trim();
+    }
+
+    if (draft.witnessMode === 'demo') {
+        args.wits = config.witnesses.aids;
+        args.toad = config.witnesses.toad;
     }
 
     return args;

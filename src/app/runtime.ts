@@ -1,11 +1,12 @@
-import type { Algos, SignifyClient } from 'signify-ts';
+import type { SignifyClient } from 'signify-ts';
+import { appConfig } from '../config';
 import type {
-    DynamicIdentifierField,
+    IdentifierCreateDraft,
     IdentifierSummary,
 } from '../features/identifiers/identifierTypes';
 import {
+    identifierCreateDraftToArgs,
     identifiersFromResponse,
-    parseIdentifierCreateArgs,
 } from '../features/identifiers/identifierHelpers';
 import {
     connectSignifyClient,
@@ -220,12 +221,11 @@ export class AppRuntime {
      * a freshly loaded identifier list for router revalidation callers.
      */
     createIdentifier = async (
-        name: string,
-        algo: Algos,
-        fields: readonly DynamicIdentifierField[]
+        draft: IdentifierCreateDraft
     ): Promise<IdentifierSummary[]> => {
         const client = this.requireClient();
-        const args = parseIdentifierCreateArgs(algo, fields);
+        const name = draft.name.trim();
+        const args = identifierCreateDraftToArgs(draft, appConfig);
         const identifierClient = client.identifiers();
         const result = await identifierClient.create(name, args);
         const operation = await result.op();

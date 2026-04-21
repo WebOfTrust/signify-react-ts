@@ -1,54 +1,66 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
+    Accordion,
+    AccordionDetails,
+    AccordionSummary,
     Button,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
     FormControl,
-    IconButton,
+    FormControlLabel,
     InputLabel,
     MenuItem,
     Select,
     Stack,
+    Switch,
     TextField,
+    Typography,
 } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Algos } from 'signify-ts';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import {
-    IDENTIFIER_CREATE_FIELDS,
-    type DynamicIdentifierField,
-    type IdentifierCreateField,
-} from './identifierTypes';
-
-interface DynamicIdentifierFieldRow extends DynamicIdentifierField {
-    id: number;
-}
+    defaultIdentifierCreateDraft,
+    isIdentifierCreateDraft,
+} from './identifierHelpers';
+import type { IdentifierCreateDraft } from './identifierTypes';
 
 /**
  * Props for the identifier create modal.
  *
- * The modal owns form state only. It returns raw field rows to the parent so
- * KERIA calls and operation waiting remain in `IdentifiersView`.
+ * The modal owns a typed user-intent draft only. KERIA calls and operation
+ * waiting remain in `IdentifiersView` and the route/runtime boundary.
  */
 export interface IdentifierCreateDialogProps {
     open: boolean;
     actionRunning: boolean;
     onClose: () => void;
-    onCreate: (
-        name: string,
-        algo: Algos,
-        fields: readonly DynamicIdentifierField[]
-    ) => void;
+    onCreate: (draft: IdentifierCreateDraft) => void;
 }
 
+const positiveIntegerOrZero = (value: string): number => {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+};
+
+const normalizedDraft = (
+    draft: IdentifierCreateDraft
+): IdentifierCreateDraft => ({
+    ...draft,
+    name: draft.name.trim(),
+    isith: draft.isith.trim(),
+    nsith: draft.nsith.trim(),
+    bran: draft.bran.trim(),
+});
+
 /**
- * Dynamic identifier create form.
+ * Typed single-sig identifier create form.
  *
- * This component intentionally mirrors the legacy form instead of redesigning
- * identifier creation. Keep validation and Signify operation handling outside
- * this component unless they are purely presentational.
+ * The form intentionally exposes common identifier choices instead of raw
+ * `CreateIdentiferArgs`. Advanced settings are still typed and map through one
+ * adapter before reaching Signify.
  */
 export const IdentifierCreateDialog = ({
     open,
@@ -56,52 +68,28 @@ export const IdentifierCreateDialog = ({
     onClose,
     onCreate,
 }: IdentifierCreateDialogProps) => {
-    const [type, setType] = useState<Algos>(Algos.salty);
-    const [name, setName] = useState('');
-    const [dynamicFields, setDynamicFields] = useState<
-        DynamicIdentifierFieldRow[]
-    >([]);
-    const [selectedField, setSelectedField] =
-        useState<IdentifierCreateField | null>(null);
-    const nextDynamicFieldId = useRef(0);
+    const [draft, setDraft] = useState<IdentifierCreateDraft>(
+        defaultIdentifierCreateDraft
+    );
+    const createDraft = normalizedDraft(draft);
+    const createDisabled =
+        actionRunning || !isIdentifierCreateDraft(createDraft);
+
+    const updateDraft = (next: Partial<IdentifierCreateDraft>) => {
+        setDraft((current) => ({ ...current, ...next }));
+    };
+
+    const handleAlgoChange = (
+        event: SelectChangeEvent<IdentifierCreateDraft['algo']>
+    ) => {
+        const algo = event.target.value as IdentifierCreateDraft['algo'];
+        updateDraft({ algo });
+    };
 
     const handleComplete = () => {
-        onCreate(
-            name,
-            type,
-            dynamicFields.map(({ field, value }) => ({ field, value }))
-        );
-    };
-
-    const handleTypeChange = (event: SelectChangeEvent<Algos>) => {
-        setType(event.target.value as Algos);
-    };
-
-    const handleFieldChange = (
-        event: SelectChangeEvent<IdentifierCreateField | ''>
-    ) => {
-        const field = event.target.value;
-        if (field === '') {
-            return;
+        if (isIdentifierCreateDraft(createDraft)) {
+            onCreate(createDraft);
         }
-
-        setSelectedField(field);
-        setDynamicFields((fields) => [
-            ...fields,
-            { id: nextDynamicFieldId.current++, field, value: '' },
-        ]);
-    };
-
-    const handleFieldValueChange = (id: number, value: string) => {
-        setDynamicFields((fields) =>
-            fields.map((field) =>
-                field.id === id ? { ...field, value } : field
-            )
-        );
-    };
-
-    const removeField = (id: number) => {
-        setDynamicFields((fields) => fields.filter((field) => field.id !== id));
     };
 
     return (
@@ -122,72 +110,149 @@ export const IdentifierCreateDialog = ({
             <DialogTitle>Create Identifier</DialogTitle>
             <DialogContent dividers>
                 <Stack spacing={2}>
-                    <FormControl fullWidth margin="normal">
-                        <Select value={type} onChange={handleTypeChange}>
-                            <MenuItem value={Algos.salty}>Salty</MenuItem>
-                            <MenuItem value={Algos.randy}>Randy</MenuItem>
-                            <MenuItem value={Algos.group}>Group</MenuItem>
-                        </Select>
-                    </FormControl>
                     <TextField
                         label="Name"
                         placeholder="Enter name"
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
+                        value={draft.name}
+                        onChange={(event) =>
+                            updateDraft({ name: event.target.value })
+                        }
                         fullWidth
                         margin="normal"
                         variant="outlined"
                     />
                     <FormControl fullWidth margin="normal">
-                        <InputLabel id="identifier-create-field-label">
-                            Field
+                        <InputLabel id="identifier-create-algo-label">
+                            Key Source
                         </InputLabel>
                         <Select
-                            labelId="identifier-create-field-label"
-                            value={selectedField ?? ''}
-                            onChange={handleFieldChange}
+                            labelId="identifier-create-algo-label"
+                            label="Key Source"
+                            value={draft.algo}
+                            onChange={handleAlgoChange}
                         >
-                            {IDENTIFIER_CREATE_FIELDS.map((field) => (
-                                <MenuItem key={field} value={field}>
-                                    {field}
-                                </MenuItem>
-                            ))}
+                            <MenuItem value={Algos.salty}>Salty</MenuItem>
+                            <MenuItem value={Algos.randy}>Randy</MenuItem>
                         </Select>
                     </FormControl>
-                    {dynamicFields.map(({ id, field, value }) => (
-                        <Stack
-                            key={id}
-                            direction={{ xs: 'column', sm: 'row' }}
-                            spacing={1}
-                            sx={{
-                                alignItems: { xs: 'stretch', sm: 'center' },
-                            }}
-                        >
-                            <TextField
-                                label={field}
-                                placeholder="Enter value"
-                                fullWidth
-                                margin="normal"
-                                variant="outlined"
-                                value={value}
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={draft.witnessMode === 'demo'}
                                 onChange={(event) =>
-                                    handleFieldValueChange(
-                                        id,
-                                        event.target.value
-                                    )
+                                    updateDraft({
+                                        witnessMode: event.target.checked
+                                            ? 'demo'
+                                            : 'none',
+                                    })
                                 }
                             />
-                            <IconButton
-                                aria-label={`Remove ${field}`}
-                                onClick={() => removeField(id)}
-                                sx={{
-                                    alignSelf: { xs: 'flex-end', sm: 'center' },
-                                }}
-                            >
-                                <DeleteIcon />
-                            </IconButton>
-                        </Stack>
-                    ))}
+                        }
+                        label="Use demo witnesses"
+                    />
+                    <Accordion disableGutters>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                            <Typography>Advanced Options</Typography>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                            <Stack spacing={2}>
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={draft.transferable}
+                                            onChange={(event) =>
+                                                updateDraft({
+                                                    transferable:
+                                                        event.target.checked,
+                                                })
+                                            }
+                                        />
+                                    }
+                                    label="Transferable"
+                                />
+                                <Stack
+                                    direction={{ xs: 'column', sm: 'row' }}
+                                    spacing={2}
+                                >
+                                    <TextField
+                                        label="Signing threshold"
+                                        value={draft.isith}
+                                        onChange={(event) =>
+                                            updateDraft({
+                                                isith: event.target.value,
+                                            })
+                                        }
+                                        fullWidth
+                                    />
+                                    <TextField
+                                        label="Next threshold"
+                                        value={draft.nsith}
+                                        onChange={(event) =>
+                                            updateDraft({
+                                                nsith: event.target.value,
+                                            })
+                                        }
+                                        fullWidth
+                                    />
+                                </Stack>
+                                <Stack
+                                    direction={{ xs: 'column', sm: 'row' }}
+                                    spacing={2}
+                                >
+                                    <TextField
+                                        label="Key count"
+                                        type="number"
+                                        value={draft.count}
+                                        onChange={(event) =>
+                                            updateDraft({
+                                                count: positiveIntegerOrZero(
+                                                    event.target.value
+                                                ),
+                                            })
+                                        }
+                                        fullWidth
+                                        slotProps={{
+                                            htmlInput: {
+                                                min: 1,
+                                                step: 1,
+                                            },
+                                        }}
+                                    />
+                                    <TextField
+                                        label="Next key count"
+                                        type="number"
+                                        value={draft.ncount}
+                                        onChange={(event) =>
+                                            updateDraft({
+                                                ncount: positiveIntegerOrZero(
+                                                    event.target.value
+                                                ),
+                                            })
+                                        }
+                                        fullWidth
+                                        slotProps={{
+                                            htmlInput: {
+                                                min: 1,
+                                                step: 1,
+                                            },
+                                        }}
+                                    />
+                                </Stack>
+                                {draft.algo === Algos.salty && (
+                                    <TextField
+                                        label="Salt / branch"
+                                        value={draft.bran}
+                                        onChange={(event) =>
+                                            updateDraft({
+                                                bran: event.target.value,
+                                            })
+                                        }
+                                        fullWidth
+                                    />
+                                )}
+                            </Stack>
+                        </AccordionDetails>
+                    </Accordion>
                 </Stack>
             </DialogContent>
             <DialogActions
@@ -206,11 +271,11 @@ export const IdentifierCreateDialog = ({
                 </Button>
                 <Button
                     variant="contained"
-                    disabled={actionRunning || name.trim().length === 0}
+                    disabled={createDisabled}
                     onClick={handleComplete}
                     sx={{ width: { xs: '100%', sm: 'auto' } }}
                 >
-                    {actionRunning ? 'Working...' : 'Complete'}
+                    {actionRunning ? 'Working...' : 'Create'}
                 </Button>
             </DialogActions>
         </Dialog>

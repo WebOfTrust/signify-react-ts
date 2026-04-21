@@ -1,10 +1,10 @@
 import { redirect } from 'react-router-dom';
-import { Algos } from 'signify-ts';
 import { appConfig } from '../config';
 import type {
-    DynamicIdentifierField,
+    IdentifierCreateDraft,
     IdentifierSummary,
 } from '../features/identifiers/identifierTypes';
+import { isIdentifierCreateDraft } from '../features/identifiers/identifierHelpers';
 import type {
     ConnectedSignifyClient,
     SignifyClientConfig,
@@ -67,8 +67,18 @@ export type RootActionData =
  * Typed action result for identifier mutations.
  */
 export type IdentifierActionData =
-    | { intent: 'create' | 'rotate'; ok: true; message: string }
-    | { intent: 'create' | 'rotate' | 'unsupported'; ok: false; message: string };
+    | {
+          intent: 'create' | 'rotate';
+          ok: true;
+          message: string;
+          requestId?: string;
+      }
+    | {
+          intent: 'create' | 'rotate' | 'unsupported';
+          ok: false;
+          message: string;
+          requestId?: string;
+      };
 
 /**
  * Minimal connected-client shape route data needs for diagnostics.
@@ -99,11 +109,7 @@ export interface RouteDataRuntime {
     /** Load and normalize identifiers through the connected client. */
     listIdentifiers(): Promise<IdentifierSummary[]>;
     /** Create an identifier and wait for its KERIA operation to complete. */
-    createIdentifier(
-        name: string,
-        algo: Algos,
-        fields: readonly DynamicIdentifierField[]
-    ): Promise<IdentifierSummary[]>;
+    createIdentifier(draft: IdentifierCreateDraft): Promise<IdentifierSummary[]>;
     /** Rotate an identifier and wait for its KERIA operation to complete. */
     rotateIdentifier(aid: string): Promise<IdentifierSummary[]>;
 }
@@ -122,32 +128,22 @@ const formString = (formData: FormData, field: string): string => {
 const toRouteError = (error: unknown): Error =>
     error instanceof Error ? error : new Error(String(error));
 
-const parseIdentifierAlgo = (value: string): Algos =>
-    Object.values(Algos).includes(value as Algos) ? (value as Algos) : Algos.salty;
-
 /**
- * Parse the serialized dynamic create-dialog field rows submitted by
- * `IdentifiersView`.
+ * Parse the serialized typed create draft submitted by `IdentifiersView`.
  */
-const parseDynamicFields = (value: string): DynamicIdentifierField[] => {
+const parseIdentifierCreateDraft = (
+    value: string
+): IdentifierCreateDraft | null => {
     if (value.trim().length === 0) {
-        return [];
+        return null;
     }
 
-    const parsed: unknown = JSON.parse(value);
-    if (!Array.isArray(parsed)) {
-        return [];
+    try {
+        const parsed: unknown = JSON.parse(value);
+        return isIdentifierCreateDraft(parsed) ? parsed : null;
+    } catch {
+        return null;
     }
-
-    return parsed.filter(
-        (field): field is DynamicIdentifierField =>
-            typeof field === 'object' &&
-            field !== null &&
-            'field' in field &&
-            'value' in field &&
-            typeof field.field === 'string' &&
-            typeof field.value === 'string'
-    );
 };
 
 /**
@@ -289,23 +285,31 @@ export const identifiersAction = async (
     }
 
     if (intent === 'create') {
-        const name = formString(formData, 'name');
+        const requestId = formString(formData, 'requestId');
+        const draft = parseIdentifierCreateDraft(formString(formData, 'draft'));
+        if (draft === null) {
+            return {
+                intent,
+                ok: false,
+                message: 'Invalid identifier create draft.',
+                requestId,
+            };
+        }
+
         try {
-            await runtime.createIdentifier(
-                name,
-                parseIdentifierAlgo(formString(formData, 'algo')),
-                parseDynamicFields(formString(formData, 'fields'))
-            );
+            await runtime.createIdentifier(draft);
             return {
                 intent,
                 ok: true,
-                message: `Created identifier ${name}`,
+                message: `Created identifier ${draft.name}`,
+                requestId,
             };
         } catch (error) {
             return {
                 intent,
                 ok: false,
                 message: toRouteError(error).message,
+                requestId,
             };
         }
     }

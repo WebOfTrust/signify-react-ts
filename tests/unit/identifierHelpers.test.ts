@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { Algos, type HabState, type KeyState } from 'signify-ts';
+import { buildAppConfig } from '../../src/config';
 import {
+    defaultIdentifierCreateDraft,
+    identifierCreateDraftToArgs,
     identifiersFromResponse,
-    parseIdentifierCreateArgs,
+    isIdentifierCreateDraft,
 } from '../../src/features/identifiers/identifierHelpers';
+import type { IdentifierCreateDraft } from '../../src/features/identifiers/identifierTypes';
 
 const keyState = (prefix: string): KeyState => ({
     i: prefix,
@@ -79,36 +83,108 @@ describe('identifiersFromResponse', () => {
     });
 });
 
-describe('parseIdentifierCreateArgs', () => {
-    it('parses number, boolean, csv, and string fields', () => {
-        expect(
-            parseIdentifierCreateArgs(Algos.salty, [
-                { field: 'count', value: '3' },
-                { field: 'transferable', value: 'true' },
-                { field: 'wits', value: 'wit-one,wit-two' },
-                { field: 'bran', value: 'branch-code' },
-            ])
-        ).toEqual({
-            algo: 'salty',
-            count: 3,
+describe('identifier create drafts', () => {
+    const config = buildAppConfig({});
+
+    it('maps the default draft to salty create args', () => {
+        const draft: IdentifierCreateDraft = {
+            ...defaultIdentifierCreateDraft(),
+            name: 'alice',
+        };
+
+        expect(identifierCreateDraftToArgs(draft, config)).toEqual({
+            algo: Algos.salty,
             transferable: true,
-            wits: ['wit-one', 'wit-two'],
+            count: 1,
+            ncount: 1,
+            isith: '1',
+            nsith: '1',
+        });
+    });
+
+    it('maps randy drafts without salty-only branch material', () => {
+        const draft: IdentifierCreateDraft = {
+            ...defaultIdentifierCreateDraft(),
+            name: 'randy',
+            algo: Algos.randy,
+            bran: 'salty-branch',
+        };
+
+        expect(identifierCreateDraftToArgs(draft, config)).toEqual({
+            algo: Algos.randy,
+            transferable: true,
+            count: 1,
+            ncount: 1,
+            isith: '1',
+            nsith: '1',
+        });
+    });
+
+    it('maps configured demo witnesses', () => {
+        const draft: IdentifierCreateDraft = {
+            ...defaultIdentifierCreateDraft(),
+            name: 'witnessed',
+            witnessMode: 'demo',
+        };
+
+        expect(identifierCreateDraftToArgs(draft, config)).toMatchObject({
+            wits: config.witnesses.aids,
+            toad: config.witnesses.toad,
+        });
+    });
+
+    it('preserves advanced key counts and thresholds', () => {
+        const draft: IdentifierCreateDraft = {
+            ...defaultIdentifierCreateDraft(),
+            name: 'advanced',
+            count: 3,
+            ncount: 4,
+            isith: '2',
+            nsith: '3',
+        };
+
+        expect(identifierCreateDraftToArgs(draft, config)).toMatchObject({
+            count: 3,
+            ncount: 4,
+            isith: '2',
+            nsith: '3',
+        });
+    });
+
+    it('omits empty branch material and preserves non-empty salty branch material', () => {
+        const baseDraft: IdentifierCreateDraft = {
+            ...defaultIdentifierCreateDraft(),
+            name: 'branch',
+        };
+
+        expect(identifierCreateDraftToArgs(baseDraft, config)).not.toHaveProperty(
+            'bran'
+        );
+        expect(
+            identifierCreateDraftToArgs(
+                { ...baseDraft, bran: ' branch-code ' },
+                config
+            )
+        ).toMatchObject({
             bran: 'branch-code',
         });
     });
 
-    it('parses upstream numeric create fields and preserves string fields', () => {
-        expect(
-            parseIdentifierCreateArgs(Algos.randy, [
-                { field: 'transferable', value: 'false' },
-                { field: 'toad', value: '2' },
-                { field: 'bran', value: 'branch-code' },
-            ])
-        ).toEqual({
-            algo: Algos.randy,
-            transferable: false,
-            toad: 2,
-            bran: 'branch-code',
-        });
+    it('rejects malformed drafts', () => {
+        const draft: IdentifierCreateDraft = {
+            ...defaultIdentifierCreateDraft(),
+            name: 'valid',
+        };
+
+        expect(isIdentifierCreateDraft(draft)).toBe(true);
+        expect(isIdentifierCreateDraft({ ...draft, name: '' })).toBe(false);
+        expect(isIdentifierCreateDraft({ ...draft, algo: Algos.group })).toBe(
+            false
+        );
+        expect(isIdentifierCreateDraft({ ...draft, witnessMode: 'custom' })).toBe(
+            false
+        );
+        expect(isIdentifierCreateDraft({ ...draft, count: 0 })).toBe(false);
+        expect(isIdentifierCreateDraft({ ...draft, isith: '' })).toBe(false);
     });
 });
