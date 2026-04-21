@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Box, Fab, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useFetcher, useLoaderData } from 'react-router-dom';
@@ -31,14 +31,8 @@ export const IdentifiersView = () => {
     const [selectedIdentifier, setSelectedIdentifier] =
         useState<IdentifierSummary | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
-    const [pendingMessage, setPendingMessage] = useState('');
+    const [pendingMessage, setPendingMessage] = useState<string | null>(null);
     const actionRunning = fetcher.state !== 'idle';
-
-    useEffect(() => {
-        if (fetcher.data?.intent === 'create' && fetcher.data.ok) {
-            setCreateOpen(false);
-        }
-    }, [fetcher.data]);
 
     if (loaderData.status === 'blocked') {
         return <ConnectionRequired />;
@@ -50,7 +44,7 @@ export const IdentifiersView = () => {
         if (actionRunning) {
             return {
                 status: 'running',
-                message: pendingMessage,
+                message: pendingMessage ?? 'Working...',
                 error: null,
             };
         }
@@ -96,6 +90,7 @@ export const IdentifiersView = () => {
         fields: readonly DynamicIdentifierField[]
     ): Promise<void> => {
         setPendingMessage(`Creating identifier ${name}`);
+        setCreateOpen(false);
         const formData = new FormData();
         formData.set('intent', 'create');
         formData.set('name', name);
@@ -131,12 +126,14 @@ export const IdentifiersView = () => {
                 onClose={() => setSelectedIdentifier(null)}
                 onRotate={handleRotate}
             />
-            <IdentifierCreateDialog
-                open={createOpen}
-                actionRunning={actionRunning}
-                onClose={() => setCreateOpen(false)}
-                onCreate={handleCreate}
-            />
+            {createOpen && (
+                <IdentifierCreateDialog
+                    open={createOpen}
+                    actionRunning={actionRunning}
+                    onClose={() => setCreateOpen(false)}
+                    onCreate={handleCreate}
+                />
+            )}
             <Fab
                 color="primary"
                 aria-label="add"

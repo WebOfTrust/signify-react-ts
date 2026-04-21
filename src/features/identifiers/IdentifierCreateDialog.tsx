@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
     Box,
     Button,
@@ -10,7 +10,7 @@ import {
     Select,
     TextField,
 } from '@mui/material';
-import { Delete } from '@mui/icons-material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { Algos } from 'signify-ts';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import {
@@ -18,6 +18,10 @@ import {
     type DynamicIdentifierField,
     type IdentifierCreateField,
 } from './identifierTypes';
+
+interface DynamicIdentifierFieldRow extends DynamicIdentifierField {
+    id: number;
+}
 
 /**
  * Props for the identifier create modal.
@@ -52,22 +56,19 @@ export const IdentifierCreateDialog = ({
     const [type, setType] = useState<Algos>(Algos.salty);
     const [name, setName] = useState('');
     const [dynamicFields, setDynamicFields] = useState<
-        DynamicIdentifierField[]
+        DynamicIdentifierFieldRow[]
     >([]);
     const [selectedField, setSelectedField] = useState<
-        IdentifierCreateField | ''
-    >('');
-
-    useEffect(() => {
-        if (!open) {
-            setName('');
-            setDynamicFields([]);
-            setSelectedField('');
-        }
-    }, [open]);
+        IdentifierCreateField | null
+    >(null);
+    const nextDynamicFieldId = useRef(0);
 
     const handleComplete = () => {
-        onCreate(name, type, dynamicFields);
+        onCreate(
+            name,
+            type,
+            dynamicFields.map(({ field, value }) => ({ field, value }))
+        );
     };
 
     const handleTypeChange = (event: SelectChangeEvent<Algos>) => {
@@ -83,20 +84,23 @@ export const IdentifierCreateDialog = ({
         }
 
         setSelectedField(field);
-        setDynamicFields((fields) => [...fields, { field, value: '' }]);
+        setDynamicFields((fields) => [
+            ...fields,
+            { id: nextDynamicFieldId.current++, field, value: '' },
+        ]);
     };
 
-    const handleFieldValueChange = (index: number, value: string) => {
+    const handleFieldValueChange = (id: number, value: string) => {
         setDynamicFields((fields) =>
-            fields.map((field, fieldIndex) =>
-                fieldIndex === index ? { ...field, value } : field
+            fields.map((field) =>
+                field.id === id ? { ...field, value } : field
             )
         );
     };
 
-    const removeField = (index: number) => {
+    const removeField = (id: number) => {
         setDynamicFields((fields) =>
-            fields.filter((_field, fieldIndex) => fieldIndex !== index)
+            fields.filter((field) => field.id !== id)
         );
     };
 
@@ -136,7 +140,7 @@ export const IdentifierCreateDialog = ({
                     </InputLabel>
                     <Select
                         labelId="identifier-create-field-label"
-                        value={selectedField}
+                        value={selectedField ?? ''}
                         onChange={handleFieldChange}
                     >
                         {IDENTIFIER_CREATE_FIELDS.map((field) => (
@@ -146,9 +150,9 @@ export const IdentifierCreateDialog = ({
                         ))}
                     </Select>
                 </FormControl>
-                {dynamicFields.map(({ field, value }, index) => (
+                {dynamicFields.map(({ id, field, value }) => (
                     <Box
-                        key={`${field}-${index}`}
+                        key={id}
                         sx={{
                             display: 'flex',
                             alignItems: 'center',
@@ -166,14 +170,14 @@ export const IdentifierCreateDialog = ({
                             value={value}
                             onChange={(event) =>
                                 handleFieldValueChange(
-                                    index,
+                                    id,
                                     event.target.value
                                 )
                             }
                         />
                         <br />
-                        <IconButton onClick={() => removeField(index)}>
-                            <Delete />
+                        <IconButton onClick={() => removeField(id)}>
+                            <DeleteIcon />
                         </IconButton>
                     </Box>
                 ))}

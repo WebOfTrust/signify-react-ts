@@ -42,7 +42,13 @@ describe('data-router route metadata', () => {
         const featureRoutes = rootRoute.children?.filter(
             (route) => route.id !== undefined
         );
-        const routeHandles = APP_NAV_ITEMS.map(({ path, ...handle }) => handle);
+        const routeHandles = APP_NAV_ITEMS.map((item) => ({
+            routeId: item.routeId,
+            label: item.label,
+            gate: item.gate,
+            nav: item.nav,
+            testId: item.testId,
+        }));
 
         expect(
             featureRoutes?.map((route) => ({
