@@ -1,3 +1,4 @@
+import { Box, Typography } from '@mui/material';
 import { useLoaderData } from 'react-router-dom';
 import { ConnectionRequired } from '../../app/ConnectionRequired';
 import type { CredentialsLoaderData } from '../../app/routeData';
@@ -16,5 +17,14 @@ export const CredentialsView = () => {
         return <ConnectionRequired />;
     }
 
-    return <div>Credentials Component</div>;
+    return (
+        <Box sx={{ display: 'grid', gap: 1 }}>
+            <Typography variant="h5" component="h1">
+                Credentials
+            </Typography>
+            <Typography color="text.secondary">
+                Credential workflow placeholder
+            </Typography>
+        </Box>
+    );
 };

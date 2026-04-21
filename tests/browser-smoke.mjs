@@ -54,6 +54,9 @@ const textContent = (page, selector) =>
 
 const routeUrl = (path) => new URL(path, appUrl).toString();
 
+const passcodeValue = (page) =>
+  page.$eval('#outlined-password-input', (element) => element.value ?? '');
+
 const chromeArgs =
   process.env.CI === 'true' ? ['--no-sandbox', '--disable-setuid-sandbox'] : [];
 
@@ -78,10 +81,36 @@ try {
   await page.click('[data-testid="connect-open"]');
   await page.waitForSelector('[data-testid="connect-dialog"]');
   await page.click('[data-testid="generate-passcode"]');
+  await page.waitForFunction(
+    () =>
+      globalThis.document.querySelector(
+        '[data-testid="app-loading-overlay"]'
+      ) !== null ||
+      globalThis.document.querySelector('#outlined-password-input')?.value
+        .length >= 21,
+    { timeout: 10000 }
+  );
+  await page.waitForFunction(
+    () =>
+      globalThis.document.querySelector('#outlined-password-input')?.value
+        .length >= 21,
+    { timeout: 10000 }
+  );
+  const generatedPasscode = await passcodeValue(page);
+  if (generatedPasscode.length < 21) {
+    throw new Error(`Expected generated passcode, got ${generatedPasscode}`);
+  }
   await page.click('[data-testid="connect-submit"]');
+  await page.waitForSelector('[data-testid="app-loading-overlay"]', {
+    timeout: 10000,
+  });
   await page.waitForSelector('[data-testid="connect-dialog"]', {
     hidden: true,
     timeout: 30000,
+  });
+  await page.waitForSelector('[data-testid="app-loading-overlay"]', {
+    hidden: true,
+    timeout: 10000,
   });
   await page.waitForSelector('[data-testid="identifier-table"]', {
     timeout: 10000,

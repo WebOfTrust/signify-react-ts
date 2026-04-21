@@ -1,11 +1,17 @@
 import {
+    Box,
+    Card,
+    CardActionArea,
+    CardContent,
     Paper,
+    Stack,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
+    Typography,
 } from '@mui/material';
 import type { IdentifierSummary } from './identifierTypes';
 
@@ -44,35 +50,70 @@ export const IdentifierTable = ({
     identifiers,
     onSelect,
 }: IdentifierTableProps) => (
-    <TableContainer component={Paper} data-testid="identifier-table">
-        <Table sx={{ minWidth: 650 }} aria-label="simple table">
-            <TableHead>
-                <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Prefix</TableCell>
-                    <TableCell>Type</TableCell>
-                </TableRow>
-            </TableHead>
-            <TableBody>
-                {identifiers.map((identifier) => (
-                    <TableRow
-                        key={identifier.name}
-                        sx={{
-                            '&:last-child td, &:last-child th': {
-                                border: 0,
-                            },
-                        }}
-                        onClick={() => onSelect(identifier)}
-                        style={{ cursor: 'pointer' }}
-                    >
-                        <TableCell component="th" scope="row">
-                            {identifier.name}
-                        </TableCell>
-                        <TableCell>{identifier.prefix}</TableCell>
-                        <TableCell>{identifierType(identifier)}</TableCell>
+    <Box data-testid="identifier-table">
+        <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
+            {identifiers.map((identifier) => (
+                <Card key={identifier.name} variant="outlined">
+                    <CardActionArea onClick={() => onSelect(identifier)}>
+                        <CardContent>
+                            <Stack spacing={0.75}>
+                                <Typography variant="subtitle1">
+                                    {identifier.name}
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                    sx={{ overflowWrap: 'anywhere' }}
+                                >
+                                    {identifier.prefix}
+                                </Typography>
+                                <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                >
+                                    {identifierType(identifier)}
+                                </Typography>
+                            </Stack>
+                        </CardContent>
+                    </CardActionArea>
+                </Card>
+            ))}
+        </Stack>
+        <TableContainer
+            component={Paper}
+            sx={{ display: { xs: 'none', sm: 'block' } }}
+        >
+            <Table sx={{ minWidth: 650 }} aria-label="identifier table">
+                <TableHead>
+                    <TableRow>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Prefix</TableCell>
+                        <TableCell>Type</TableCell>
                     </TableRow>
-                ))}
-            </TableBody>
-        </Table>
-    </TableContainer>
+                </TableHead>
+                <TableBody>
+                    {identifiers.map((identifier) => (
+                        <TableRow
+                            key={identifier.name}
+                            sx={{
+                                cursor: 'pointer',
+                                '&:last-child td, &:last-child th': {
+                                    border: 0,
+                                },
+                            }}
+                            onClick={() => onSelect(identifier)}
+                        >
+                            <TableCell component="th" scope="row">
+                                {identifier.name}
+                            </TableCell>
+                            <TableCell sx={{ overflowWrap: 'anywhere' }}>
+                                {identifier.prefix}
+                            </TableCell>
+                            <TableCell>{identifierType(identifier)}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </TableContainer>
+    </Box>
 );

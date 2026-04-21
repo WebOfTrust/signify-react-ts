@@ -100,9 +100,9 @@ export const IdentifiersView = () => {
     };
 
     return (
-        <>
+        <Box sx={{ display: 'grid', gap: 2 }}>
             {actionState.message && (
-                <Box sx={{ p: 2 }}>
+                <Box>
                     <Typography
                         color={
                             actionState.status === 'error'
@@ -137,12 +137,19 @@ export const IdentifiersView = () => {
             <Fab
                 color="primary"
                 aria-label="add"
-                style={{ position: 'fixed', bottom: '20px', right: '20px' }}
                 onClick={() => setCreateOpen(true)}
                 disabled={actionRunning}
+                sx={{
+                    position: 'fixed',
+                    right: { xs: '16px', sm: '24px' },
+                    bottom: {
+                        xs: 'calc(16px + env(safe-area-inset-bottom))',
+                        sm: '24px',
+                    },
+                }}
             >
                 <AddIcon />
             </Fab>
-        </>
+        </Box>
     );
 };

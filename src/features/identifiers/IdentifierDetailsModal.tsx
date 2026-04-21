@@ -1,4 +1,13 @@
-import { Box, Button, Modal } from '@mui/material';
+import {
+    Box,
+    Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Stack,
+    Typography,
+} from '@mui/material';
 import type { IdentifierSummary } from './identifierTypes';
 
 /**
@@ -66,50 +75,79 @@ export const IdentifierDetailsModal = ({
     const type = identifier ? identifierType(identifier) : '';
 
     return (
-        <Modal
+        <Dialog
             open={open}
             onClose={onClose}
             aria-labelledby="modal-modal-title"
             aria-describedby="modal-modal-description"
+            fullWidth
+            maxWidth="md"
+            slotProps={{
+                paper: {
+                    sx: {
+                        m: { xs: 2, sm: 4 },
+                        width: { xs: 'calc(100% - 32px)', sm: '100%' },
+                    },
+                },
+            }}
         >
-            <Box
+            <DialogTitle id="modal-modal-title">Identifier Details</DialogTitle>
+            <DialogContent
+                id="modal-modal-description"
+                dividers
+                sx={{ overflowWrap: 'anywhere' }}
+            >
+                <Stack spacing={1.5}>
+                    <Typography>Name: {identifier?.name}</Typography>
+                    <Typography>Prefix: {identifier?.prefix}</Typography>
+                    <Typography>Type: {type}</Typography>
+                    <Box
+                        component="pre"
+                        sx={{
+                            m: 0,
+                            maxHeight: '50dvh',
+                            overflow: 'auto',
+                            whiteSpace: 'pre-wrap',
+                            overflowWrap: 'anywhere',
+                        }}
+                    >
+                        {JSON.stringify(
+                            identifier === null
+                                ? undefined
+                                : identifierDetails(identifier),
+                            null,
+                            2
+                        )}
+                    </Box>
+                </Stack>
+            </DialogContent>
+            <DialogActions
                 sx={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: 400,
-                    bgcolor: 'background.paper',
-                    boxShadow: 24,
-                    p: 4,
-                    overflow: 'auto',
-                    maxHeight: '80vh',
+                    flexDirection: { xs: 'column-reverse', sm: 'row' },
+                    gap: 1,
+                    px: { xs: 2, sm: 3 },
+                    py: 2,
                 }}
             >
-                <h2>Identifier Details</h2>
-                <p>Name: {identifier?.name}</p>
-                <p>Prefix: {identifier?.prefix}</p>
-                <p>Type: {type}</p>
-                <pre>
-                    {JSON.stringify(
-                        identifier === null
-                            ? undefined
-                            : identifierDetails(identifier),
-                        null,
-                        2
-                    )}
-                </pre>
                 <Button
+                    onClick={onClose}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
+                >
+                    Close
+                </Button>
+                <Button
+                    variant="contained"
                     disabled={actionRunning || !identifier?.name}
                     onClick={() => {
                         if (identifier?.name) {
                             onRotate(identifier.name);
                         }
                     }}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
                 >
                     {actionRunning ? 'Working...' : 'Rotate'}
                 </Button>
-            </Box>
-        </Modal>
+            </DialogActions>
+        </Dialog>
     );
 };

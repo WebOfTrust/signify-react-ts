@@ -1,52 +1,53 @@
 {
-  "name": "signify-react-ts",
-  "private": false,
-  "version": "0.0.1",
-  "type": "module",
-  "license": "Apache-2.0",
-  "scripts": {
-    "dev": "vite",
-    "build": "npx tsc && vite build",
-    "lint": "eslint src tests scripts eslint.config.mjs vite.config.ts vitest.config.ts --max-warnings 0",
-    "preview": "vite preview",
-    "keria:smoke": "tsx scripts/keria-smoke.ts",
-    "browser:smoke": "node tests/browser-smoke.mjs",
-    "unit:test": "vitest run tests/unit",
-    "scenario:test": "vitest run tests/scenarios/salty.test.ts tests/scenarios/randy.test.ts tests/scenarios/witnessed.test.ts tests/scenarios/challenge.test.ts tests/scenarios/controller-rotation.test.ts",
-    "scenario:test:all": "vitest run tests/scenarios",
-    "test:ci": "pnpm lint && pnpm build && pnpm unit:test && pnpm keria:smoke -- --mode connect && pnpm keria:smoke && pnpm scenario:test && pnpm browser:smoke"
-  },
-  "engines": {
-    "node": ">=20.19.0"
-  },
-  "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^9.0.0",
-    "@mui/material": "^9.0.0",
-    "puppeteer": "^24.42.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "react-router-dom": "^7.14.2",
-    "signify-ts": "0.3.0"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.2.0",
-    "eslint": "^10.2.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "prettier": "^3.8.3",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.0",
-    "vite": "^7.3.2",
-    "vite-plugin-wasm": "^3.6.0",
-    "vitest": "^4.1.5"
-  }
+    "name": "signify-react-ts",
+    "private": false,
+    "version": "0.0.1",
+    "type": "module",
+    "license": "Apache-2.0",
+    "scripts": {
+        "dev": "vite",
+        "build": "npx tsc && vite build",
+        "lint": "eslint src tests scripts eslint.config.mjs vite.config.ts vitest.config.ts --max-warnings 0",
+        "preview": "vite preview",
+        "keria:smoke": "tsx scripts/keria-smoke.ts",
+        "browser:smoke": "node tests/browser-smoke.mjs",
+        "responsive:smoke": "node tests/responsive-smoke.mjs",
+        "unit:test": "vitest run tests/unit",
+        "scenario:test": "vitest run tests/scenarios/salty.test.ts tests/scenarios/randy.test.ts tests/scenarios/witnessed.test.ts tests/scenarios/challenge.test.ts tests/scenarios/controller-rotation.test.ts",
+        "scenario:test:all": "vitest run tests/scenarios",
+        "test:ci": "pnpm lint && pnpm build && pnpm unit:test && pnpm responsive:smoke && pnpm keria:smoke -- --mode connect && pnpm keria:smoke && pnpm scenario:test && pnpm browser:smoke"
+    },
+    "engines": {
+        "node": ">=20.19.0"
+    },
+    "dependencies": {
+        "@emotion/react": "^11.14.0",
+        "@emotion/styled": "^11.14.1",
+        "@mui/icons-material": "^9.0.0",
+        "@mui/material": "^9.0.0",
+        "puppeteer": "^24.42.0",
+        "puppeteer-extra": "^3.3.6",
+        "puppeteer-extra-plugin-stealth": "^2.11.2",
+        "react": "^19.2.5",
+        "react-dom": "^19.2.5",
+        "react-router-dom": "^7.14.2",
+        "signify-ts": "0.3.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^5.2.0",
+        "eslint": "^10.2.1",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-react-hooks": "^7.1.1",
+        "eslint-plugin-react-refresh": "^0.5.2",
+        "prettier": "^3.8.3",
+        "tsx": "^4.21.0",
+        "typescript": "^6.0.3",
+        "typescript-eslint": "^8.59.0",
+        "vite": "^7.3.2",
+        "vite-plugin-wasm": "^3.6.0",
+        "vitest": "^4.1.5"
+    }
 }
