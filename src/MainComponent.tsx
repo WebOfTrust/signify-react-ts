@@ -1,4 +1,4 @@
-import { type Identifier } from 'signify-ts';
+import { type SignifyClient } from 'signify-ts';
 import  { useEffect, useState } from 'react';
 import {
   AppBar,
@@ -34,7 +34,12 @@ import { Circle, Delete, Menu } from '@mui/icons-material';
 import AddIcon from '@mui/icons-material/Add';
 import { appConfig } from './config';
 import { useSignifyClient } from './signify/useSignifyClient';
-import { randomSignifyPasscode, type SignifyStateSummary } from './signify/client';
+import {
+  randomSignifyPasscode,
+  toError,
+  waitOperation,
+  type SignifyStateSummary,
+} from './signify/client';
 
 
 
@@ -176,7 +181,6 @@ const MainComponent = () => {
     if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
       return;
     }
-    console.log('menu')
     setDrawerOpen(open);
   };
 
@@ -198,7 +202,7 @@ const MainComponent = () => {
       bootUrl: appConfig.keria.bootUrl,
       passcode,
       tier: appConfig.defaultTier,
-    }).catch(() => undefined);
+    });
   };
 
   const renderConnectionRequired = () => (
@@ -330,7 +334,7 @@ const MainComponent = () => {
           </Grid>
         </DialogActions>
       </Dialog>
-      {selectedComponent === 'Identifiers' && (client ? <IdentifierTable client={client.identifiers()} /> : renderConnectionRequired())}
+      {selectedComponent === 'Identifiers' && (client ? <IdentifierTable client={client} /> : renderConnectionRequired())}
 
       {selectedComponent === 'Credentials' && <CredentialsComponent />}
       {selectedComponent === 'Client' && (state ? <ClientComponent summary={state} /> : renderConnectionRequired())}
@@ -338,128 +342,36 @@ const MainComponent = () => {
   );
 };
 
-({ client }: { client:Identifier}) => {
-  const [identifiers, setIdentifiers] = useState<any[]>([])
-  //async useeffect
-  const getIdentifiers = async () => {
-    const list_identifiers = await client.list()
-    setIdentifiers(list_identifiers)
-    console.log(list_identifiers)
-  }
-  useEffect(() => {
+type IdentifierActionState =
+  | { status: 'idle'; message: null; error: null }
+  | { status: 'running'; message: string; error: null }
+  | { status: 'success'; message: string; error: null }
+  | { status: 'error'; message: string; error: Error };
 
-    getIdentifiers()
-  }, [])
-
-  const handleClick = async (aid: string) => {
-    // Your asynchronous function logic here
-    await client.rotate(aid, {})
-    await getIdentifiers()
-  };
-
-  //render the identifiers
-  if (!identifiers) return <div>Loading...</div>
-  // const data = JSON.stringify(identifiers, null, 2)
-
-
-  return <>
-    <Box sx={{ position: 'relative' }}>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Action</TableCell>
-              <TableCell>Prefix</TableCell>
-              <TableCell>Salty sxlt</TableCell>
-              <TableCell>Salty pidx</TableCell>
-              <TableCell>Salty kidx</TableCell>
-              <TableCell>Salty stem</TableCell>
-              <TableCell>Salty tier</TableCell>
-              <TableCell>Salty dcode</TableCell>
-              <TableCell>Salty icodes</TableCell>
-              <TableCell>Salty ncodes</TableCell>
-              <TableCell>Transferable</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {identifiers.map((item, index) => (
-              <TableRow key={index}>
-                <TableCell>{item.name}</TableCell>
-                <TableCell>
-                  <Button onClick={() => handleClick(item.name)}>Rotate</Button>
-                </TableCell>
-                <TableCell>{item.prefix.slice(0, 10)}...{item.prefix.slice(item.prefix.length - 10, item.prefix.length)}</TableCell>
-                <TableCell>{item.salty.sxlt.slice(0, 10)}....</TableCell>
-                <TableCell>{item.salty.pidx}</TableCell>
-                <TableCell>{item.salty.kidx}</TableCell>
-                <TableCell>{item.salty.stem}</TableCell>
-                <TableCell>{item.salty.tier}</TableCell>
-                <TableCell>{item.salty.dcode}</TableCell>
-                <TableCell>{item.salty.icodes.join(', ')}</TableCell>
-                <TableCell>{item.salty.ncodes.join(', ')}</TableCell>
-                <TableCell>{item.salty.transferable.toString()}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      <Fab
-        color="primary"
-        aria-label="add"
-        style={{ position: 'fixed', bottom: '20px', right: '20px' }}
-        onClick={async () => {
-          const length = identifiers.length.toString()
-          await client.create(`aid${length}`)
-          const list_identifiers = await client.list()
-          setIdentifiers(list_identifiers)
-        }}
-      >
-        <AddIcon />
-      </Fab>
-
-    </Box>
-  </>
-
-
-
-};
-(identifierType:any, data:any) => {
-  switch (identifierType) {
-    case 'randy':
-      return (
-        <>
-          <Typography variant="h6">PRXS:</Typography>
-          {data.prxs.map((prx:string, index:string) => <Typography key={index}>{prx}</Typography>)}
-          <Typography variant="h6">NXTS:</Typography>
-          {data.nxts.map((nxt:string, index:string) => <Typography key={index}>{nxt}</Typography>)}
-        </>
-      );
-    case 'salty':
-      return (
-        <>
-          <Typography variant="h6">SXLT: {data.sxlt}</Typography>
-          <Typography variant="h6">PIDX: {data.pidx}</Typography>
-          <Typography variant="h6">KIDX: {data.kidx}</Typography>
-          <Typography variant="h6">Stem: {data.stem}</Typography>
-          <Typography variant="h6">Tier: {data.tier}</Typography>
-          <Typography variant="h6">DCode: {data.dcode}</Typography>
-          <Typography variant="h6">ICodes:</Typography>
-          {data.icodes.map((icode:string, index:string) => <Typography key={index}>{icode}</Typography>)}
-          <Typography variant="h6">NCodes:</Typography>
-          {data.ncodes.map((ncode:string, index:string) => <Typography key={index}>{ncode}</Typography>)}
-          <Typography variant="h6">Transferable: {data.transferable ? 'Yes' : 'No'}</Typography>
-        </>
-      );
-    default:
-      return null;
-  }
+const idleIdentifierAction: IdentifierActionState = {
+  status: 'idle',
+  message: null,
+  error: null,
 };
 
-const IdentifierTable = ({ client }:{client:Identifier}) => {
+const identifiersFromResponse = (response: any): any[] => {
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  if (Array.isArray(response?.aids)) {
+    return response.aids;
+  }
+
+  return [];
+};
+
+const IdentifierTable = ({ client }:{client:SignifyClient}) => {
   const [open, setOpen] = useState(false);
   const [currentIdentifier, setCurrentIdentifier] = useState<any>({});
-  const [identifiers, setIdentifiers] = useState([])
+  const [identifiers, setIdentifiers] = useState<any[]>([])
+  const [actionState, setActionState] =
+    useState<IdentifierActionState>(idleIdentifierAction);
 
   const [openCreate, setOpenCreate] = useState(false);
   const [type, setType] = useState('salty');
@@ -467,25 +379,56 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
   const [dynamicFields, setDynamicFields] = useState<any[]>([]);
   const [dynamicFieldsValues, setDynamicFieldsValues] = useState<any[]>([]);
   const [selectedField, setSelectedField] = useState('');
+  const identifierClient = client.identifiers();
+  const actionRunning = actionState.status === 'running';
   //async useeffect
   const getIdentifiers = async () => {
-    const list_identifiers = await client.list()
-    setIdentifiers(list_identifiers)
-    console.log(list_identifiers)
+    const listIdentifiers = identifiersFromResponse(await identifierClient.list())
+    setIdentifiers(listIdentifiers)
+    return listIdentifiers;
   }
   useEffect(() => {
-
-    getIdentifiers()
-  }, [])
+    getIdentifiers().catch((error) => {
+      const normalized = toError(error);
+      setActionState({
+        status: 'error',
+        message: `Unable to load identifiers: ${normalized.message}`,
+        error: normalized,
+      });
+    })
+  }, [client])
   const handleOpen = (identifier:any) => {
     setCurrentIdentifier(identifier);
     setOpen(true);
   };
 
   const handleClickRotate = async (aid: string) => {
-    // Your asynchronous function logic here
-    await client.rotate(aid, {})
-    await getIdentifiers()
+    setActionState({
+      status: 'running',
+      message: `Rotating identifier ${aid}`,
+      error: null,
+    });
+
+    try {
+      const result = await identifierClient.rotate(aid, {})
+      const operation = await result.op()
+      await waitOperation(client, operation, {
+        label: `rotating identifier ${aid}`,
+      })
+      await getIdentifiers()
+      setActionState({
+        status: 'success',
+        message: `Rotated identifier ${aid}`,
+        error: null,
+      });
+    } catch (error) {
+      const normalized = toError(error);
+      setActionState({
+        status: 'error',
+        message: normalized.message,
+        error: normalized,
+      });
+    }
   };
 
   const handleClose = () => {
@@ -514,7 +457,12 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
     )} */}
 
       <pre>{JSON.stringify(currentIdentifier[Object.keys(currentIdentifier)[2]], null, 2)}</pre>
-      <Button onClick={() => handleClickRotate(currentIdentifier.name)}>Rotate</Button>
+      <Button
+        disabled={actionRunning || !currentIdentifier.name}
+        onClick={() => handleClickRotate(currentIdentifier.name)}
+      >
+        {actionRunning ? 'Working...' : 'Rotate'}
+      </Button>
     </Box>
   );
 
@@ -527,37 +475,55 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
   };
 
   const handleComplete = async () => {
-    console.log('Type:', type);
-    console.log('Name:', name);
-    console.log('Dynamic Fields:', dynamicFields);
-    console.log('Dynamic Fields Values:', dynamicFieldsValues);
-    
     let fields:any = {
       algo: type,
     }
     dynamicFields.forEach((field, index) => {
+      const value = dynamicFieldsValues[index] ?? '';
       if (field == 'count' || field =='ncount' ){
-        fields[field] = parseInt(dynamicFieldsValues[index]);
+        fields[field] = parseInt(value);
       }
       else if (field == 'transferable'){
-        fields[field] = dynamicFieldsValues[index] == 'true' ? true : false;
+        fields[field] = value == 'true' ? true : false;
       }
       else if (field == 'icodes' || field == 'ncodes' || field == 'prxs' || field == 'nxts'|| field == 'cuts' || field == 'adds'){
-        fields[field] = dynamicFieldsValues[index].split(',');
+        fields[field] = value.split(',');
       }
       else {
-      fields[field] = dynamicFieldsValues[index];
+      fields[field] = value;
       }
     });
-    console.log('name:', name);
+    setActionState({
+      status: 'running',
+      message: `Creating identifier ${name}`,
+      error: null,
+    });
 
-    console.log('Fields:', fields);
-
-    //create identifier
-    client.create(name, fields)
-    const list_identifiers = await client.list()
-    setIdentifiers(list_identifiers)
-    handleClose();
+    try {
+      const result = await identifierClient.create(name, fields)
+      const operation = await result.op()
+      await waitOperation(client, operation, {
+        label: `creating identifier ${name}`,
+      })
+      await getIdentifiers()
+      setActionState({
+        status: 'success',
+        message: `Created identifier ${name}`,
+        error: null,
+      });
+      setName('');
+      setDynamicFields([]);
+      setDynamicFieldsValues([]);
+      setSelectedField('');
+      handleCloseCreate();
+    } catch (error) {
+      const normalized = toError(error);
+      setActionState({
+        status: 'error',
+        message: normalized.message,
+        error: normalized,
+      });
+    }
   };
 
   const handleTypeChange = (event:any) => {
@@ -595,6 +561,7 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
     const renderDynamicFields = () => {
       return dynamicFields.map((field, index) => (
         <Box
+          key={`${field}-${index}`}
           sx={{
             display: 'flex',
             alignItems: 'center',
@@ -604,7 +571,6 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
           }}
         >
           <TextField
-            key={index}
             label={field}
             placeholder='Enter value'
             fullWidth
@@ -633,6 +599,16 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
 
     return (
       <>
+        {actionState.message && (
+          <Box sx={{ p: 2 }}>
+            <Typography
+              color={actionState.status === 'error' ? 'error' : 'text.primary'}
+              data-testid="identifier-action-status"
+            >
+              {actionState.message}
+            </Typography>
+          </Box>
+        )}
         <TableContainer component={Paper}>
           <Table sx={{ minWidth: 650 }} aria-label="simple table">
             <TableHead>
@@ -724,15 +700,11 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
             {/* Add more buttons to add other fields as needed */}
             {renderDynamicFields()}
             <Button variant="contained" 
-            //make onclick async for handlecomplete
-            onClick= {async () => { 
-              await handleComplete()
-            }}
-
-            // onClick={handleComplete}
+            disabled={actionRunning || name.trim().length === 0}
+            onClick= {handleComplete}
             
             >
-              Complete
+              {actionRunning ? 'Working...' : 'Complete'}
             </Button>
           </Box>
         </Modal>
@@ -740,13 +712,8 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
           color="primary"
           aria-label="add"
           style={{ position: 'fixed', bottom: '20px', right: '20px' }}
-          // onClick={async () => {
-          //   const length = identifiers.length.toString()
-          //   await client.create(`aid${length}`, {})
-          //   const list_identifiers = await client.list()
-          //   setIdentifiers(list_identifiers)
-          // }}
           onClick={handleOpenCreate}
+          disabled={actionRunning}
         >
           <AddIcon />
         </Fab>
@@ -798,11 +765,6 @@ const IdentifierTable = ({ client }:{client:Identifier}) => {
             <AidComponent data={controller} text={'Controller'} />
           </Grid>
 
-
-          <Divider />
-          <Button variant="contained" color="primary" onClick={() => console.log('rotate')}>
-            Rotate
-          </Button>
         </>
     );
 

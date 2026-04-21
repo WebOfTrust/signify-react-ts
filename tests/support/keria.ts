@@ -10,7 +10,7 @@ import { appConfig } from '../../src/config';
 import {
   connectSignifyClient,
   randomSignifyPasscode,
-  waitForOperation,
+  waitOperation,
 } from '../../src/signify/client';
 
 /**
@@ -112,7 +112,7 @@ export const waitForKeriaOperation = async (
   operation: Operation,
   label: string
 ): Promise<CompletedOperation> =>
-  waitForOperation(role.client, operation, {
+  waitOperation(role.client, operation, {
     label: `${role.name}: ${label}`,
     ...appConfig.operations,
   });

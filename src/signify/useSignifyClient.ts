@@ -3,6 +3,7 @@ import type { SignifyClient } from 'signify-ts';
 import {
   connectSignifyClient,
   getSignifyState,
+  toError,
   type ConnectedSignifyClient,
   type SignifyClientConfig,
   type SignifyStateSummary,
@@ -39,9 +40,6 @@ const idleState: SignifyConnectionState = {
   error: null,
   booted: false,
 };
-
-const toError = (error: unknown): Error =>
-  error instanceof Error ? error : new Error(String(error));
 
 /**
  * React state adapter for the Signify client boundary.
@@ -83,7 +81,7 @@ export const useSignifyClient = () => {
         error: normalized,
         booted: false,
       });
-      throw normalized;
+      return null;
     }
   }, []);
 
