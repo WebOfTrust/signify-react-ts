@@ -1,13 +1,13 @@
-import { BrowserRouter } from 'react-router-dom';
+import { RouterProvider } from 'react-router-dom';
 import './App.css';
-import { AppShell } from './app/AppShell';
+import { createAppRouter } from './app/router';
+import { createAppRuntime } from './app/runtime';
+
+const appRuntime = createAppRuntime();
+const appRouter = createAppRouter(appRuntime);
 
 function App() {
-    return (
-        <BrowserRouter>
-            <AppShell />
-        </BrowserRouter>
-    );
+    return <RouterProvider router={appRouter} />;
 }
 
 export default App;

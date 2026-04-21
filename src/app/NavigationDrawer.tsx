@@ -1,22 +1,24 @@
 import type { KeyboardEvent } from 'react';
 import { Drawer, List, ListItem, ListItemText } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { VIEW_DEFINITIONS } from '../views';
+import { APP_NAV_ITEMS } from './router';
 
 /**
  * Props for the route navigation drawer.
  */
 export interface NavigationDrawerProps {
+    /** Whether the drawer is currently visible. */
     open: boolean;
+    /** Close the drawer after backdrop, keyboard, or item selection events. */
     onClose: () => void;
 }
 
 /**
- * Drawer generated from `VIEW_DEFINITIONS`.
+ * Drawer generated from data-router route handles.
  *
  * This component is intentionally route-aware and feature-unaware: adding a new
- * drawer item should mean updating the typed view registry, not hardcoding a
- * second list here.
+ * drawer item should mean updating the route descriptor, not hardcoding a
+ * second navigation list here.
  */
 export const NavigationDrawer = ({ open, onClose }: NavigationDrawerProps) => {
     const navigate = useNavigate();
@@ -33,9 +35,9 @@ export const NavigationDrawer = ({ open, onClose }: NavigationDrawerProps) => {
         <Drawer open={open} onClose={onClose}>
             <div role="presentation" onKeyDown={handleKeyDown}>
                 <List>
-                    {VIEW_DEFINITIONS.map((view) => (
+                    {APP_NAV_ITEMS.map((view) => (
                         <ListItem
-                            key={view.id}
+                            key={view.routeId}
                             onClick={() => {
                                 navigate(view.path);
                                 onClose();

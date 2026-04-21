@@ -52,6 +52,8 @@ const startViteIfNeeded = async () => {
 const textContent = (page, selector) =>
   page.$eval(selector, (element) => element.textContent ?? '');
 
+const routeUrl = (path) => new URL(path, appUrl).toString();
+
 const chromeArgs =
   process.env.CI === 'true' ? ['--no-sandbox', '--disable-setuid-sandbox'] : [];
 
@@ -63,6 +65,14 @@ const browser = await puppeteer.launch({
 
 try {
   const page = await browser.newPage();
+
+  for (const path of ['/identifiers', '/credentials', '/client']) {
+    await page.goto(routeUrl(path), { waitUntil: 'networkidle0' });
+    await page.waitForSelector('[data-testid="connection-required"]', {
+      timeout: 10000,
+    });
+  }
+
   await page.goto(appUrl, { waitUntil: 'networkidle0' });
 
   await page.click('[data-testid="connect-open"]');
@@ -76,6 +86,10 @@ try {
   await page.waitForSelector('[data-testid="identifier-table"]', {
     timeout: 10000,
   });
+  if (!page.url().endsWith('/identifiers')) {
+    throw new Error(`Expected post-connect /identifiers route, got ${page.url()}`);
+  }
+
   const identifierStatus = await page.$('[data-testid="identifier-action-status"]');
   if (identifierStatus !== null) {
     const identifierStatusText = await textContent(
@@ -96,6 +110,9 @@ try {
   await page.waitForSelector('[data-testid="client-summary"]', {
     timeout: 10000,
   });
+  if (!page.url().endsWith('/client')) {
+    throw new Error(`Expected drawer navigation to /client, got ${page.url()}`);
+  }
 
   const controller = await textContent(page, '[data-testid="controller-aid"]');
   const agent = await textContent(page, '[data-testid="agent-aid"]');

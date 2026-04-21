@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Box,
     Button,
@@ -32,7 +32,7 @@ export interface IdentifierCreateDialogProps {
         name: string,
         algo: string,
         fields: readonly DynamicIdentifierField[]
-    ) => Promise<boolean>;
+    ) => void;
 }
 
 /**
@@ -57,14 +57,16 @@ export const IdentifierCreateDialog = ({
         IdentifierCreateField | ''
     >('');
 
-    const handleComplete = async () => {
-        const created = await onCreate(name, type, dynamicFields);
-        if (created) {
+    useEffect(() => {
+        if (!open) {
             setName('');
             setDynamicFields([]);
             setSelectedField('');
-            onClose();
         }
+    }, [open]);
+
+    const handleComplete = () => {
+        onCreate(name, type, dynamicFields);
     };
 
     const handleTypeChange = (event: SelectChangeEvent<string>) => {

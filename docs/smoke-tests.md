@@ -57,6 +57,7 @@ The smoke-test stack has one shared smoke module and two executable wrappers.
 | Shared smoke    | `tests/smoke/clientBoundarySmoke.ts` | Boots/connects through the Signify boundary, reads client state, and optionally creates a witnessed identifier.     |
 | CLI wrapper     | `scripts/keria-smoke.ts`             | Parses process args, calls the shared smoke module, and prints JSON.                                                |
 | Browser wrapper | `tests/browser-smoke.mjs`            | Starts or reuses Vite, drives the React UI with Puppeteer, and verifies the client summary.                         |
+| App runtime     | `src/app/runtime.ts`                 | Shares connected Signify state between React Router loaders/actions and shell UI.                                   |
 | Boundary        | `src/signify/client.ts`              | Owns `ready()`, `randomPasscode()`, `SignifyClient` construction, boot/connect, state reads, and operation waiting. |
 | Config          | `src/config.ts`                      | Supplies shared defaults and environment overrides for browser and Node execution.                                  |
 
@@ -162,18 +163,19 @@ The browser smoke:
 4. opens the connect dialog,
 5. generates a Signify passcode through the UI,
 6. connects to local KERIA,
-7. waits for `connection-status-connected`,
-8. lands on the routed `/identifiers` view,
-9. navigates through the drawer to the routed `/client` view,
-10. verifies the controller and agent AIDs render.
+7. waits for the data-router root action to connect and close the dialog,
+8. lands on the data-router `/identifiers` route,
+9. verifies the identifiers loader rendered the table,
+10. navigates through the drawer to the data-router `/client` route,
+11. verifies the client loader rendered controller and agent AIDs.
 
 The browser test uses stable `data-testid` selectors. If a UI refactor changes
 the connect dialog or client summary, update the selectors and the test
 together. Do not replace them with generated MUI class selectors.
 
-The app uses React Router, but browser smoke intentionally drives the same UI
-controls a user would use instead of asserting implementation-specific router
-state.
+The app uses React Router data routers, but browser smoke intentionally drives
+the same UI controls a user would use instead of asserting implementation-
+specific router internals.
 
 Set `BROWSER_SMOKE_URL` to point at an already-running app:
 
@@ -226,6 +228,10 @@ witnesses are reachable and match `VITE_WITNESS_AIDS`.
 
 `No element found for selector`: browser smoke is out of sync with the UI. Keep
 the `data-testid` contract stable or update the test with the UI change.
+
+`Unable to load identifiers`: the browser connected through the root route
+action, but the identifiers route loader could not list identifiers. Check KERIA
+CORS and signed-request headers before debugging React Router.
 
 ## Extending Smoke Coverage
 

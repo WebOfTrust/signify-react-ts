@@ -13,24 +13,25 @@ import {
     TextField,
     Typography,
 } from '@mui/material';
+import { useFetcher } from 'react-router-dom';
 import { appConfig, type ConnectionOption } from '../config';
 import { randomSignifyPasscode } from '../signify/client';
-import type { SignifyConnectionState } from '../signify/useSignifyClient';
+import type { RootActionData } from './routeData';
+import type { SignifyConnectionState } from './runtime';
 
 /**
  * Props for the KERIA connection dialog.
  *
- * The dialog owns only form state. Boot/connect behavior is delegated to
- * `onConnect` so Signify lifecycle stays in `AppShell` and `useSignifyClient`.
+ * The dialog owns only form state. Boot/connect behavior is submitted to the
+ * root route action so Signify lifecycle stays in the app runtime boundary.
  */
 export interface ConnectDialogProps {
+    /** Whether the modal is currently visible. */
     open: boolean;
+    /** Current connection state from the shared app runtime. */
     connection: SignifyConnectionState;
+    /** Close the dialog without changing runtime connection state. */
     onClose: () => void;
-    onConnect: (
-        connectionOption: ConnectionOption,
-        passcode: string
-    ) => Promise<boolean>;
 }
 
 /**
@@ -67,15 +68,22 @@ export const ConnectDialog = ({
     open,
     connection,
     onClose,
-    onConnect,
 }: ConnectDialogProps) => {
+    const fetcher = useFetcher<RootActionData>();
     const [selectedConnection, setSelectedConnection] =
         useState<ConnectionOption>(appConfig.connectionOptions[0]);
     const [passcode, setPasscode] = useState('');
     const isConnected = connection.status === 'connected';
+    const isSubmitting =
+        connection.status === 'connecting' || fetcher.state !== 'idle';
 
-    const handleConnect = async () => {
-        await onConnect(selectedConnection, passcode);
+    const handleConnect = () => {
+        const formData = new FormData();
+        formData.set('intent', 'connect');
+        formData.set('adminUrl', selectedConnection.adminUrl);
+        formData.set('bootUrl', selectedConnection.bootUrl);
+        formData.set('passcode', passcode);
+        fetcher.submit(formData, { method: 'post', action: '/' });
     };
 
     return (
@@ -139,22 +147,20 @@ export const ConnectDialog = ({
                         variant="contained"
                         color="primary"
                         data-testid="connect-submit"
-                        disabled={
-                            connection.status === 'connecting' ||
-                            passcode.length < 21
-                        }
+                        disabled={isSubmitting || passcode.length < 21}
                         onClick={handleConnect}
                     >
-                        {connection.status === 'connecting'
-                            ? 'Connecting...'
-                            : 'Connect'}
+                        {isSubmitting ? 'Connecting...' : 'Connect'}
                     </Button>
-                    {connection.status === 'error' && (
+                    {(connection.status === 'error' ||
+                        fetcher.data?.ok === false) && (
                         <Typography
                             color="error"
                             data-testid="connection-error"
                         >
-                            {connection.error.message}
+                            {connection.status === 'error'
+                                ? connection.error.message
+                                : fetcher.data?.message}
                         </Typography>
                     )}
                 </Stack>
