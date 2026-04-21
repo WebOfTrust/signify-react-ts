@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import type { AppRuntime } from './runtime';
 import { useAppSession } from './runtimeHooks';
@@ -24,12 +24,8 @@ const RootLayoutContent = () => {
     const [connectOpen, setConnectOpen] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const { connection } = useAppSession();
-
-    useEffect(() => {
-        if (connection.status === 'connected') {
-            setConnectOpen(false);
-        }
-    }, [connection.status]);
+    const connectDialogOpen =
+        connectOpen && connection.status !== 'connected';
 
     return (
         <div>
@@ -43,7 +39,7 @@ const RootLayoutContent = () => {
                 onClose={() => setDrawerOpen(false)}
             />
             <ConnectDialog
-                open={connectOpen}
+                open={connectDialogOpen}
                 connection={connection}
                 onClose={() => setConnectOpen(false)}
             />

@@ -1,5 +1,6 @@
 import { AppBar, Button, IconButton, Toolbar, Typography } from '@mui/material';
-import { Circle, Menu } from '@mui/icons-material';
+import CircleIcon from '@mui/icons-material/Circle';
+import MenuIcon from '@mui/icons-material/Menu';
 
 /**
  * Props for the fixed app bar.
@@ -39,7 +40,7 @@ export const TopBar = ({
                 data-testid="nav-open"
                 onClick={onMenuClick}
             >
-                <Menu />
+                <MenuIcon />
             </IconButton>
             <Typography variant="h6">Signify Client</Typography>
             <Button
@@ -48,7 +49,7 @@ export const TopBar = ({
                 onClick={onConnectClick}
                 data-testid="connect-open"
             >
-                <Circle
+                <CircleIcon
                     sx={{
                         color: isConnected ? 'green' : 'red',
                     }}
