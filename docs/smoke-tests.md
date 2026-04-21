@@ -52,13 +52,13 @@ requirements.
 
 The smoke-test stack has one shared smoke module and two executable wrappers.
 
-| Layer | File | Responsibility |
-| --- | --- | --- |
-| Shared smoke | `tests/smoke/clientBoundarySmoke.ts` | Boots/connects through the Signify boundary, reads client state, and optionally creates a witnessed identifier. |
-| CLI wrapper | `scripts/keria-smoke.ts` | Parses process args, calls the shared smoke module, and prints JSON. |
-| Browser wrapper | `tests/browser-smoke.mjs` | Starts or reuses Vite, drives the React UI with Puppeteer, and verifies the client summary. |
-| Boundary | `src/signify/client.ts` | Owns `ready()`, `randomPasscode()`, `SignifyClient` construction, boot/connect, state reads, and operation waiting. |
-| Config | `src/config.ts` | Supplies shared defaults and environment overrides for browser and Node execution. |
+| Layer           | File                                 | Responsibility                                                                                                      |
+| --------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Shared smoke    | `tests/smoke/clientBoundarySmoke.ts` | Boots/connects through the Signify boundary, reads client state, and optionally creates a witnessed identifier.     |
+| CLI wrapper     | `scripts/keria-smoke.ts`             | Parses process args, calls the shared smoke module, and prints JSON.                                                |
+| Browser wrapper | `tests/browser-smoke.mjs`            | Starts or reuses Vite, drives the React UI with Puppeteer, and verifies the client summary.                         |
+| Boundary        | `src/signify/client.ts`              | Owns `ready()`, `randomPasscode()`, `SignifyClient` construction, boot/connect, state reads, and operation waiting. |
+| Config          | `src/config.ts`                      | Supplies shared defaults and environment overrides for browser and Node execution.                                  |
 
 The important design constraint is that KERIA boundary behavior lives in shared
 smoke code and the Signify boundary, not in the CLI or Puppeteer script.
@@ -126,17 +126,17 @@ Successful CLI smoke output is JSON:
 
 ```json
 {
-  "mode": "witness",
-  "adminUrl": "http://127.0.0.1:3901",
-  "bootUrl": "http://127.0.0.1:3903",
-  "passcode": "DexampleGeneratedPass",
-  "booted": true,
-  "controllerAID": "E...",
-  "agentAID": "E...",
-  "identifierCount": 0,
-  "identifierAlias": "smoke-20260421182533",
-  "identifierPrefix": "E...",
-  "operationName": "witness.E..."
+    "mode": "witness",
+    "adminUrl": "http://127.0.0.1:3901",
+    "bootUrl": "http://127.0.0.1:3903",
+    "passcode": "DexampleGeneratedPass",
+    "booted": true,
+    "controllerAID": "E...",
+    "agentAID": "E...",
+    "identifierCount": 0,
+    "identifierAlias": "smoke-20260421182533",
+    "identifierPrefix": "E...",
+    "operationName": "witness.E..."
 }
 ```
 
@@ -163,12 +163,17 @@ The browser smoke:
 5. generates a Signify passcode through the UI,
 6. connects to local KERIA,
 7. waits for `connection-status-connected`,
-8. navigates to the Client view,
-9. verifies the controller and agent AIDs render.
+8. lands on the routed `/identifiers` view,
+9. navigates through the drawer to the routed `/client` view,
+10. verifies the controller and agent AIDs render.
 
 The browser test uses stable `data-testid` selectors. If a UI refactor changes
 the connect dialog or client summary, update the selectors and the test
 together. Do not replace them with generated MUI class selectors.
+
+The app uses React Router, but browser smoke intentionally drives the same UI
+controls a user would use instead of asserting implementation-specific router
+state.
 
 Set `BROWSER_SMOKE_URL` to point at an already-running app:
 
@@ -183,16 +188,16 @@ If `BROWSER_SMOKE_URL` is not set, the test assumes
 
 The smoke tests use the same config as the app:
 
-| Variable | Default | Used by |
-| --- | --- | --- |
-| `VITE_KERIA_ADMIN_URL` | `http://127.0.0.1:3901` | CLI and browser smoke. |
-| `VITE_KERIA_BOOT_URL` | `http://127.0.0.1:3903` | CLI and browser smoke. |
-| `VITE_OPERATION_TIMEOUT_MS` | `30000` | CLI witness operation wait. |
-| `VITE_OPERATION_MIN_SLEEP_MS` | `1000` | CLI witness operation polling. |
-| `VITE_OPERATION_MAX_SLEEP_MS` | `5000` | CLI witness operation polling. |
-| `VITE_WITNESS_AIDS` | local 3-witness demo AIDs | CLI witness mode. |
-| `VITE_WITNESS_TOAD` | `2` | CLI witness mode. |
-| `BROWSER_SMOKE_URL` | `http://127.0.0.1:5173` | Browser smoke only. |
+| Variable                      | Default                   | Used by                        |
+| ----------------------------- | ------------------------- | ------------------------------ |
+| `VITE_KERIA_ADMIN_URL`        | `http://127.0.0.1:3901`   | CLI and browser smoke.         |
+| `VITE_KERIA_BOOT_URL`         | `http://127.0.0.1:3903`   | CLI and browser smoke.         |
+| `VITE_OPERATION_TIMEOUT_MS`   | `30000`                   | CLI witness operation wait.    |
+| `VITE_OPERATION_MIN_SLEEP_MS` | `1000`                    | CLI witness operation polling. |
+| `VITE_OPERATION_MAX_SLEEP_MS` | `5000`                    | CLI witness operation polling. |
+| `VITE_WITNESS_AIDS`           | local 3-witness demo AIDs | CLI witness mode.              |
+| `VITE_WITNESS_TOAD`           | `2`                       | CLI witness mode.              |
+| `BROWSER_SMOKE_URL`           | `http://127.0.0.1:5173`   | Browser smoke only.            |
 
 Browser smoke calls local KERIA directly and requires KERIA CORS support to be
 enabled, for example `KERI_AGENT_CORS=true`. Without that, browser preflight for

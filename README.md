@@ -2,6 +2,8 @@
 
 ## Maintainer docs
 
+- [App shell and views](./docs/app-shell.md): typed view registry, default view,
+  selector contracts, and how to add new app views.
 - [Signify client boundary](./docs/signify-client-boundary.md): ownership,
   configuration, and public boundary API.
 - [Runtime config](./docs/runtime-config.md): app/runtime config ownership,
