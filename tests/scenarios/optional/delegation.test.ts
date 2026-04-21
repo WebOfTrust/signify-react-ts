@@ -1,7 +1,11 @@
-import { Serder } from 'signify-ts';
 import { describe, expect, it } from 'vitest';
 import { testConfig } from '../../support/config';
-import { createRole, resolveOobi, uniqueAlias } from '../../support/keria';
+import {
+    createRole,
+    resolveOobi,
+    serderFromOperation,
+    uniqueAlias,
+} from '../../support/keria';
 
 const delegationConfig = testConfig.fixtures.delegation;
 const hasDelegationConfig =
@@ -36,9 +40,7 @@ describe.sequential('delegation fixture', () => {
                 .identifiers()
                 .create(alias, { delpre: delegatorPre });
             const completed = await role.waitEvent(result, `creates ${alias}`);
-            const serder = new Serder(
-                completed.response as Record<string, unknown>
-            );
+            const serder = serderFromOperation(completed.response);
             const aid = await role.client.identifiers().get(alias);
 
             expect(serder.pre).toBe(aid.prefix);

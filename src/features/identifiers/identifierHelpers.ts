@@ -1,19 +1,36 @@
+import { Algos } from 'signify-ts';
 import type {
+    IdentifierCreateArgs,
     DynamicIdentifierField,
     IdentifierSummary,
 } from './identifierTypes';
 
-const NUMBER_FIELDS = new Set(['count', 'ncount']);
-const BOOLEAN_FIELDS = new Set(['transferable']);
-const CSV_FIELDS = new Set([
-    'icodes',
-    'ncodes',
+const NUMBER_FIELDS = new Set<keyof IdentifierCreateArgs>([
+    'count',
+    'ncount',
+    'toad',
+]);
+const BOOLEAN_FIELDS = new Set<keyof IdentifierCreateArgs>(['transferable']);
+const CSV_FIELDS = new Set<keyof IdentifierCreateArgs>([
     'prxs',
     'nxts',
-    'cuts',
-    'adds',
     'wits',
+    'keys',
+    'ndigs',
 ]);
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
+/**
+ * Runtime guard for the subset of `HabState` required by the identifier UI.
+ */
+export const isIdentifierSummary = (
+    value: unknown
+): value is IdentifierSummary =>
+    isObjectRecord(value) &&
+    typeof value.name === 'string' &&
+    typeof value.prefix === 'string';
 
 /**
  * Normalize the shapes returned by current and older Signify identifier list
@@ -27,16 +44,15 @@ export const identifiersFromResponse = (
     response: unknown
 ): IdentifierSummary[] => {
     if (Array.isArray(response)) {
-        return response as IdentifierSummary[];
+        return response.filter(isIdentifierSummary);
     }
 
     if (
-        typeof response === 'object' &&
-        response !== null &&
+        isObjectRecord(response) &&
         'aids' in response &&
         Array.isArray(response.aids)
     ) {
-        return response.aids as IdentifierSummary[];
+        return response.aids.filter(isIdentifierSummary);
     }
 
     return [];
@@ -51,10 +67,10 @@ export const identifiersFromResponse = (
  * with scenario coverage.
  */
 export const parseIdentifierCreateArgs = (
-    algo: string,
+    algo: Algos,
     fields: readonly DynamicIdentifierField[]
-): Record<string, unknown> => {
-    const args: Record<string, unknown> = {
+): IdentifierCreateArgs => {
+    const args: IdentifierCreateArgs = {
         algo,
     };
 

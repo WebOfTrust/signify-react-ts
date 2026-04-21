@@ -24,7 +24,15 @@ export interface IdentifierTableProps {
  * are modeled explicitly.
  */
 const identifierType = (identifier: IdentifierSummary): string =>
-    Object.keys(identifier)[2] ?? '';
+    'salty' in identifier
+        ? 'salty'
+        : 'randy' in identifier
+          ? 'randy'
+          : 'group' in identifier
+            ? 'group'
+            : 'extern' in identifier
+              ? 'extern'
+              : '';
 
 /**
  * Pure identifier list table.

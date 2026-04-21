@@ -1,15 +1,12 @@
+import type { CreateIdentiferArgs, HabState } from 'signify-ts';
+
 /**
- * Minimal identifier shape rendered by the current UI.
+ * Managed identifier shape returned by Signify/KERIA.
  *
- * Signify returns richer per-algorithm payloads. Keep the index signature until
- * the identifier domain model is tightened; components should rely only on
- * `name`, `prefix`, and explicitly inspected dynamic fields.
+ * Keep this alias transparent so app code consumes upstream domain types rather
+ * than a hand-maintained local copy of identifier state.
  */
-export interface IdentifierSummary {
-    name: string;
-    prefix: string;
-    [key: string]: unknown;
-}
+export type IdentifierSummary = HabState;
 
 /**
  * Local async state for identifier create/rotate/load feedback.
@@ -26,13 +23,16 @@ export const idleIdentifierAction: IdentifierActionState = {
     error: null,
 };
 
+export type IdentifierCreateArgs = CreateIdentiferArgs;
+
 /**
  * Dynamic create-form fields exposed by the legacy identifier creator.
  *
  * This is intentionally UI-local. Do not treat it as the authoritative Signify
  * identifier create schema.
  */
-export type IdentifierCreateField =
+export type IdentifierCreateField = Extract<
+    keyof CreateIdentiferArgs,
     | 'transferable'
     | 'isith'
     | 'nsith'
@@ -52,7 +52,8 @@ export type IdentifierCreateField =
     | 'ndigs'
     | 'bran'
     | 'count'
-    | 'ncount';
+    | 'ncount'
+>;
 
 export interface DynamicIdentifierField {
     field: IdentifierCreateField;

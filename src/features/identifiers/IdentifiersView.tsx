@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Box, Fab, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useFetcher, useLoaderData } from 'react-router-dom';
+import type { Algos } from 'signify-ts';
 import { ConnectionRequired } from '../../app/ConnectionRequired';
 import type {
     IdentifierActionData,
@@ -91,7 +92,7 @@ export const IdentifiersView = () => {
 
     const handleCreate = async (
         name: string,
-        algo: string,
+        algo: Algos,
         fields: readonly DynamicIdentifierField[]
     ): Promise<void> => {
         setPendingMessage(`Creating identifier ${name}`);

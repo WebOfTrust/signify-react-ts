@@ -1,4 +1,4 @@
-import type { SignifyClient } from 'signify-ts';
+import type { Algos, SignifyClient } from 'signify-ts';
 import type {
     DynamicIdentifierField,
     IdentifierSummary,
@@ -215,16 +215,13 @@ export class AppRuntime {
      */
     createIdentifier = async (
         name: string,
-        algo: string,
+        algo: Algos,
         fields: readonly DynamicIdentifierField[]
     ): Promise<IdentifierSummary[]> => {
         const client = this.requireClient();
         const args = parseIdentifierCreateArgs(algo, fields);
         const identifierClient = client.identifiers();
-        const result = await identifierClient.create(
-            name,
-            args as Parameters<typeof identifierClient.create>[1]
-        );
+        const result = await identifierClient.create(name, args);
         const operation = await result.op();
 
         await waitOperation(client, operation, {

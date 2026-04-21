@@ -11,6 +11,7 @@ import {
     TextField,
 } from '@mui/material';
 import { Delete } from '@mui/icons-material';
+import { Algos } from 'signify-ts';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import {
     IDENTIFIER_CREATE_FIELDS,
@@ -30,7 +31,7 @@ export interface IdentifierCreateDialogProps {
     onClose: () => void;
     onCreate: (
         name: string,
-        algo: string,
+        algo: Algos,
         fields: readonly DynamicIdentifierField[]
     ) => void;
 }
@@ -48,7 +49,7 @@ export const IdentifierCreateDialog = ({
     onClose,
     onCreate,
 }: IdentifierCreateDialogProps) => {
-    const [type, setType] = useState('salty');
+    const [type, setType] = useState<Algos>(Algos.salty);
     const [name, setName] = useState('');
     const [dynamicFields, setDynamicFields] = useState<
         DynamicIdentifierField[]
@@ -69,8 +70,8 @@ export const IdentifierCreateDialog = ({
         onCreate(name, type, dynamicFields);
     };
 
-    const handleTypeChange = (event: SelectChangeEvent<string>) => {
-        setType(event.target.value);
+    const handleTypeChange = (event: SelectChangeEvent<Algos>) => {
+        setType(event.target.value as Algos);
     };
 
     const handleFieldChange = (
@@ -115,9 +116,9 @@ export const IdentifierCreateDialog = ({
             >
                 <FormControl fullWidth margin="normal">
                     <Select value={type} onChange={handleTypeChange}>
-                        <MenuItem value="salty">Salty</MenuItem>
-                        <MenuItem value="randy">Randy</MenuItem>
-                        <MenuItem value="group">Group</MenuItem>
+                        <MenuItem value={Algos.salty}>Salty</MenuItem>
+                        <MenuItem value={Algos.randy}>Randy</MenuItem>
+                        <MenuItem value={Algos.group}>Group</MenuItem>
                     </Select>
                 </FormControl>
                 <TextField

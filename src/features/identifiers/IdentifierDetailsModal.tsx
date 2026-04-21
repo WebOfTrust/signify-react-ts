@@ -20,7 +20,35 @@ export interface IdentifierDetailsModalProps {
  * explicit.
  */
 const identifierType = (identifier: IdentifierSummary): string =>
-    Object.keys(identifier)[2] ?? '';
+    'salty' in identifier
+        ? 'salty'
+        : 'randy' in identifier
+          ? 'randy'
+          : 'group' in identifier
+            ? 'group'
+            : 'extern' in identifier
+              ? 'extern'
+              : '';
+
+const identifierDetails = (identifier: IdentifierSummary): unknown => {
+    if ('salty' in identifier) {
+        return identifier.salty;
+    }
+
+    if ('randy' in identifier) {
+        return identifier.randy;
+    }
+
+    if ('group' in identifier) {
+        return identifier.group;
+    }
+
+    if ('extern' in identifier) {
+        return identifier.extern;
+    }
+
+    return undefined;
+};
 
 /**
  * Identifier details and rotate action.
@@ -64,7 +92,9 @@ export const IdentifierDetailsModal = ({
                 <p>Type: {type}</p>
                 <pre>
                     {JSON.stringify(
-                        identifier === null ? undefined : identifier[type],
+                        identifier === null
+                            ? undefined
+                            : identifierDetails(identifier),
                         null,
                         2
                     )}

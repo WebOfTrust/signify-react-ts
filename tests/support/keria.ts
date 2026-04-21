@@ -1,12 +1,16 @@
 import {
     Algos,
     Serder,
+    type Contact,
     type CompletedOperation,
+    type CreateIdentiferArgs,
     type EventResult,
+    type HabState,
     type Operation,
     type SignifyClient,
 } from 'signify-ts';
 import { appConfig } from '../../src/config';
+import { identifiersFromResponse } from '../../src/features/identifiers/identifierHelpers';
 import {
     connectSignifyClient,
     randomSignifyPasscode,
@@ -22,22 +26,7 @@ import {
  * typed app config boundary.
  */
 
-export interface IdentifierSummary {
-    name: string;
-    prefix: string;
-    state?: {
-        d?: string;
-    };
-    windexes?: unknown[];
-}
-
-interface ChallengeContact {
-    id?: string;
-    challenges?: {
-        said?: string;
-        words?: string[];
-    }[];
-}
+export type IdentifierSummary = HabState;
 
 export interface Role {
     name: string;
@@ -125,11 +114,11 @@ export const waitForEvent = async (
 export const createIdentifier = async (
     role: Role,
     alias: string,
-    args: Parameters<ReturnType<SignifyClient['identifiers']>['create']>[1] = {}
+    args: CreateIdentiferArgs = {}
 ): Promise<IdentifierSummary> => {
     const result = await role.client.identifiers().create(alias, args);
     await role.waitEvent(result, `creates ${alias}`);
-    return role.client.identifiers().get(alias) as Promise<IdentifierSummary>;
+    return role.client.identifiers().get(alias);
 };
 
 export const createWitnessedIdentifier = (
@@ -149,12 +138,8 @@ export const createRandyIdentifier = (
 
 export const listIdentifiers = async (
     client: SignifyClient
-): Promise<IdentifierSummary[]> => {
-    const response = (await client.identifiers().list()) as {
-        aids?: IdentifierSummary[];
-    };
-    return response.aids ?? [];
-};
+): Promise<IdentifierSummary[]> =>
+    identifiersFromResponse(await client.identifiers().list());
 
 export const addAgentEndRole = async (
     role: Role,
@@ -196,8 +181,18 @@ export const exchangeAgentOobis = async (
     await resolveOobi(right, leftOobi, leftAlias);
 };
 
-export const serderFromOperation = (response: unknown): Serder =>
-    new Serder(response as Record<string, unknown>);
+type SerderSad = ConstructorParameters<typeof Serder>[0];
+
+const isSerderSad = (response: unknown): response is SerderSad =>
+    typeof response === 'object' && response !== null;
+
+export const serderFromOperation = (response: unknown): Serder => {
+    if (!isSerderSad(response)) {
+        throw new Error('Operation response was not a Serder-compatible SAD.');
+    }
+
+    return new Serder(response);
+};
 
 const sameWords = (actual: string[] | undefined, expected: string[]): boolean =>
     Array.isArray(actual) &&
@@ -212,7 +207,7 @@ export const waitForChallenge = async (
     const timeoutAt = Date.now() + appConfig.operations.timeoutMs;
 
     while (Date.now() < timeoutAt) {
-        const contacts = (await client.contacts().list()) as ChallengeContact[];
+        const contacts: Contact[] = await client.contacts().list();
         const challenge = contacts
             .find((contact) => contact.id === sourcePrefix)
             ?.challenges?.find((item) => sameWords(item.words, expectedWords));

@@ -1,4 +1,5 @@
 import { redirect } from 'react-router-dom';
+import { Algos } from 'signify-ts';
 import { appConfig } from '../config';
 import type {
     DynamicIdentifierField,
@@ -96,7 +97,7 @@ export interface RouteDataRuntime {
     /** Create an identifier and wait for its KERIA operation to complete. */
     createIdentifier(
         name: string,
-        algo: string,
+        algo: Algos,
         fields: readonly DynamicIdentifierField[]
     ): Promise<IdentifierSummary[]>;
     /** Rotate an identifier and wait for its KERIA operation to complete. */
@@ -116,6 +117,9 @@ const formString = (formData: FormData, field: string): string => {
  */
 const toRouteError = (error: unknown): Error =>
     error instanceof Error ? error : new Error(String(error));
+
+const parseIdentifierAlgo = (value: string): Algos =>
+    Object.values(Algos).includes(value as Algos) ? (value as Algos) : Algos.salty;
 
 /**
  * Parse the serialized dynamic create-dialog field rows submitted by
@@ -268,7 +272,7 @@ export const identifiersAction = async (
         try {
             await runtime.createIdentifier(
                 name,
-                formString(formData, 'algo'),
+                parseIdentifierAlgo(formString(formData, 'algo')),
                 parseDynamicFields(formString(formData, 'fields'))
             );
             return {
