@@ -73,7 +73,6 @@ The desktop table columns are:
 
 - Name
 - AID
-- Current Key
 - Type
 - KIDX
 - PIDX
@@ -81,7 +80,7 @@ The desktop table columns are:
 
 Mobile cards mirror the same core fields and rotate action.
 
-The AID and current-key display contract:
+The AID display contract:
 
 - use `truncateMiddle(aid)` as first eight characters, `...`, last eight
   characters for long values,
@@ -89,6 +88,10 @@ The AID and current-key display contract:
 - copy the full value on click,
 - stop click propagation so copying does not open details,
 - use the shared `--app-mono-font` CSS variable.
+
+Do not add Current Key back to the table unless the list API can supply it
+without per-row `get(...)` hydration. Current key belongs in details so the
+identifier list does not grow an N+1 request pattern.
 
 The table rotate button:
 
