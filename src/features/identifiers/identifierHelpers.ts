@@ -1,8 +1,11 @@
 import { Algos } from 'signify-ts';
 import type { AppConfig } from '../../config';
+import type { ContactRecord } from '../../state/contacts.slice';
+import { abbreviateMiddle, isWitnessContact } from '../contacts/contactHelpers';
 import type {
     IdentifierCreateArgs,
     IdentifierCreateDraft,
+    IdentifierDelegatorOption,
     IdentifierSummary,
 } from './identifierTypes';
 
@@ -71,6 +74,54 @@ export const replaceIdentifierSummary = (
     });
 
     return replaced ? next : [...next, updated];
+};
+
+/**
+ * Build selectable delegation candidates from local identifiers and resolved
+ * contacts. Witness contacts are excluded because witnesses are infrastructure
+ * components, not delegator identities.
+ */
+export const identifierDelegatorOptions = (
+    identifiers: readonly IdentifierSummary[],
+    contacts: readonly ContactRecord[]
+): IdentifierDelegatorOption[] => {
+    const seen = new Set<string>();
+    const options: IdentifierDelegatorOption[] = [];
+
+    for (const identifier of identifiers) {
+        if (seen.has(identifier.prefix)) {
+            continue;
+        }
+
+        seen.add(identifier.prefix);
+        options.push({
+            aid: identifier.prefix,
+            label: `${identifier.name} / ${abbreviateMiddle(
+                identifier.prefix,
+                20
+            )} (local)`,
+            source: 'local',
+        });
+    }
+
+    for (const contact of contacts) {
+        const aid = contact.aid;
+        if (aid === null || seen.has(aid) || isWitnessContact(contact)) {
+            continue;
+        }
+
+        seen.add(aid);
+        options.push({
+            aid,
+            label: `${contact.alias} / ${abbreviateMiddle(
+                aid,
+                20
+            )} (contact)`,
+            source: 'contact',
+        });
+    }
+
+    return options;
 };
 
 /**
@@ -187,6 +238,7 @@ export const defaultIdentifierCreateDraft = (): IdentifierCreateDraft => ({
     algo: Algos.salty,
     transferable: true,
     witnessMode: 'none',
+    delegation: { mode: 'none' },
     count: 1,
     ncount: 1,
     isith: '1',
@@ -204,6 +256,15 @@ const isIdentifierWitnessMode = (
 ): value is IdentifierCreateDraft['witnessMode'] =>
     value === 'none' || value === 'demo';
 
+const isIdentifierDelegationDraft = (
+    value: unknown
+): value is IdentifierCreateDraft['delegation'] =>
+    isObjectRecord(value) &&
+    (value.mode === 'none' ||
+        (value.mode === 'delegated' &&
+            typeof value.delegatorAid === 'string' &&
+            value.delegatorAid.trim().length > 0));
+
 const isPositiveInteger = (value: unknown): value is number =>
     typeof value === 'number' && Number.isInteger(value) && value > 0;
 
@@ -219,6 +280,7 @@ export const isIdentifierCreateDraft = (
     isIdentifierCreateAlgo(value.algo) &&
     typeof value.transferable === 'boolean' &&
     isIdentifierWitnessMode(value.witnessMode) &&
+    isIdentifierDelegationDraft(value.delegation) &&
     isPositiveInteger(value.count) &&
     isPositiveInteger(value.ncount) &&
     typeof value.isith === 'string' &&
@@ -250,6 +312,10 @@ export const identifierCreateDraftToArgs = (
     if (draft.witnessMode === 'demo') {
         args.wits = config.witnesses.aids;
         args.toad = config.witnesses.toad;
+    }
+
+    if (draft.delegation.mode === 'delegated') {
+        args.delpre = draft.delegation.delegatorAid.trim();
     }
 
     return args;

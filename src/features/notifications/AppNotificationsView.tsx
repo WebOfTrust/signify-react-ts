@@ -280,6 +280,28 @@ export const AppNotificationsView = () => {
                                                         }
                                                     </Typography>
                                                 )}
+                                            {notification.delegationRequest !==
+                                                null &&
+                                                notification.delegationRequest !==
+                                                    undefined && (
+                                                    <Typography
+                                                        variant="body2"
+                                                        color="text.secondary"
+                                                    >
+                                                        Delegator{' '}
+                                                        {
+                                                            notification
+                                                                .delegationRequest
+                                                                .delegatorAid
+                                                        }{' '}
+                                                        / Delegate{' '}
+                                                        {
+                                                            notification
+                                                                .delegationRequest
+                                                                .delegateAid
+                                                        }
+                                                    </Typography>
+                                                )}
                                         </Stack>
                                     }
                                 />

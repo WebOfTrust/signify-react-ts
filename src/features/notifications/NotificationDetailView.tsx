@@ -37,10 +37,14 @@ import { useAppSelector } from '../../state/hooks';
 import {
     selectChallengeRequestNotificationById,
     selectCredentialGrantNotificationById,
+    selectDelegationRequestNotificationById,
     selectIdentifiers,
     selectKeriaNotificationById,
 } from '../../state/selectors';
-import type { CredentialGrantNotification } from '../../state/notifications.slice';
+import type {
+    CredentialGrantNotification,
+    DelegationRequestNotification,
+} from '../../state/notifications.slice';
 import { ChallengeRequestResponseForm } from './ChallengeRequestResponseForm';
 
 const timestampText = (value: string | null): string =>
@@ -64,6 +68,24 @@ const grantStatusTone = (
     return 'info';
 };
 
+const delegationStatusTone = (
+    status: DelegationRequestNotification['status']
+): 'neutral' | 'success' | 'warning' | 'error' | 'info' => {
+    if (status === 'error') {
+        return 'error';
+    }
+
+    if (status === 'notForThisWallet') {
+        return 'warning';
+    }
+
+    if (status === 'approved') {
+        return 'success';
+    }
+
+    return 'info';
+};
+
 /**
  * Route view for one KERIA protocol notification or synthetic challenge item.
  */
@@ -73,6 +95,7 @@ export const NotificationDetailView = () => {
     const navigate = useNavigate();
     const dismissFetcher = useFetcher<ContactActionData>();
     const credentialFetcher = useFetcher<CredentialActionData>();
+    const delegationFetcher = useFetcher<ContactActionData>();
     const notification = useAppSelector(
         selectKeriaNotificationById(notificationId)
     );
@@ -82,17 +105,32 @@ export const NotificationDetailView = () => {
     const credentialGrant = useAppSelector(
         selectCredentialGrantNotificationById(notificationId)
     );
+    const delegationRequest = useAppSelector(
+        selectDelegationRequestNotificationById(notificationId)
+    );
     const identifiers = useAppSelector(selectIdentifiers);
     const grantRecipient =
         credentialGrant === null
             ? undefined
             : identifiers.find(
-                  (identifier) => identifier.prefix === credentialGrant.holderAid
+                  (identifier) =>
+                      identifier.prefix === credentialGrant.holderAid
               );
     const canAdmitGrant =
         credentialGrant?.status === 'actionable' &&
         grantRecipient !== undefined &&
         credentialFetcher.state === 'idle';
+    const delegationApprover =
+        delegationRequest === null
+            ? undefined
+            : identifiers.find(
+                  (identifier) =>
+                      identifier.prefix === delegationRequest.delegatorAid
+              );
+    const canApproveDelegation =
+        delegationRequest?.status === 'actionable' &&
+        delegationApprover !== undefined &&
+        delegationFetcher.state === 'idle';
 
     useEffect(() => {
         if (
@@ -150,6 +188,28 @@ export const NotificationDetailView = () => {
         });
     };
 
+    const approveDelegationRequest = () => {
+        if (delegationRequest === null || delegationApprover === undefined) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('intent', 'approveDelegationRequest');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('notificationId', delegationRequest.notificationId);
+        formData.set('delegatorName', delegationApprover.name);
+        formData.set('delegatorAid', delegationRequest.delegatorAid);
+        formData.set('delegateAid', delegationRequest.delegateAid);
+        formData.set('delegateEventSaid', delegationRequest.delegateEventSaid);
+        formData.set('sequence', delegationRequest.sequence);
+        formData.set('sourceAid', delegationRequest.sourceAid ?? '');
+        formData.set('createdAt', delegationRequest.createdAt);
+        delegationFetcher.submit(formData, {
+            method: 'post',
+            action: `/notifications/${encodeURIComponent(notification.id)}`,
+        });
+    };
+
     return (
         <Box sx={{ display: 'grid', gap: 2.5 }}>
             <PageHeader
@@ -159,7 +219,9 @@ export const NotificationDetailView = () => {
                         ? 'Challenge request'
                         : credentialGrant !== null
                           ? 'Credential grant'
-                          : notification.route
+                          : delegationRequest !== null
+                            ? 'Delegation request'
+                            : notification.route
                 }
                 summary={notification.id}
                 actions={
@@ -385,6 +447,104 @@ export const NotificationDetailView = () => {
                             <EmptyState
                                 title="Recipient identifier unavailable"
                                 message="This grant names a recipient AID that is not loaded as a local identifier in this wallet."
+                            />
+                        )}
+                    </Stack>
+                </ConsolePanel>
+            ) : delegationRequest !== null ? (
+                <ConsolePanel
+                    title="Delegation approval"
+                    eyebrow="Delegator"
+                    actions={
+                        <StatusPill
+                            label={delegationRequest.status}
+                            tone={delegationStatusTone(
+                                delegationRequest.status
+                            )}
+                        />
+                    }
+                >
+                    <Stack spacing={2}>
+                        <Stack spacing={0.5}>
+                            <TelemetryRow
+                                label="Delegator"
+                                value={
+                                    delegationApprover?.name ?? 'Not available'
+                                }
+                            />
+                            <TelemetryRow
+                                label="Delegator AID"
+                                value={delegationRequest.delegatorAid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Delegate AID"
+                                value={delegationRequest.delegateAid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Delegate event SAID"
+                                value={delegationRequest.delegateEventSaid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Sequence"
+                                value={delegationRequest.sequence}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Source AID"
+                                value={
+                                    delegationRequest.sourceAid ??
+                                    'Not available'
+                                }
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Anchor i"
+                                value={delegationRequest.anchor.i}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Anchor s"
+                                value={delegationRequest.anchor.s}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Anchor d"
+                                value={delegationRequest.anchor.d}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Requested"
+                                value={timestampText(
+                                    delegationRequest.createdAt
+                                )}
+                            />
+                        </Stack>
+                        <Divider />
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1}
+                            sx={{
+                                alignItems: { xs: 'stretch', sm: 'center' },
+                            }}
+                        >
+                            <Button
+                                variant="contained"
+                                startIcon={<HowToRegIcon />}
+                                data-testid="delegation-notification-detail-approve"
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
+                                disabled={!canApproveDelegation}
+                                onClick={approveDelegationRequest}
+                            >
+                                Approve delegation
+                            </Button>
+                        </Stack>
+                        {delegationApprover === undefined && (
+                            <EmptyState
+                                title="Delegator identifier unavailable"
+                                message="This request names a delegator AID that is not loaded as a local identifier in this wallet."
                             />
                         )}
                     </Stack>

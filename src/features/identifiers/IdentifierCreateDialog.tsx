@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import {
     Accordion,
     AccordionDetails,
@@ -16,6 +16,8 @@ import {
     Stack,
     Switch,
     TextField,
+    ToggleButton,
+    ToggleButtonGroup,
     Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -25,7 +27,10 @@ import {
     defaultIdentifierCreateDraft,
     isIdentifierCreateDraft,
 } from './identifierHelpers';
-import type { IdentifierCreateDraft } from './identifierTypes';
+import type {
+    IdentifierCreateDraft,
+    IdentifierDelegatorOption,
+} from './identifierTypes';
 import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 
 /**
@@ -37,6 +42,7 @@ import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 export interface IdentifierCreateDialogProps {
     open: boolean;
     actionRunning: boolean;
+    delegatorOptions: readonly IdentifierDelegatorOption[];
     onClose: () => void;
     onCreate: (draft: IdentifierCreateDraft) => void;
 }
@@ -54,6 +60,13 @@ const normalizedDraft = (
     isith: draft.isith.trim(),
     nsith: draft.nsith.trim(),
     bran: draft.bran.trim(),
+    delegation:
+        draft.delegation.mode === 'delegated'
+            ? {
+                  mode: 'delegated',
+                  delegatorAid: draft.delegation.delegatorAid.trim(),
+              }
+            : { mode: 'none' },
 });
 
 /**
@@ -66,6 +79,7 @@ const normalizedDraft = (
 export const IdentifierCreateDialog = ({
     open,
     actionRunning,
+    delegatorOptions,
     onClose,
     onCreate,
 }: IdentifierCreateDialogProps) => {
@@ -85,6 +99,34 @@ export const IdentifierCreateDialog = ({
     ) => {
         const algo = event.target.value as IdentifierCreateDraft['algo'];
         updateDraft({ algo });
+    };
+
+    const handleDelegationModeChange = (
+        _event: MouseEvent<HTMLElement>,
+        mode: 'none' | 'delegated' | null
+    ) => {
+        if (mode === null) {
+            return;
+        }
+
+        updateDraft({
+            delegation:
+                mode === 'delegated'
+                    ? {
+                          mode: 'delegated',
+                          delegatorAid: delegatorOptions[0]?.aid ?? '',
+                      }
+                    : { mode: 'none' },
+        });
+    };
+
+    const handleDelegatorChange = (event: SelectChangeEvent<string>) => {
+        updateDraft({
+            delegation: {
+                mode: 'delegated',
+                delegatorAid: event.target.value,
+            },
+        });
     };
 
     const handleComplete = () => {
@@ -151,6 +193,47 @@ export const IdentifierCreateDialog = ({
                         }
                         label="Use demo witnesses"
                     />
+                    <ToggleButtonGroup
+                        exclusive
+                        fullWidth
+                        size="small"
+                        value={draft.delegation.mode}
+                        onChange={handleDelegationModeChange}
+                        aria-label="Delegation mode"
+                    >
+                        <ToggleButton value="none">Standard</ToggleButton>
+                        <ToggleButton value="delegated">Delegated</ToggleButton>
+                    </ToggleButtonGroup>
+                    {draft.delegation.mode === 'delegated' && (
+                        <FormControl fullWidth margin="normal">
+                            <InputLabel id="identifier-create-delegator-label">
+                                Delegator
+                            </InputLabel>
+                            <Select
+                                labelId="identifier-create-delegator-label"
+                                label="Delegator"
+                                value={draft.delegation.delegatorAid}
+                                onChange={handleDelegatorChange}
+                                disabled={delegatorOptions.length === 0}
+                            >
+                                {delegatorOptions.length === 0 ? (
+                                    <MenuItem value="">
+                                        No local identifiers or resolved
+                                        contacts
+                                    </MenuItem>
+                                ) : (
+                                    delegatorOptions.map((option) => (
+                                        <MenuItem
+                                            key={`${option.source}:${option.aid}`}
+                                            value={option.aid}
+                                        >
+                                            {option.label}
+                                        </MenuItem>
+                                    ))
+                                )}
+                            </Select>
+                        </FormControl>
+                    )}
                     <Accordion disableGutters>
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                             <Typography>Advanced Options</Typography>

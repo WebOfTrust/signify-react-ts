@@ -8,6 +8,7 @@ describe('buildTestConfig', () => {
         expect(config.fixtures.delegation).toEqual({
             delegatorPre: null,
             delegatorOobi: null,
+            autoApprove: false,
         });
         expect(config.fixtures.multisig.memberOobis).toEqual([]);
     });
@@ -16,6 +17,7 @@ describe('buildTestConfig', () => {
         const config = buildTestConfig({
             VITE_DELEGATOR_PRE: 'delegator-aid',
             VITE_DELEGATOR_OOBI: 'http://delegator.example.test/oobi',
+            VITE_TEST_AUTO_APPROVE_DELEGATIONS: 'true',
             VITE_MULTISIG_MEMBER_OOBIS:
                 'http://one.example/oobi, http://two.example/oobi',
         });
@@ -23,6 +25,7 @@ describe('buildTestConfig', () => {
         expect(config.fixtures.delegation).toEqual({
             delegatorPre: 'delegator-aid',
             delegatorOobi: 'http://delegator.example.test/oobi',
+            autoApprove: true,
         });
         expect(config.fixtures.multisig.memberOobis).toEqual([
             'http://one.example/oobi',

@@ -6,6 +6,7 @@ export interface PayloadDetailRecord {
     id: string;
     label: string;
     value: string;
+    displayValue?: string;
     kind: PayloadDetailKind;
     copyable: boolean;
 }

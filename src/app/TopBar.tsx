@@ -41,6 +41,7 @@ import type { AppNotificationRecord } from '../state/appNotifications.slice';
 import type {
     ChallengeRequestNotification,
     CredentialGrantNotification,
+    DelegationRequestNotification,
 } from '../state/notifications.slice';
 import type { OperationRecord } from '../state/operations.slice';
 import type { IdentifierSummary } from '../features/identifiers/identifierTypes';
@@ -78,6 +79,8 @@ export interface TopBarProps {
     challengeRequests: readonly ChallengeRequestNotification[];
     /** Actionable credential grants discovered from KERIA notifications. */
     credentialGrants: readonly CredentialGrantNotification[];
+    /** Actionable delegation requests discovered from KERIA notifications. */
+    delegationRequests: readonly DelegationRequestNotification[];
     /** Local identifiers available for responding to challenge requests. */
     identifiers: readonly IdentifierSummary[];
     /** Number of unread app notifications plus actionable challenge requests. */
@@ -101,6 +104,7 @@ export const TopBar = ({
     recentNotifications,
     challengeRequests,
     credentialGrants,
+    delegationRequests,
     identifiers,
     unreadNotificationCount,
     onMenuClick,
@@ -127,6 +131,7 @@ export const TopBar = ({
         [recentNotifications]
     );
     const credentialFetcher = useFetcher<CredentialActionData>();
+    const delegationFetcher = useFetcher<ContactActionData>();
     const visibleChallengeRequests = useMemo(
         () => challengeRequests.slice(0, 3),
         [challengeRequests]
@@ -134,6 +139,10 @@ export const TopBar = ({
     const visibleCredentialGrants = useMemo(
         () => credentialGrants.slice(0, 3),
         [credentialGrants]
+    );
+    const visibleDelegationRequests = useMemo(
+        () => delegationRequests.slice(0, 3),
+        [delegationRequests]
     );
 
     useEffect(() => {
@@ -229,6 +238,34 @@ export const TopBar = ({
         setNotificationsAnchor(null);
     };
 
+    const approveDelegationRequest = (
+        request: DelegationRequestNotification
+    ) => {
+        const delegator = identifiers.find(
+            (identifier) => identifier.prefix === request.delegatorAid
+        );
+        if (delegator === undefined) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('intent', 'approveDelegationRequest');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('notificationId', request.notificationId);
+        formData.set('delegatorName', delegator.name);
+        formData.set('delegatorAid', request.delegatorAid);
+        formData.set('delegateAid', request.delegateAid);
+        formData.set('delegateEventSaid', request.delegateEventSaid);
+        formData.set('sequence', request.sequence);
+        formData.set('sourceAid', request.sourceAid ?? '');
+        formData.set('createdAt', request.createdAt);
+        delegationFetcher.submit(formData, {
+            method: 'post',
+            action: '/notifications',
+        });
+        setNotificationsAnchor(null);
+    };
+
     return (
         <AppBar position="fixed" sx={{ width: '100%' }}>
             <Toolbar
@@ -318,7 +355,10 @@ export const TopBar = ({
                                         value={identifier.prefix}
                                     >
                                         {identifier.name} /{' '}
-                                        {abbreviateMiddle(identifier.prefix, 18)}
+                                        {abbreviateMiddle(
+                                            identifier.prefix,
+                                            18
+                                        )}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -345,7 +385,8 @@ export const TopBar = ({
                                 renderValue={(value) => {
                                     const registry =
                                         readyRegistries.find(
-                                            (candidate) => candidate.id === value
+                                            (candidate) =>
+                                                candidate.id === value
                                         ) ?? selectedRegistry;
                                     return `Registry: ${registry.registryName}`;
                                 }}
@@ -402,11 +443,7 @@ export const TopBar = ({
                         data-ui-sound={UI_SOUND_HOVER_VALUE}
                         onClick={toggleHoverSoundMuted}
                     >
-                        {hoverSoundMuted ? (
-                            <VolumeOffIcon />
-                        ) : (
-                            <VolumeUpIcon />
-                        )}
+                        {hoverSoundMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
                     </IconButton>
                 </Tooltip>
                 <Tooltip title="Background operations">
@@ -567,13 +604,188 @@ export const TopBar = ({
                 <List sx={{ width: 360, maxWidth: '90vw', p: 1 }}>
                     {recentNotifications.length === 0 &&
                     visibleChallengeRequests.length === 0 &&
-                    visibleCredentialGrants.length === 0 ? (
+                    visibleCredentialGrants.length === 0 &&
+                    visibleDelegationRequests.length === 0 ? (
                         <ListItemText
                             sx={{ px: 2, py: 1 }}
                             primary="No notifications"
                         />
                     ) : (
                         <>
+                            {visibleDelegationRequests.map((request) => {
+                                const delegator = identifiers.find(
+                                    (identifier) =>
+                                        identifier.prefix ===
+                                        request.delegatorAid
+                                );
+                                const canApprove =
+                                    delegator !== undefined &&
+                                    delegationFetcher.state === 'idle';
+
+                                return (
+                                    <Box
+                                        key={request.notificationId}
+                                        data-testid="delegation-request-notification-card"
+                                        sx={{
+                                            border: 1,
+                                            borderColor: 'primary.main',
+                                            borderRadius: 1,
+                                            bgcolor: 'action.selected',
+                                            p: 1.25,
+                                            mb: 0.75,
+                                        }}
+                                    >
+                                        <Stack
+                                            direction={{
+                                                xs: 'column',
+                                                sm: 'row',
+                                            }}
+                                            spacing={1}
+                                            sx={{
+                                                alignItems: {
+                                                    xs: 'stretch',
+                                                    sm: 'flex-start',
+                                                },
+                                                justifyContent: 'space-between',
+                                                gap: 1,
+                                            }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    minWidth: 0,
+                                                    flex: '1 1 auto',
+                                                }}
+                                            >
+                                                <Typography
+                                                    variant="subtitle2"
+                                                    noWrap
+                                                >
+                                                    Delegation request
+                                                </Typography>
+                                                <Typography
+                                                    component="div"
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                    data-testid="delegation-request-delegator"
+                                                    sx={{ display: 'block' }}
+                                                >
+                                                    Delegator{' '}
+                                                    {delegator === undefined
+                                                        ? abbreviateMiddle(
+                                                              request.delegatorAid,
+                                                              28
+                                                          )
+                                                        : `${delegator.name} / ${abbreviateMiddle(
+                                                              request.delegatorAid,
+                                                              18
+                                                          )}`}
+                                                </Typography>
+                                                <Typography
+                                                    component="div"
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                    data-testid="delegation-request-delegate"
+                                                    sx={{
+                                                        display: 'block',
+                                                        mt: 0.25,
+                                                    }}
+                                                >
+                                                    Delegate{' '}
+                                                    {abbreviateMiddle(
+                                                        request.delegateAid,
+                                                        28
+                                                    )}
+                                                </Typography>
+                                                <Typography
+                                                    component="div"
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                    sx={{
+                                                        display: 'block',
+                                                        mt: 0.25,
+                                                    }}
+                                                >
+                                                    Event{' '}
+                                                    {abbreviateMiddle(
+                                                        request.delegateEventSaid,
+                                                        28
+                                                    )}{' '}
+                                                    seq {request.sequence}
+                                                </Typography>
+                                                {formatTimestamp(
+                                                    request.createdAt
+                                                ) !== null && (
+                                                    <Typography
+                                                        component="div"
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        noWrap
+                                                        sx={{
+                                                            display: 'block',
+                                                            mt: 0.25,
+                                                        }}
+                                                    >
+                                                        {formatTimestamp(
+                                                            request.createdAt
+                                                        )}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                            <Stack
+                                                direction="row"
+                                                spacing={0.75}
+                                                sx={{
+                                                    flex: '0 0 auto',
+                                                    alignItems: 'center',
+                                                    justifyContent: {
+                                                        xs: 'flex-start',
+                                                        sm: 'flex-end',
+                                                    },
+                                                }}
+                                            >
+                                                <Button
+                                                    size="small"
+                                                    variant="contained"
+                                                    startIcon={<HowToRegIcon />}
+                                                    data-testid="delegation-request-notification-approve"
+                                                    data-ui-sound={
+                                                        UI_SOUND_HOVER_VALUE
+                                                    }
+                                                    disabled={!canApprove}
+                                                    onClick={() =>
+                                                        approveDelegationRequest(
+                                                            request
+                                                        )
+                                                    }
+                                                >
+                                                    Approve
+                                                </Button>
+                                                <Button
+                                                    component={RouterLink}
+                                                    to={`/notifications/${encodeURIComponent(
+                                                        request.notificationId
+                                                    )}`}
+                                                    size="small"
+                                                    data-testid="delegation-request-notification-detail-link"
+                                                    data-ui-sound={
+                                                        UI_SOUND_HOVER_VALUE
+                                                    }
+                                                    onClick={() =>
+                                                        setNotificationsAnchor(
+                                                            null
+                                                        )
+                                                    }
+                                                >
+                                                    Open
+                                                </Button>
+                                            </Stack>
+                                        </Stack>
+                                    </Box>
+                                );
+                            })}
                             {visibleChallengeRequests.map((request) => (
                                 <Box
                                     key={request.notificationId}
@@ -737,7 +949,10 @@ export const TopBar = ({
                                         }}
                                     >
                                         <Stack
-                                            direction={{ xs: 'column', sm: 'row' }}
+                                            direction={{
+                                                xs: 'column',
+                                                sm: 'row',
+                                            }}
                                             spacing={1}
                                             sx={{
                                                 alignItems: {
@@ -878,6 +1093,7 @@ export const TopBar = ({
                                 );
                             })}
                             {(visibleChallengeRequests.length > 0 ||
+                                visibleDelegationRequests.length > 0 ||
                                 visibleCredentialGrants.length > 0) &&
                                 visibleNotifications.length > 0 && (
                                     <Divider sx={{ my: 0.75 }} />

@@ -463,7 +463,8 @@ export const contactOobiRoleSummary = (
  * Witness records are useful, but they should not crowd the main contact list.
  */
 export const isWitnessContact = (contact: ContactRecord): boolean =>
-    explicitOobiMetadataRoles(contact.oobi).includes('witness');
+    explicitOobiMetadataRoles(contact.oobi).includes('witness') ||
+    contact.componentTags.includes('witness');
 
 /**
  * Shield state for compact contact cards and contact detail headers.
