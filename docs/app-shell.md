@@ -29,8 +29,13 @@ used by loaders and actions:
 - `disconnect()`
 - `refreshState()`
 - `listIdentifiers()`
-- `createIdentifier(name, algo, fields)`
-- `rotateIdentifier(aid)`
+- foreground reads such as `listIdentifiers()`, `syncSessionInventory()`, and
+  challenge word generation
+- background launchers such as `startCreateIdentifier(...)`,
+  `startRotateIdentifier(...)`, `startResolveContact(...)`,
+  `startSendChallengeRequest(...)`, and `startVerifyContactChallenge(...)`
+- local cleanup such as `clearAllLocalState()` and exchange-notification
+  dismissal
 
 `src/app/runtimeContext.tsx`
 
@@ -120,8 +125,9 @@ fields are `routeId`, `label`, `gate`, `nav`, and `testId`.
 
 `AppRouteId`
 
-: Closed set of current feature route IDs: `identifiers`, `credentials`,
-`client`, `operations`, and `appNotifications`.
+: Closed set of current feature route IDs: `dashboard`, `contacts`,
+`identifiers`, `credentials`, `client`, `operations`, and
+`appNotifications`.
 
 `AppRouteGate`
 
@@ -136,17 +142,23 @@ their handles.
 
 | Path                     | Route behavior                         | Loader/action owner       | Gating                            |
 |--------------------------|----------------------------------------|---------------------------|-----------------------------------|
-| `/`                      | redirects to `/identifiers`            | root child index loader   | none                              |
+| `/`                      | redirects to `/dashboard`              | root child index loader   | none                              |
+| `/dashboard`             | session/activity/component summary     | dashboard loader          | connected Signify client required |
+| `/contacts`              | OOBI generation/resolution and contacts | contacts loader/action    | connected Signify client required |
+| `/contacts/:contactId`   | contact detail, OOBIs, challenge flows | contacts loader/action    | connected Signify client required |
 | `/identifiers`           | identifier list/detail/create/rotate   | identifiers loader/action | connected Signify client required |
 | `/credentials`           | connected placeholder                  | credentials loader        | connected Signify client required |
 | `/client`                | client/controller/agent state          | client loader             | connected Signify state required  |
 | `/operations`            | persisted/background operation history | Redux selectors           | none                              |
 | `/operations/:requestId` | operation detail and result links      | Redux selectors           | none                              |
-| `/notifications`         | app-level user notifications           | Redux selectors           | none                              |
-| `*`                      | redirects to `/identifiers`            | catch-all loader          | none                              |
+| `/notifications`         | app notices and KERIA protocol inbox   | notifications loader/action | connected Signify client required |
+| `/notifications/:notificationId` | KERIA/synthetic notification detail | notifications loader/action | connected Signify client required |
+| `*`                      | redirects to `/dashboard`              | catch-all loader          | none                              |
 
-Operations and app-notification routes are intentionally ungated. Persisted
-history should remain viewable after disconnect, refresh, or reconnect.
+Operations routes are intentionally ungated. Persisted history should remain
+viewable after disconnect, refresh, or reconnect. Notifications are connected
+because KERIA protocol inventory and challenge request hydration depend on the
+live session.
 
 Direct navigation to a gated route renders `ConnectionRequired` until the user
 connects. Routes do not auto-open the connect dialog.
@@ -158,10 +170,19 @@ connects. Routes do not auto-open the connect dialog.
 - `loadIdentifiers(runtime)` returns blocked, ready identifiers, or an
   actionable load error without throwing.
 - `loadClient(runtime)` refreshes and returns the current client summary.
+- `loadDashboard(runtime)` refreshes session inventory for the dashboard.
+- `loadContacts(runtime)` syncs contact, challenge, and KERIA notification
+  inventory.
 - `loadCredentials(runtime)` currently gates the placeholder route.
+- `loadNotifications(runtime)` syncs protocol notifications and synthetic
+  exchange-backed challenge requests.
 - `rootAction(runtime, request)` handles connect form submissions and redirects
   successful connections to `DEFAULT_APP_PATH`.
 - `identifiersAction(runtime, request)` handles create and rotate intents.
+- `contactsAction(runtime, request)` handles OOBI resolution, contact metadata,
+  and challenge intents.
+- `notificationsAction(runtime, request)` handles challenge responses and
+  exchange-notification dismissal.
 
 Use typed action data for expected, recoverable failures. Throw only unexpected
 route failures that should land in a route error boundary.
@@ -240,6 +261,13 @@ and unknown thrown values into a short route-specific error message.
 changes: drawer open state and connect-dialog open state. The visible
 connection status comes from `AppRuntime` through `useAppSession`.
 
+`UiSoundEffects`
+
+: Shell-level delegated sound effect installer. It mirrors the persisted mute
+preference from Redux into `UiSoundEngine` and handles browser autoplay unlock
+through pointer/keyboard events. Feature components opt in through semantic
+controls or `data-ui-sound`; they should not create audio contexts directly.
+
 `NavigationDrawer`
 
 : Drawer generated from `APP_NAV_ITEMS`. Adding a drawer item means adding a
@@ -302,3 +330,9 @@ state belongs to the client route loader.
 
 : Connected placeholder route. Replace it with nested credential UI as issuer,
 holder, and verifier flows are added, but keep route gating in loaders.
+
+`ContactsView`, `ContactDetailView`, `ChallengeRequestResponseForm`
+
+: Contact/OOBI/challenge views. They render Redux and route-action state,
+submit typed intents through route actions, and do not call Signify/KERIA
+services directly.
