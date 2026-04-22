@@ -92,6 +92,22 @@ import {
     dismissExchangeNotificationOp,
     type DismissExchangeNotificationInput,
 } from '../workflows/notifications.op';
+import {
+    admitCredentialGrantOp,
+    createCredentialRegistryOp,
+    grantCredentialOp,
+    issueSediCredentialOp,
+    resolveCredentialSchemaOp,
+    syncCredentialIpexActivityOp,
+    syncCredentialInventoryOp,
+    syncCredentialRegistriesOp,
+    syncKnownCredentialSchemasOp,
+    type AdmitCredentialGrantInput,
+    type CreateCredentialRegistryInput,
+    type GrantCredentialInput,
+    type IssueSediCredentialInput,
+    type ResolveCredentialSchemaInput,
+} from '../workflows/credentials.op';
 
 /**
  * Complete connection-state model for the app runtime.
@@ -725,6 +741,61 @@ export class AppRuntime {
         });
 
     /**
+     * Refresh holder-side credential inventory without recording operation
+     * history by default.
+     */
+    syncCredentialInventory = async (
+        options: WorkflowRunOptions = {}
+    ): Promise<unknown> =>
+        this.runWorkflow(() => syncCredentialInventoryOp(), {
+            ...options,
+            label: options.label,
+            kind: options.kind ?? 'syncInventory',
+            track: options.track ?? false,
+        });
+
+    /**
+     * Refresh issuer-side credential registry inventory without recording
+     * operation history by default.
+     */
+    syncCredentialRegistries = async (
+        options: WorkflowRunOptions = {}
+    ): Promise<unknown> =>
+        this.runWorkflow(() => syncCredentialRegistriesOp(), {
+            ...options,
+            label: options.label,
+            kind: options.kind ?? 'syncInventory',
+            track: options.track ?? false,
+        });
+
+    /**
+     * Refresh credential-linked IPEX exchange activity without recording
+     * operation history by default.
+     */
+    syncCredentialIpexActivity = async (
+        options: WorkflowRunOptions = {}
+    ): Promise<unknown> =>
+        this.runWorkflow(() => syncCredentialIpexActivityOp(), {
+            ...options,
+            label: options.label,
+            kind: options.kind ?? 'syncInventory',
+            track: options.track ?? false,
+        });
+
+    /**
+     * Detect app-supported schemas this connected agent already knows.
+     */
+    syncKnownCredentialSchemas = async (
+        options: WorkflowRunOptions = {}
+    ): Promise<unknown> =>
+        this.runWorkflow(() => syncKnownCredentialSchemasOp(), {
+            ...options,
+            label: options.label,
+            kind: options.kind ?? 'syncInventory',
+            track: options.track ?? false,
+        });
+
+    /**
      * Launch identifier creation as background work with name-level conflicts.
      */
     startCreateIdentifier = (
@@ -1032,6 +1103,148 @@ export class AppRuntime {
             ...options,
             kind: 'workflow',
             track: false,
+        });
+
+    /**
+     * Launch SEDI schema OOBI resolution as background work.
+     */
+    startResolveCredentialSchema = (
+        input: ResolveCredentialSchemaInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => resolveCredentialSchemaOp(input), {
+            requestId: options.requestId,
+            label: 'Adding SEDI credential type',
+            title: 'Add credential type',
+            description:
+                'Adds the SEDI schema OOBI to this KERIA agent and records schema metadata.',
+            kind: 'resolveSchema',
+            resourceKeys: [`schema:${input.schemaSaid}`],
+            resultRoute: { label: 'View credentials', path: '/credentials' },
+            successNotification: {
+                title: 'Credential type added',
+                message: 'The SEDI credential type is available to this wallet.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Credential type add failed',
+                message: 'The SEDI credential type could not be added.',
+                severity: 'error',
+            },
+        });
+
+    /**
+     * Launch issuer registry creation or reuse as background work.
+     */
+    startCreateCredentialRegistry = (
+        input: CreateCredentialRegistryInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => createCredentialRegistryOp(input), {
+            requestId: options.requestId,
+            label: `Creating registry for ${input.issuerAlias}`,
+            title: 'Create credential registry',
+            description:
+                'Creates or reuses the issuer credential registry for SEDI voter credentials.',
+            kind: 'createRegistry',
+            resourceKeys: [`registry:${input.issuerAid}`],
+            resultRoute: { label: 'View credentials', path: '/credentials' },
+            successNotification: {
+                title: 'Credential registry ready',
+                message: 'The issuer credential registry is ready.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Credential registry failed',
+                message: 'The issuer credential registry could not be prepared.',
+                severity: 'error',
+            },
+        });
+
+    /**
+     * Launch issuer-side SEDI credential issuance as background work.
+     */
+    startIssueCredential = (
+        input: IssueSediCredentialInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => issueSediCredentialOp(input), {
+            requestId: options.requestId,
+            label: `Issuing credential to ${input.holderAid}`,
+            title: 'Issue SEDI voter credential',
+            description:
+                'Creates the ACDC in the issuer registry and waits for KERIA completion.',
+            kind: 'issueCredential',
+            resourceKeys: [
+                `credential:issue:${input.issuerAid}:${input.holderAid}:${input.attributes.voterId}`,
+            ],
+            resultRoute: { label: 'View credentials', path: '/credentials' },
+            successNotification: {
+                title: 'Credential issued',
+                message: 'The SEDI voter credential was issued.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Credential issuance failed',
+                message: 'The SEDI voter credential could not be issued.',
+                severity: 'error',
+            },
+        });
+
+    /**
+     * Launch issuer-side IPEX grant delivery as background work.
+     */
+    startGrantCredential = (
+        input: GrantCredentialInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => grantCredentialOp(input), {
+            requestId: options.requestId,
+            label: `Granting credential ${input.credentialSaid}`,
+            title: 'Grant credential',
+            description:
+                'Sends an IPEX grant to the holder and waits for KERIA completion.',
+            kind: 'grantCredential',
+            resourceKeys: [`credential:${input.credentialSaid}:grant`],
+            resultRoute: { label: 'View credentials', path: '/credentials' },
+            successNotification: {
+                title: 'Credential grant sent',
+                message: 'The credential grant was sent to the holder.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Credential grant failed',
+                message: 'The credential grant could not be sent.',
+                severity: 'error',
+            },
+        });
+
+    /**
+     * Launch holder-side IPEX grant admission as background work.
+     */
+    startAdmitCredentialGrant = (
+        input: AdmitCredentialGrantInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => admitCredentialGrantOp(input), {
+            requestId: options.requestId,
+            label: `Admitting credential grant ${input.grantSaid}`,
+            title: 'Admit credential grant',
+            description:
+                'Accepts the issuer IPEX grant and refreshes holder credential inventory.',
+            kind: 'admitCredential',
+            resourceKeys: [`grant:${input.grantSaid}:admit`],
+            resultRoute: { label: 'View credentials', path: '/credentials' },
+            successNotification: {
+                title: 'Credential admitted',
+                message: 'The credential is now available in this wallet.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Credential admit failed',
+                message: 'The credential grant could not be admitted.',
+                severity: 'error',
+            },
         });
 
     /**

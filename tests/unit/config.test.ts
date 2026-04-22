@@ -30,8 +30,9 @@ describe('buildAppConfig', () => {
             passcode: null,
         });
         expect(config.schemas.sediVoterId).toEqual({
-            said: null,
-            oobiUrl: null,
+            said: 'EANVmibW8WDFs-aySWUGGaSbZKeV5_yIqVzuSiC9xYer',
+            oobiUrl:
+                'http://127.0.0.1:7723/oobi/EANVmibW8WDFs-aySWUGGaSbZKeV5_yIqVzuSiC9xYer',
         });
         expect(config.verifier).toEqual({
             directUrl: 'http://127.0.0.1:9723',

@@ -1,8 +1,8 @@
 # Smoke Tests
 
 The smoke tests are fast confidence checks for the Signify client boundary and
-the React connection path. They are not full issuer/holder/verifier tests and
-they intentionally do not depend on a schema server.
+the React connection/contact paths. They are not full issuer/holder/verifier
+tests and they intentionally do not depend on a schema server.
 
 Use them before and after changes that touch:
 
@@ -25,6 +25,8 @@ With KERIA and the demo witnesses running locally:
 ```bash
 pnpm keria:smoke
 pnpm browser:smoke
+pnpm contact:ui-smoke
+pnpm contact:challenge-smoke
 ```
 
 Run `pnpm keria:smoke -- --mode connect` first when debugging. It proves the
@@ -57,6 +59,8 @@ The smoke-test stack has one shared smoke module and two executable wrappers.
 | Shared smoke    | `tests/smoke/clientBoundarySmoke.ts` | Boots/connects through the Signify boundary, reads client state, and optionally creates a witnessed identifier.     |
 | CLI wrapper     | `scripts/keria-smoke.ts`             | Parses process args, calls the shared smoke module, and prints JSON.                                                |
 | Browser wrapper | `tests/browser-smoke.mjs`            | Starts or reuses Vite, drives the React UI with Puppeteer, and verifies the client summary.                         |
+| Contact OOBI smoke | `tests/contact-oobi-smoke.ts` | Resolves harness and witness OOBIs through the React Contacts UI and verifies operation/notification payload links. |
+| Contact challenge smoke | `tests/contact-challenge-smoke.ts` | Exercises browser challenge generation, harness response, synthetic challenge notifications, detail response, and bell response. |
 | App runtime     | `src/app/runtime.ts`                 | Shares connected Signify state between React Router loaders/actions and shell UI.                                   |
 | Boundary        | `src/signify/client.ts`              | Owns `ready()`, `randomPasscode()`, `SignifyClient` construction, boot/connect, state reads, and operation waiting. |
 | Config          | `src/config.ts`                      | Supplies shared defaults and environment overrides for browser and Node execution.                                  |
@@ -186,6 +190,46 @@ BROWSER_SMOKE_URL=http://127.0.0.1:5174 pnpm browser:smoke
 If `BROWSER_SMOKE_URL` is not set, the test assumes
 `http://127.0.0.1:5173`.
 
+## Contact UI Smoke
+
+```bash
+pnpm contact:ui-smoke
+```
+
+This check starts or reuses a Vite app at
+`CONTACT_OOBI_SMOKE_URL`, default `http://127.0.0.1:5176`, then:
+
+1. connects a fresh browser wallet,
+2. creates a witnessed Node harness identifier,
+3. resolves the harness agent OOBI through the Contacts route,
+4. opens contact detail and verifies the stored OOBI,
+5. follows the quick notification to the operation detail payload,
+6. resolves a configured witness OOBI,
+7. verifies the dashboard known-components panel includes that witness.
+
+It requires local KERIA, local witnesses, and browser CORS support.
+
+## Contact Challenge Smoke
+
+```bash
+pnpm contact:challenge-smoke
+```
+
+This check starts or reuses a Vite app at
+`CONTACT_CHALLENGE_SMOKE_URL`, default `http://127.0.0.1:5177`, then proves
+both challenge directions:
+
+1. browser generates challenge words on a contact detail page,
+2. the Node harness responds through KERIA,
+3. the browser contact shield reaches verified state,
+4. the harness sends challenge request EXNs without raw words,
+5. the browser responds from notification detail and the top-bar bell card,
+6. the harness verifies and accepts each response through KERIA.
+
+This is intentionally longer than the basic browser smoke because it depends on
+OOBI exchange, EXN indexing, contact inventory polling, and KERIA challenge
+operation completion.
+
 ## Configuration
 
 The smoke tests use the same config as the app:
@@ -200,6 +244,8 @@ The smoke tests use the same config as the app:
 | `VITE_WITNESS_AIDS`           | local 3-witness demo AIDs | CLI witness mode.              |
 | `VITE_WITNESS_TOAD`           | `2`                       | CLI witness mode.              |
 | `BROWSER_SMOKE_URL`           | `http://127.0.0.1:5173`   | Browser smoke only.            |
+| `CONTACT_OOBI_SMOKE_URL`      | `http://127.0.0.1:5176`   | Contact OOBI browser smoke.    |
+| `CONTACT_CHALLENGE_SMOKE_URL` | `http://127.0.0.1:5177`   | Contact challenge browser smoke. |
 
 Browser smoke calls local KERIA directly and requires KERIA CORS support to be
 enabled, for example `KERI_AGENT_CORS=true`. Without that, browser preflight for

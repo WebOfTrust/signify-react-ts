@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import NotificationsIcon from '@mui/icons-material/Notifications';
@@ -43,6 +44,10 @@ export interface DesktopNavigationRailProps {
 }
 
 const routeIcon = (routeId: AppRouteId) => {
+    if (routeId === 'dashboard') {
+        return <DashboardOutlinedIcon />;
+    }
+
     if (routeId === 'identifiers') {
         return <BadgeOutlinedIcon />;
     }

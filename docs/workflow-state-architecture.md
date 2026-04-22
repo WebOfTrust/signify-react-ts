@@ -121,8 +121,15 @@ Current workflow groups:
   refresh, and generic KERIA operation waits.
 - `identifiers.op.ts`: list/create/rotate identifier flows and identifier
   slice updates.
-- `domain.op.ts`: documented placeholders for future contact, challenge,
-  notification, schema, registry, and credential workflows.
+- `contacts.op.ts`: OOBI generation, OOBI resolution, contact metadata changes,
+  live contact/challenge inventory sync, and KERIA notification publication.
+- `challenges.op.ts`: generate/respond/request/verify challenge-response
+  workflows. Raw challenge words stay in challenge state, not operation payloads
+  or app notification messages.
+- `notifications.op.ts`: app-local dismissal of exchange-backed notifications
+  through EXN tombstones plus best-effort KERIA notification cleanup.
+- `domain.op.ts`: documented placeholders for schema, registry, credential, and
+  role workflows that are not live yet.
 
 The placeholder operations in `domain.op.ts` are intentional architecture
 anchors. They define inputs and state transitions that future implementation
@@ -142,10 +149,12 @@ State slices:
 | `operations` | Runtime workflow lifecycle records for foreground diagnostics, background operation history, active conflict guards, cancellation, and persistence. |
 | `appNotifications` | User-facing app notification records for operation completion/failure and shell notification UX. |
 | `identifiers` | Normalized identifier inventory and last identifier mutation. |
-| `contacts` | OOBI/contact resolution records. |
-| `challenges` | Challenge/response exchange records. |
+| `contacts` | OOBI/contact resolution records, generated OOBIs, and contact endpoint metadata. |
+| `challenges` | Challenge/response exchange records plus transient stored words for pending verification. |
 | `credentials` | Credential summary records by SAID. |
-| `notifications` | KERIA notification inventory and processing status. This is separate from app-level user notifications. |
+| `notifications` | KERIA notification inventory, hydrated challenge requests, and processing status. This is separate from app-level user notifications. |
+| `exchangeTombstones` | App-local EXN tombstones for exchange-backed notifications KERIA may still return. |
+| `uiPreferences` | Global, non-secret interface preferences such as sound mute state. |
 | `schema` | Credential schema resolution records. |
 | `registry` | Issuer registry records. |
 | `roles` | Local issuer/holder/verifier role bindings. |

@@ -17,6 +17,7 @@ import type { AppRuntime } from './runtime';
 import {
     DEFAULT_APP_PATH,
     contactsAction,
+    credentialsAction,
     identifiersAction,
     loadContacts,
     loadDashboard,
@@ -186,6 +187,35 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = APP_FEATURE_ROUTES.map(
     })
 );
 
+const credentialRoute = (
+    id: string,
+    path: string,
+    runtime: AppRuntime,
+    handle?: AppRouteHandle
+): RouteObject => ({
+    id,
+    path,
+    handle,
+    loader: ({ request }) => loadCredentials(runtime, request),
+    action: ({ request }) => credentialsAction(runtime, request),
+    element: <CredentialsView />,
+    errorElement: <RouteErrorBoundary title="Credentials route failed" />,
+});
+
+const dashboardRoute = (
+    id: string,
+    path: string,
+    runtime: AppRuntime,
+    handle?: AppRouteHandle
+): RouteObject => ({
+    id,
+    path,
+    handle,
+    loader: ({ request }) => loadDashboard(runtime, request),
+    element: <DashboardView />,
+    errorElement: <RouteErrorBoundary title="Dashboard route failed" />,
+});
+
 /**
  * Data-router route objects for the app shell.
  *
@@ -205,16 +235,28 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
                 index: true,
                 loader: () => redirect(DEFAULT_APP_PATH),
             },
-            {
-                id: 'dashboard',
-                path: 'dashboard',
-                handle: APP_FEATURE_ROUTES[0].handle,
-                loader: ({ request }) => loadDashboard(runtime, request),
-                element: <DashboardView />,
-                errorElement: (
-                    <RouteErrorBoundary title="Dashboard route failed" />
-                ),
-            },
+            dashboardRoute(
+                'dashboard',
+                'dashboard',
+                runtime,
+                APP_FEATURE_ROUTES[0].handle
+            ),
+            dashboardRoute('dashboardSchemas', 'dashboard/schemas', runtime),
+            dashboardRoute(
+                'dashboardIssuedCredentials',
+                'dashboard/credentials/issued',
+                runtime
+            ),
+            dashboardRoute(
+                'dashboardHeldCredentials',
+                'dashboard/credentials/held',
+                runtime
+            ),
+            dashboardRoute(
+                'dashboardCredentialDetail',
+                'dashboard/credentials/:credentialSaid',
+                runtime
+            ),
             {
                 id: 'contacts',
                 path: 'contacts',
@@ -247,16 +289,28 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
                     <RouteErrorBoundary title="Identifiers route failed" />
                 ),
             },
-            {
-                id: 'credentials',
-                path: 'credentials',
-                handle: APP_FEATURE_ROUTES[3].handle,
-                loader: () => loadCredentials(runtime),
-                element: <CredentialsView />,
-                errorElement: (
-                    <RouteErrorBoundary title="Credentials route failed" />
-                ),
-            },
+            credentialRoute(
+                'credentials',
+                'credentials',
+                runtime,
+                APP_FEATURE_ROUTES[3].handle
+            ),
+            credentialRoute('credentialAid', 'credentials/:aid', runtime),
+            credentialRoute(
+                'credentialIssuer',
+                'credentials/:aid/issuer',
+                runtime
+            ),
+            credentialRoute(
+                'credentialIssuerType',
+                'credentials/:aid/issuer/:typeKey',
+                runtime
+            ),
+            credentialRoute(
+                'credentialWallet',
+                'credentials/:aid/wallet',
+                runtime
+            ),
             {
                 id: 'client',
                 path: 'client',

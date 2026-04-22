@@ -15,6 +15,10 @@ export interface SchemaRecord {
     said: string;
     oobi: string | null;
     status: SchemaResolutionStatus;
+    title: string | null;
+    description: string | null;
+    version: string | null;
+    rules?: Record<string, unknown> | null;
     error: string | null;
     updatedAt: string | null;
 }

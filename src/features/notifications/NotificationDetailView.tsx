@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
+import HowToRegIcon from '@mui/icons-material/HowToReg';
 import {
     Link as RouterLink,
     useFetcher,
@@ -29,18 +30,39 @@ import { formatTimestamp } from '../../app/timeFormat';
 import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 import type {
     ContactActionData,
+    CredentialActionData,
     NotificationsLoaderData,
 } from '../../app/routeData';
 import { useAppSelector } from '../../state/hooks';
 import {
     selectChallengeRequestNotificationById,
+    selectCredentialGrantNotificationById,
     selectIdentifiers,
     selectKeriaNotificationById,
 } from '../../state/selectors';
+import type { CredentialGrantNotification } from '../../state/notifications.slice';
 import { ChallengeRequestResponseForm } from './ChallengeRequestResponseForm';
 
 const timestampText = (value: string | null): string =>
     value === null ? 'Not available' : (formatTimestamp(value) ?? value);
+
+const grantStatusTone = (
+    status: CredentialGrantNotification['status']
+): 'neutral' | 'success' | 'warning' | 'error' | 'info' => {
+    if (status === 'error') {
+        return 'error';
+    }
+
+    if (status === 'notForThisWallet') {
+        return 'warning';
+    }
+
+    if (status === 'admitted') {
+        return 'success';
+    }
+
+    return 'info';
+};
 
 /**
  * Route view for one KERIA protocol notification or synthetic challenge item.
@@ -50,13 +72,27 @@ export const NotificationDetailView = () => {
     const { notificationId = '' } = useParams();
     const navigate = useNavigate();
     const dismissFetcher = useFetcher<ContactActionData>();
+    const credentialFetcher = useFetcher<CredentialActionData>();
     const notification = useAppSelector(
         selectKeriaNotificationById(notificationId)
     );
     const challengeRequest = useAppSelector(
         selectChallengeRequestNotificationById(notificationId)
     );
+    const credentialGrant = useAppSelector(
+        selectCredentialGrantNotificationById(notificationId)
+    );
     const identifiers = useAppSelector(selectIdentifiers);
+    const grantRecipient =
+        credentialGrant === null
+            ? undefined
+            : identifiers.find(
+                  (identifier) => identifier.prefix === credentialGrant.holderAid
+              );
+    const canAdmitGrant =
+        credentialGrant?.status === 'actionable' &&
+        grantRecipient !== undefined &&
+        credentialFetcher.state === 'idle';
 
     useEffect(() => {
         if (
@@ -96,14 +132,34 @@ export const NotificationDetailView = () => {
         );
     }
 
+    const admitCredentialGrant = () => {
+        if (credentialGrant === null || grantRecipient === undefined) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('intent', 'admitCredentialGrant');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('holderAlias', grantRecipient.name);
+        formData.set('holderAid', credentialGrant.holderAid);
+        formData.set('notificationId', credentialGrant.notificationId);
+        formData.set('grantSaid', credentialGrant.grantSaid);
+        credentialFetcher.submit(formData, {
+            method: 'post',
+            action: '/credentials',
+        });
+    };
+
     return (
         <Box sx={{ display: 'grid', gap: 2.5 }}>
             <PageHeader
                 eyebrow="Notification"
                 title={
-                    challengeRequest === null
-                        ? notification.route
-                        : 'Challenge request'
+                    challengeRequest !== null
+                        ? 'Challenge request'
+                        : credentialGrant !== null
+                          ? 'Credential grant'
+                          : notification.route
                 }
                 summary={notification.id}
                 actions={
@@ -251,6 +307,84 @@ export const NotificationDetailView = () => {
                                 action={`/notifications/${encodeURIComponent(
                                     notification.id
                                 )}`}
+                            />
+                        )}
+                    </Stack>
+                </ConsolePanel>
+            ) : credentialGrant !== null ? (
+                <ConsolePanel
+                    title="Credential admit"
+                    eyebrow="Holder"
+                    actions={
+                        <StatusPill
+                            label={credentialGrant.status}
+                            tone={grantStatusTone(credentialGrant.status)}
+                        />
+                    }
+                >
+                    <Stack spacing={2}>
+                        <Stack spacing={0.5}>
+                            <TelemetryRow
+                                label="Issuer AID"
+                                value={credentialGrant.issuerAid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Recipient"
+                                value={grantRecipient?.name ?? 'Not available'}
+                            />
+                            <TelemetryRow
+                                label="Recipient AID"
+                                value={credentialGrant.holderAid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Credential SAID"
+                                value={credentialGrant.credentialSaid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Grant SAID"
+                                value={credentialGrant.grantSaid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Created"
+                                value={timestampText(credentialGrant.createdAt)}
+                            />
+                        </Stack>
+                        <Divider />
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1}
+                            sx={{
+                                alignItems: { xs: 'stretch', sm: 'center' },
+                            }}
+                        >
+                            <Button
+                                variant="contained"
+                                startIcon={<HowToRegIcon />}
+                                data-testid="credential-notification-detail-admit"
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
+                                disabled={!canAdmitGrant}
+                                onClick={admitCredentialGrant}
+                            >
+                                Admit credential
+                            </Button>
+                            <Button
+                                component={RouterLink}
+                                to={`/credentials/${encodeURIComponent(
+                                    credentialGrant.holderAid
+                                )}/wallet`}
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
+                            >
+                                Open wallet
+                            </Button>
+                        </Stack>
+                        {grantRecipient === undefined && (
+                            <EmptyState
+                                title="Recipient identifier unavailable"
+                                message="This grant names a recipient AID that is not loaded as a local identifier in this wallet."
                             />
                         )}
                     </Stack>

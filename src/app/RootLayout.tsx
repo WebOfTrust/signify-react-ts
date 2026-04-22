@@ -14,6 +14,7 @@ import { useAppSelector } from '../state/hooks';
 import {
     selectActiveOperations,
     selectActionableChallengeRequestNotifications,
+    selectActionableCredentialGrantNotifications,
     selectAppNotifications,
     selectIdentifiers,
     selectUnreadAppNotifications,
@@ -48,6 +49,9 @@ const RootLayoutContent = () => {
     const challengeRequests = useAppSelector(
         selectActionableChallengeRequestNotifications
     );
+    const credentialGrants = useAppSelector(
+        selectActionableCredentialGrantNotifications
+    );
     const identifiers = useAppSelector(selectIdentifiers);
     const connectDialogOpen = connectOpen && connection.status !== 'connected';
     const pending = derivePendingState({
@@ -70,9 +74,12 @@ const RootLayoutContent = () => {
                 activeOperations={activeOperations}
                 recentNotifications={appNotifications}
                 challengeRequests={challengeRequests}
+                credentialGrants={credentialGrants}
                 identifiers={identifiers}
                 unreadNotificationCount={
-                    unreadAppNotifications.length + challengeRequests.length
+                    unreadAppNotifications.length +
+                    challengeRequests.length +
+                    credentialGrants.length
                 }
                 onMenuClick={() => setDrawerOpen(true)}
                 onConnectClick={() => setConnectOpen(true)}

@@ -70,10 +70,15 @@ Current keys:
 
 - Identifier create: `identifier:name:<name>`
 - Identifier rotate: `identifier:aid:<aid-or-alias>`
+- OOBI generation: `oobi:<identifier>:<role>`
+- Contact resolution: `contact:oobi:<url>` and, when known,
+  `contact:alias:<alias>`
+- Contact mutation: `contact:<contactId>`
+- Challenge response/request/verify:
+  `challenge:<action>:<counterpartyAid>:<localIdentifier-or-challengeId>`
 
 Expected future keys:
 
-- Contact resolution: `contact:<alias>`
 - Schema resolution: `schema:<said>`
 - Registry creation: `registry:issuer:<aid>`
 - Credential flows: `credential:<said>`
@@ -105,6 +110,9 @@ Notification read behavior:
   1250 ms.
 - `selectAppNotifications` returns notifications in descending `createdAt`
   order.
+- App notifications are not KERIA protocol notifications. Protocol inbox items,
+  hydrated challenge requests, and exchange tombstones live in
+  `state.notifications` and `state.exchangeTombstones`.
 
 ## Shell And Routes
 
@@ -114,10 +122,12 @@ The app shell exposes background work through:
 - `TopBar` notification bell: unread count and recent app notifications.
 - `/operations`: reverse-chronological operation history.
 - `/operations/:requestId`: operation detail with lifecycle fields and links.
-- `/notifications`: app notification list.
+- `/notifications`: app notification list plus KERIA protocol inbox records for
+  the connected session.
 
-Operations and notifications routes have no connection gate. Persisted history
-must remain visible after disconnect or refresh.
+Operations routes have no connection gate. Persisted history must remain
+visible after disconnect or refresh. Notifications need a connection because
+protocol inventory and synthetic challenge request hydration require KERIA.
 
 The global `LoadingOverlay` is for foreground work only: connect, passcode
 generation, route navigation, and loader/fetcher pending state. Background

@@ -131,4 +131,100 @@ describe('data-router route metadata', () => {
         });
         expect(contactDetail?.handle).toBeUndefined();
     });
+
+    it('adds non-navigation dashboard inventory detail routes', () => {
+        const rootRoute = createAppRoutes({} as AppRuntime)[0];
+        const dashboardRoutes = rootRoute.children
+            ?.filter((route) => String(route.id ?? '').startsWith('dashboard'))
+            .map((route) => ({
+                id: route.id,
+                path: route.path,
+                hasLoader: route.loader !== undefined,
+                hasHandle: route.handle !== undefined,
+            }));
+
+        expect(dashboardRoutes).toEqual([
+            {
+                id: 'dashboard',
+                path: 'dashboard',
+                hasLoader: true,
+                hasHandle: true,
+            },
+            {
+                id: 'dashboardSchemas',
+                path: 'dashboard/schemas',
+                hasLoader: true,
+                hasHandle: false,
+            },
+            {
+                id: 'dashboardIssuedCredentials',
+                path: 'dashboard/credentials/issued',
+                hasLoader: true,
+                hasHandle: false,
+            },
+            {
+                id: 'dashboardHeldCredentials',
+                path: 'dashboard/credentials/held',
+                hasLoader: true,
+                hasHandle: false,
+            },
+            {
+                id: 'dashboardCredentialDetail',
+                path: 'dashboard/credentials/:credentialSaid',
+                hasLoader: true,
+                hasHandle: false,
+            },
+        ]);
+    });
+
+    it('adds non-navigation nested credential drilldown routes', () => {
+        const rootRoute = createAppRoutes({} as AppRuntime)[0];
+        const credentialRoutes = rootRoute.children
+            ?.filter((route) => String(route.id ?? '').startsWith('credential'))
+            .map((route) => ({
+                id: route.id,
+                path: route.path,
+                hasLoader: route.loader !== undefined,
+                hasAction: route.action !== undefined,
+                hasHandle: route.handle !== undefined,
+            }));
+
+        expect(credentialRoutes).toEqual([
+            {
+                id: 'credentials',
+                path: 'credentials',
+                hasLoader: true,
+                hasAction: true,
+                hasHandle: true,
+            },
+            {
+                id: 'credentialAid',
+                path: 'credentials/:aid',
+                hasLoader: true,
+                hasAction: true,
+                hasHandle: false,
+            },
+            {
+                id: 'credentialIssuer',
+                path: 'credentials/:aid/issuer',
+                hasLoader: true,
+                hasAction: true,
+                hasHandle: false,
+            },
+            {
+                id: 'credentialIssuerType',
+                path: 'credentials/:aid/issuer/:typeKey',
+                hasLoader: true,
+                hasAction: true,
+                hasHandle: false,
+            },
+            {
+                id: 'credentialWallet',
+                path: 'credentials/:aid/wallet',
+                hasLoader: true,
+                hasAction: true,
+                hasHandle: false,
+            },
+        ]);
+    });
 });

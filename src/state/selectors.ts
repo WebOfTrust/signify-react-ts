@@ -3,6 +3,8 @@ import type { OperationRecord } from './operations.slice';
 import type { AppNotificationRecord } from './appNotifications.slice';
 import type {
     ChallengeRequestNotification,
+    CredentialAdmitNotification,
+    CredentialGrantNotification,
     NotificationRecord,
 } from './notifications.slice';
 import type { ContactRecord } from './contacts.slice';
@@ -10,10 +12,15 @@ import type {
     ChallengeRecord,
     StoredChallengeWordsRecord,
 } from './challenges.slice';
+import type { CredentialIpexActivityRecord } from './credentials.slice';
 import {
     knownComponentsFromContacts,
     type KnownComponentRecord,
 } from '../features/contacts/contactHelpers';
+import {
+    buildIssueableCredentialTypeViews,
+    ISSUEABLE_CREDENTIAL_TYPES,
+} from './issueableCredentialTypes';
 
 /** Select the serializable session connection summary. */
 export const selectSession = (state: RootState) => state.session;
@@ -70,6 +77,28 @@ export const selectIdentifiers = (state: RootState) =>
         .map((prefix) => state.identifiers.byPrefix[prefix])
         .filter((identifier) => identifier !== undefined);
 
+/** Select wallet-wide AID/registry UI selection. */
+export const selectWalletSelection = (state: RootState) =>
+    state.walletSelection;
+
+/** Select the active wallet AID only when it still exists locally. */
+export const selectSelectedWalletIdentifier = (state: RootState) => {
+    const selectedAid = state.walletSelection.selectedAid;
+    if (selectedAid === null) {
+        return null;
+    }
+
+    return (
+        selectIdentifiers(state).find(
+            (identifier) => identifier.prefix === selectedAid
+        ) ?? null
+    );
+};
+
+/** Select the active wallet AID prefix when valid. */
+export const selectSelectedWalletAid = (state: RootState): string | null =>
+    selectSelectedWalletIdentifier(state)?.prefix ?? null;
+
 const byNewestTimestamp = (
     left: AppNotificationRecord,
     right: AppNotificationRecord
@@ -110,7 +139,10 @@ export const selectExchangeTombstoneSaids = (state: RootState) =>
     state.exchangeTombstones.saids;
 
 const notificationExnSaid = (notification: NotificationRecord): string | null =>
-    notification.challengeRequest?.exnSaid ?? notification.anchorSaid;
+    notification.challengeRequest?.exnSaid ??
+    notification.credentialGrant?.grantSaid ??
+    notification.credentialAdmit?.admitSaid ??
+    notification.anchorSaid;
 
 const isExchangeTombstoned = (
     state: RootState,
@@ -176,6 +208,117 @@ export const selectContactsByOobi = (state: RootState) => {
 export const selectCredentialStatus = (said: string) => (state: RootState) =>
     state.credentials.bySaid[said]?.status ?? null;
 
+/** Select credential records newest first. */
+export const selectCredentials = (state: RootState) =>
+    state.credentials.saids
+        .map((said) => state.credentials.bySaid[said])
+        .filter((credential) => credential !== undefined)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+
+/** Select issuer-side credentials. */
+export const selectIssuedCredentials = (state: RootState) =>
+    selectCredentials(state).filter(
+        (credential) => credential.direction === 'issued'
+    );
+
+/** Select holder-side credentials. */
+export const selectHeldCredentials = (state: RootState) =>
+    selectCredentials(state).filter(
+        (credential) => credential.direction === 'held'
+    );
+
+const byOldestCredentialIpexActivityTimestamp = (
+    left: CredentialIpexActivityRecord,
+    right: CredentialIpexActivityRecord
+): number => {
+    if (left.createdAt === null && right.createdAt === null) {
+        return left.exchangeSaid.localeCompare(right.exchangeSaid);
+    }
+
+    if (left.createdAt === null) {
+        return 1;
+    }
+
+    if (right.createdAt === null) {
+        return -1;
+    }
+
+    return left.createdAt.localeCompare(right.createdAt);
+};
+
+/** Select IPEX exchange activity linked to one credential SAID. */
+export const selectCredentialIpexActivity =
+    (credentialSaid: string) =>
+    (state: RootState): CredentialIpexActivityRecord[] =>
+        [
+            ...(state.credentials.ipexActivityByCredentialSaid[
+                credentialSaid
+            ] ?? []),
+        ].sort(byOldestCredentialIpexActivityTimestamp);
+
+/** Select known credential schemas newest first. */
+export const selectCredentialSchemas = (state: RootState) =>
+    state.schema.saids
+        .map((said) => state.schema.bySaid[said])
+        .filter((schema) => schema !== undefined)
+        .sort((left, right) =>
+            (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '')
+        );
+
+/** Select resolved credential schemas newest first. */
+export const selectResolvedCredentialSchemas = (state: RootState) =>
+    selectCredentialSchemas(state).filter(
+        (schema) => schema.status === 'resolved'
+    );
+
+/** Select known credential registries newest first. */
+export const selectCredentialRegistries = (state: RootState) =>
+    state.registry.ids
+        .map((id) => state.registry.byId[id])
+        .filter((registry) => registry !== undefined)
+        .sort((left, right) =>
+            (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '')
+        );
+
+/** Select ready credential registries owned by the active wallet AID. */
+export const selectReadyCredentialRegistriesForSelectedAid = (
+    state: RootState
+) => {
+    const aid = selectSelectedWalletAid(state);
+    if (aid === null) {
+        return [];
+    }
+
+    return selectCredentialRegistries(state).filter(
+        (registry) =>
+            registry.issuerAid === aid &&
+            registry.status === 'ready' &&
+            registry.regk.trim().length > 0
+    );
+};
+
+/** Select the active wallet registry only when it is ready and belongs to the active AID. */
+export const selectSelectedWalletRegistry = (state: RootState) => {
+    const selectedRegistryId = state.walletSelection.selectedRegistryId;
+    if (selectedRegistryId === null) {
+        return null;
+    }
+
+    return (
+        selectReadyCredentialRegistriesForSelectedAid(state).find(
+            (registry) => registry.id === selectedRegistryId
+        ) ?? null
+    );
+};
+
+/** Select app-supported credential types joined with local schema facts. */
+export const selectIssueableCredentialTypeViews = (state: RootState) =>
+    buildIssueableCredentialTypeViews({
+        types: ISSUEABLE_CREDENTIAL_TYPES,
+        schemas: selectCredentialSchemas(state),
+        issuedCredentials: selectIssuedCredentials(state),
+    });
+
 /** Select unread notifications for badge/count UI. */
 export const selectUnreadNotifications = (state: RootState) =>
     state.notifications.ids
@@ -237,6 +380,53 @@ export const selectChallengeRequestNotificationById =
     (state: RootState): ChallengeRequestNotification | null =>
         selectKeriaNotificationById(notificationId)(state)?.challengeRequest ??
         null;
+
+const byNewestCredentialGrantTimestamp = (
+    left: CredentialGrantNotification,
+    right: CredentialGrantNotification
+): number => right.createdAt.localeCompare(left.createdAt);
+
+const byNewestCredentialAdmitTimestamp = (
+    left: CredentialAdmitNotification,
+    right: CredentialAdmitNotification
+): number => right.createdAt.localeCompare(left.createdAt);
+
+/** Select credential grant notifications newest first. */
+export const selectCredentialGrantNotifications = (state: RootState) =>
+    selectKeriaNotifications(state)
+        .flatMap((notification) =>
+            notification.credentialGrant === null ||
+            notification.credentialGrant === undefined
+                ? []
+                : [notification.credentialGrant]
+        )
+        .sort(byNewestCredentialGrantTimestamp);
+
+/** Select actionable holder-side credential grant notifications. */
+export const selectActionableCredentialGrantNotifications = (
+    state: RootState
+) =>
+    selectCredentialGrantNotifications(state).filter(
+        (notification) => notification.status === 'actionable'
+    );
+
+/** Select one credential grant notification by KERIA notification id. */
+export const selectCredentialGrantNotificationById =
+    (notificationId: string) =>
+    (state: RootState): CredentialGrantNotification | null =>
+        selectKeriaNotificationById(notificationId)(state)?.credentialGrant ??
+        null;
+
+/** Select issuer-side credential admit receipts newest first. */
+export const selectCredentialAdmitNotifications = (state: RootState) =>
+    selectKeriaNotifications(state)
+        .flatMap((notification) =>
+            notification.credentialAdmit === null ||
+            notification.credentialAdmit === undefined
+                ? []
+                : [notification.credentialAdmit]
+        )
+        .sort(byNewestCredentialAdmitTimestamp);
 
 /** Select challenge-response records newest first. */
 export const selectChallenges = (state: RootState) =>
@@ -321,11 +511,21 @@ export const selectRecentChallenges =
     (state: RootState): ChallengeRecord[] =>
         selectChallenges(state).slice(0, limit);
 
+/** Count issuer-side credentials for dashboard summaries. */
+export const selectIssuedCredentialCount = (state: RootState) =>
+    selectIssuedCredentials(state).length;
+
+/** Count holder-side credentials for dashboard summaries. */
+export const selectHeldCredentialCount = (state: RootState) =>
+    selectHeldCredentials(state).length;
+
 /** Aggregate dashboard counters from normalized state. */
 export const selectDashboardCounts = (state: RootState) => ({
     identifiers: selectIdentifiers(state).length,
     contacts: selectContacts(state).length,
-    knownComponents: selectKnownComponents(state).length,
+    resolvedSchemas: selectResolvedCredentialSchemas(state).length,
+    issuedCredentials: selectIssuedCredentialCount(state),
+    heldCredentials: selectHeldCredentialCount(state),
     activeOperations: selectActiveOperations(state).length,
     unreadKeriaNotifications: selectUnreadNotifications(state).length,
     unreadAppNotifications: selectUnreadAppNotifications(state).length,

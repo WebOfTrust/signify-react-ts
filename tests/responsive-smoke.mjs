@@ -75,6 +75,13 @@ const startViteIfNeeded = async () => {
 
 const routeUrl = (path) => new URL(path, appUrl).toString();
 
+const navigateSpa = async (page, path) => {
+    await page.evaluate((nextPath) => {
+        globalThis.history.pushState({}, '', nextPath);
+        globalThis.dispatchEvent(new globalThis.Event('popstate'));
+    }, path);
+};
+
 const responsiveAlias = () =>
     `responsive-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;
 
@@ -142,8 +149,9 @@ const createIdentifierFixture = async () => {
     });
     const operation = await result.op();
     await waitForOperation(client, operation, `creating ${alias}`);
+    const identifier = await client.identifiers().get(alias);
 
-    return { passcode, alias };
+    return { passcode, alias, prefix: identifier.prefix };
 };
 
 const assertNoHorizontalOverflow = async (page, label) => {
@@ -337,7 +345,7 @@ const connectBrowser = async (page, passcode) => {
         hidden: true,
         timeout: 10000,
     });
-    await page.waitForSelector('[data-testid="known-components"]', {
+    await page.waitForSelector('[data-testid="dashboard-view"]', {
         timeout: 30000,
     });
 };
@@ -514,6 +522,75 @@ try {
             `Copy agent OOBI for ${fixture.alias}`,
             viewport.label
         );
+    }
+
+    await page.setViewport({
+        width: identifierViewports[0].width,
+        height: identifierViewports[0].height,
+        isMobile: false,
+        deviceScaleFactor: 1,
+    });
+    for (const { path, selector } of [
+        { path: '/dashboard', selector: '[data-testid="dashboard-view"]' },
+        {
+            path: '/dashboard/schemas',
+            selector: '[data-testid="dashboard-schemas-detail"]',
+        },
+        {
+            path: '/dashboard/credentials/issued',
+            selector: '[data-testid="dashboard-issued-credentials-detail"]',
+        },
+        {
+            path: '/dashboard/credentials/held',
+            selector: '[data-testid="dashboard-held-credentials-detail"]',
+        },
+        {
+            path: '/dashboard/credentials/not-found',
+            selector: '[data-testid="dashboard-credential-detail"]',
+        },
+    ]) {
+        await navigateSpa(page, path);
+        await page.waitForSelector(selector, {
+            timeout: 30000,
+        });
+        await page.waitForSelector('[data-testid="app-loading-overlay"]', {
+            hidden: true,
+            timeout: 30000,
+        });
+        await assertNoHorizontalOverflow(page, `dashboard ${path}`);
+    }
+    for (const path of [
+        '/credentials',
+        `/credentials/${fixture.prefix}`,
+        `/credentials/${fixture.prefix}/issuer`,
+        `/credentials/${fixture.prefix}/issuer/sediVoterId`,
+        `/credentials/${fixture.prefix}/wallet`,
+    ]) {
+        await navigateSpa(page, path);
+        await page.waitForSelector('[data-testid="credentials-view"]', {
+            timeout: 30000,
+        });
+        await page.waitForSelector('[data-testid="app-loading-overlay"]', {
+            hidden: true,
+            timeout: 30000,
+        });
+        await assertNoHorizontalOverflow(page, `credentials ${path}`);
+    }
+    await navigateSpa(page, '/credentials');
+    await page.waitForSelector('[data-testid="credentials-view"]', {
+        timeout: 30000,
+    });
+    const credentialOverviewHidden = await page.evaluate(
+        () =>
+            globalThis.document.querySelector(
+                '[data-testid="credential-issuer-card"]'
+            ) === null &&
+            globalThis.document.querySelector(
+                '[data-testid="credential-wallet-card"]'
+            ) === null
+    );
+    if (!credentialOverviewHidden) {
+        throw new Error('Credentials root rendered AID-specific panels.');
     }
 
     console.log(
