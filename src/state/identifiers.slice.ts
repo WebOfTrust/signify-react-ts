@@ -51,6 +51,21 @@ export const identifiersSlice = createSlice({
         ) {
             replaceIdentifiers(state, payload.identifiers, payload.loadedAt);
         },
+        identifierLoaded(
+            state,
+            {
+                payload,
+            }: PayloadAction<{
+                identifier: IdentifierSummary;
+                loadedAt: string;
+            }>
+        ) {
+            state.byPrefix[payload.identifier.prefix] = payload.identifier;
+            if (!state.prefixes.includes(payload.identifier.prefix)) {
+                state.prefixes.push(payload.identifier.prefix);
+            }
+            state.loadedAt = payload.loadedAt;
+        },
         identifierCreated(
             state,
             {
@@ -81,8 +96,12 @@ export const identifiersSlice = createSlice({
 });
 
 /** Action creators for identifier list and mutation results. */
-export const { identifierListLoaded, identifierCreated, identifierRotated } =
-    identifiersSlice.actions;
+export const {
+    identifierListLoaded,
+    identifierLoaded,
+    identifierCreated,
+    identifierRotated,
+} = identifiersSlice.actions;
 
 /** Reducer mounted at `state.identifiers`. */
 export const identifiersReducer = identifiersSlice.reducer;

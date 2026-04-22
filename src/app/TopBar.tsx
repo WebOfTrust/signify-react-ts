@@ -19,6 +19,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { Link as RouterLink } from 'react-router-dom';
 import { StatusPill } from './Console';
+import { formatOperationWindow, formatTimestamp } from './timeFormat';
 import type { AppNotificationRecord } from '../state/appNotifications.slice';
 import type { OperationRecord } from '../state/operations.slice';
 import { allAppNotificationsRead } from '../state/appNotifications.slice';
@@ -238,7 +239,28 @@ export const TopBar = ({
                             >
                                 <ListItemText
                                     primary={operation.title}
-                                    secondary={operation.phase}
+                                    secondary={
+                                        <Box>
+                                            <Typography
+                                                variant="body2"
+                                                color="text.secondary"
+                                            >
+                                                {operation.phase}
+                                            </Typography>
+                                            {formatOperationWindow(
+                                                operation
+                                            ) !== null && (
+                                                <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                >
+                                                    {formatOperationWindow(
+                                                        operation
+                                                    )}
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    }
                                 />
                             </ListItemButton>
                         ))
@@ -293,7 +315,29 @@ export const TopBar = ({
                             >
                                 <ListItemText
                                     primary={notification.title}
-                                    secondary={notification.message}
+                                    secondary={
+                                        <Box>
+                                            {formatTimestamp(
+                                                notification.createdAt
+                                            ) !== null && (
+                                                <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                >
+                                                    Created{' '}
+                                                    {formatTimestamp(
+                                                        notification.createdAt
+                                                    )}
+                                                </Typography>
+                                            )}
+                                            <Typography
+                                                variant="body2"
+                                                color="text.secondary"
+                                            >
+                                                {notification.message}
+                                            </Typography>
+                                        </Box>
+                                    }
                                 />
                             </ListItemButton>
                         ))

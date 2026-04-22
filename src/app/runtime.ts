@@ -40,6 +40,7 @@ import { sessionDisconnected } from '../state/session.slice';
 import { appStore, type AppStore } from '../state/store';
 import {
     createIdentifierOp,
+    getIdentifierOp,
     listIdentifiersOp,
     rotateIdentifierOp,
 } from '../workflows/identifiers.op';
@@ -198,7 +199,8 @@ const abortError = (signal?: AbortSignal): Error => {
     return error;
 };
 
-const operationRoute = (requestId: string): string => `/operations/${requestId}`;
+const operationRoute = (requestId: string): string =>
+    `/operations/${requestId}`;
 
 const notificationId = (requestId: string): string =>
     `notification-${requestId}-${Date.now()}`;
@@ -420,6 +422,20 @@ export class AppRuntime {
         });
 
     /**
+     * Fetch one identifier by alias or prefix and merge richer state into Redux.
+     */
+    getIdentifier = async (
+        aid: string,
+        options: WorkflowRunOptions = {}
+    ): Promise<IdentifierSummary> =>
+        this.runWorkflow(() => getIdentifierOp(aid), {
+            ...options,
+            label: options.label,
+            kind: options.kind ?? 'listIdentifiers',
+            track: options.track ?? false,
+        });
+
+    /**
      * Create an identifier, wait for the resulting KERIA operation, then return
      * a freshly loaded identifier list for router revalidation callers.
      */
@@ -458,7 +474,8 @@ export class AppRuntime {
             requestId: options.requestId,
             label: `Creating identifier ${name}`,
             title: `Create identifier ${name}`,
-            description: 'Creates a managed identifier and waits for KERIA completion.',
+            description:
+                'Creates a managed identifier and waits for KERIA completion.',
             kind: 'createIdentifier',
             resourceKeys: [`identifier:name:${name}`],
             resultRoute: { label: 'View identifiers', path: '/identifiers' },
@@ -483,7 +500,8 @@ export class AppRuntime {
             requestId: options.requestId,
             label: `Rotating identifier ${aid}`,
             title: `Rotate identifier ${aid}`,
-            description: 'Rotates a managed identifier and waits for KERIA completion.',
+            description:
+                'Rotates a managed identifier and waits for KERIA completion.',
             kind: 'rotateIdentifier',
             resourceKeys: [`identifier:aid:${aid}`],
             resultRoute: { label: 'View identifiers', path: '/identifiers' },
@@ -707,7 +725,8 @@ export class AppRuntime {
         const notification: AppNotificationRecord = {
             id,
             severity:
-                template.severity ?? (outcome === 'success' ? 'success' : 'error'),
+                template.severity ??
+                (outcome === 'success' ? 'success' : 'error'),
             status: 'unread',
             title: template.title,
             message:

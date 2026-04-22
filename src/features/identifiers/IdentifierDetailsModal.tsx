@@ -34,6 +34,8 @@ import {
 export interface IdentifierDetailsModalProps {
     open: boolean;
     identifier: IdentifierSummary | null;
+    refreshStatus: 'idle' | 'loading' | 'success' | 'error';
+    refreshMessage: string | null;
     actionRunning: boolean;
     onClose: () => void;
     onRotate: (name: string) => void;
@@ -205,15 +207,22 @@ const JsonCodeBlock = ({ value }: { value: string }) => (
 export const IdentifierDetailsModal = ({
     open,
     identifier,
+    refreshStatus,
+    refreshMessage,
     actionRunning,
     onClose,
     onRotate,
 }: IdentifierDetailsModalProps) => {
-    const currentKeys = identifier === null ? [] : identifierCurrentKeys(identifier);
+    const currentKeys =
+        identifier === null ? [] : identifierCurrentKeys(identifier);
     const currentKey =
         identifier === null
             ? identifierUnavailableValue
             : (identifierCurrentKey(identifier) ?? identifierUnavailableValue);
+    const currentKeyDisplay =
+        refreshStatus === 'loading' && currentKey === identifierUnavailableValue
+            ? 'Loading from KERIA...'
+            : currentKey;
     const additionalKeyCount = Math.max(currentKeys.length - 1, 0);
 
     return (
@@ -252,7 +261,9 @@ export const IdentifierDetailsModal = ({
                     >
                         <DetailField
                             label="Name"
-                            value={identifier?.name ?? identifierUnavailableValue}
+                            value={
+                                identifier?.name ?? identifierUnavailableValue
+                            }
                             footprint="medium"
                             tone="identity"
                         />
@@ -276,12 +287,19 @@ export const IdentifierDetailsModal = ({
                         />
                         <DetailField
                             label="Current Key"
-                            value={currentKey}
+                            value={currentKeyDisplay}
                             mono
                             footprint="wide"
                             tone="key"
                             accessory={
-                                additionalKeyCount > 0 ? (
+                                refreshStatus === 'loading' ? (
+                                    <Chip
+                                        size="small"
+                                        label="refreshing"
+                                        color="info"
+                                        variant="outlined"
+                                    />
+                                ) : additionalKeyCount > 0 ? (
                                     <Chip
                                         size="small"
                                         label={`+${additionalKeyCount} more`}
@@ -326,13 +344,21 @@ export const IdentifierDetailsModal = ({
                             tone="metric"
                         />
                     </Box>
+                    {refreshStatus === 'error' && refreshMessage !== null && (
+                        <Typography color="error">
+                            Unable to refresh identifier details:{' '}
+                            {refreshMessage}
+                        </Typography>
+                    )}
                     {identifier !== null && (
                         <Accordion disableGutters>
                             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                                 <Typography>Advanced JSON</Typography>
                             </AccordionSummary>
                             <AccordionDetails>
-                                <JsonCodeBlock value={identifierJson(identifier)} />
+                                <JsonCodeBlock
+                                    value={identifierJson(identifier)}
+                                />
                             </AccordionDetails>
                         </Accordion>
                     )}

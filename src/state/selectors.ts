@@ -1,12 +1,14 @@
 import type { RootState } from './store';
 import type { OperationRecord } from './operations.slice';
 import type { AppNotificationRecord } from './appNotifications.slice';
+import type { NotificationRecord } from './notifications.slice';
 
 /** Select the serializable session connection summary. */
 export const selectSession = (state: RootState) => state.session;
 
 /** Select only the session status for shell rendering. */
-export const selectConnectionStatus = (state: RootState) => state.session.status;
+export const selectConnectionStatus = (state: RootState) =>
+    state.session.status;
 
 /** Select operation records in display order. */
 export const selectOperationRecords = (state: RootState) =>
@@ -57,6 +59,11 @@ const byNewestTimestamp = (
     right: AppNotificationRecord
 ): number => right.createdAt.localeCompare(left.createdAt);
 
+const byNewestKeriaNotificationTimestamp = (
+    left: NotificationRecord,
+    right: NotificationRecord
+): number => right.updatedAt.localeCompare(left.updatedAt);
+
 /** Select user-facing app notification records in descending timestamp order. */
 export const selectAppNotifications = (state: RootState) =>
     state.appNotifications.ids
@@ -74,10 +81,8 @@ export const selectUnreadAppNotifications = (state: RootState) =>
     );
 
 /** Select one app notification by id. */
-export const selectAppNotificationById =
-    (id: string) =>
-    (state: RootState) =>
-        state.appNotifications.byId[id] ?? null;
+export const selectAppNotificationById = (id: string) => (state: RootState) =>
+    state.appNotifications.byId[id] ?? null;
 
 /** Build an alias lookup for resolved and pending contacts. */
 export const selectContactsByAlias = (state: RootState) => {
@@ -94,16 +99,24 @@ export const selectContactsByOobi = (state: RootState) => {
 };
 
 /** Create a selector for one credential status by SAID. */
-export const selectCredentialStatus =
-    (said: string) =>
-    (state: RootState) =>
-        state.credentials.bySaid[said]?.status ?? null;
+export const selectCredentialStatus = (said: string) => (state: RootState) =>
+    state.credentials.bySaid[said]?.status ?? null;
 
 /** Select unread notifications for badge/count UI. */
 export const selectUnreadNotifications = (state: RootState) =>
     state.notifications.ids
         .map((id) => state.notifications.byId[id])
         .filter((notification) => notification?.status === 'unread');
+
+/** Select KERIA notification inventory records newest first. */
+export const selectKeriaNotifications = (state: RootState) =>
+    state.notifications.ids
+        .map((id) => state.notifications.byId[id])
+        .filter(
+            (notification): notification is NotificationRecord =>
+                notification !== undefined
+        )
+        .sort(byNewestKeriaNotificationTimestamp);
 
 /** Select notifications that a polling/processing workflow may attempt. */
 export const selectProcessableNotifications = (state: RootState) =>
