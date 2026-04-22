@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { EmptyState, PageHeader, StatusPill } from '../../app/Console';
+import { formatOperationWindow } from '../../app/timeFormat';
 import { useAppSelector } from '../../state/hooks';
 import { selectOperationRecords } from '../../state/selectors';
 
@@ -83,7 +84,27 @@ export const OperationsView = () => {
                                         />
                                     </Stack>
                                 }
-                                secondary={`${operation.kind} | ${operation.phase}`}
+                                secondary={
+                                    <Stack spacing={0.25}>
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                        >
+                                            {operation.kind} | {operation.phase}
+                                        </Typography>
+                                        {formatOperationWindow(operation) !==
+                                            null && (
+                                            <Typography
+                                                variant="caption"
+                                                color="text.secondary"
+                                            >
+                                                {formatOperationWindow(
+                                                    operation
+                                                )}
+                                            </Typography>
+                                        )}
+                                    </Stack>
+                                }
                             />
                         </ListItemButton>
                     ))}

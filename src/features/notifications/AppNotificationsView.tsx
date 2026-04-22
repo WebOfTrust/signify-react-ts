@@ -9,16 +9,26 @@ import {
     Typography,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { EmptyState, PageHeader, StatusPill } from '../../app/Console';
+import {
+    ConsolePanel,
+    EmptyState,
+    PageHeader,
+    StatusPill,
+} from '../../app/Console';
+import { formatTimestamp } from '../../app/timeFormat';
 import { useAppDispatch, useAppSelector } from '../../state/hooks';
 import { allAppNotificationsRead } from '../../state/appNotifications.slice';
-import { selectAppNotifications } from '../../state/selectors';
+import {
+    selectAppNotifications,
+    selectKeriaNotifications,
+} from '../../state/selectors';
 
 const APP_NOTIFICATION_READ_DELAY_MS = 1250;
 
 export const AppNotificationsView = () => {
     const dispatch = useAppDispatch();
     const notifications = useAppSelector(selectAppNotifications);
+    const keriaNotifications = useAppSelector(selectKeriaNotifications);
     const unreadCount = notifications.filter(
         (notification) => notification.status === 'unread'
     ).length;
@@ -97,6 +107,19 @@ export const AppNotificationsView = () => {
                                 }
                                 secondary={
                                     <Stack spacing={0.5}>
+                                        {formatTimestamp(
+                                            notification.createdAt
+                                        ) !== null && (
+                                            <Typography
+                                                variant="caption"
+                                                color="text.secondary"
+                                            >
+                                                Created{' '}
+                                                {formatTimestamp(
+                                                    notification.createdAt
+                                                )}
+                                            </Typography>
+                                        )}
                                         <Typography
                                             variant="body2"
                                             color="text.secondary"
@@ -124,6 +147,85 @@ export const AppNotificationsView = () => {
                         </ListItem>
                     ))}
                 </List>
+            )}
+            {keriaNotifications.length > 0 && (
+                <ConsolePanel
+                    title="KERIA notification inventory"
+                    eyebrow="KERIA"
+                >
+                    <List disablePadding>
+                        {keriaNotifications.map((notification) => (
+                            <ListItem
+                                key={notification.id}
+                                sx={{
+                                    border: 1,
+                                    borderColor: 'divider',
+                                    borderRadius: 1,
+                                    mb: 1,
+                                    alignItems: 'flex-start',
+                                    bgcolor: 'rgba(5, 9, 13, 0.4)',
+                                }}
+                            >
+                                <ListItemText
+                                    primary={
+                                        <Stack
+                                            direction="row"
+                                            spacing={1}
+                                            sx={{
+                                                alignItems: 'center',
+                                                flexWrap: 'wrap',
+                                            }}
+                                        >
+                                            <Typography component="span">
+                                                {notification.route}
+                                            </Typography>
+                                            <StatusPill
+                                                label={notification.status}
+                                                tone={
+                                                    notification.status ===
+                                                    'error'
+                                                        ? 'error'
+                                                        : notification.status ===
+                                                            'processed'
+                                                          ? 'success'
+                                                          : notification.status ===
+                                                              'processing'
+                                                            ? 'warning'
+                                                            : 'info'
+                                                }
+                                            />
+                                        </Stack>
+                                    }
+                                    secondary={
+                                        <Stack spacing={0.5}>
+                                            {formatTimestamp(
+                                                notification.updatedAt
+                                            ) !== null && (
+                                                <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                >
+                                                    Updated{' '}
+                                                    {formatTimestamp(
+                                                        notification.updatedAt
+                                                    )}
+                                                </Typography>
+                                            )}
+                                            {notification.message !== null && (
+                                                <Typography
+                                                    variant="body2"
+                                                    color="text.secondary"
+                                                >
+                                                    {notification.message}
+                                                </Typography>
+                                            )}
+                                        </Stack>
+                                    }
+                                />
+                            </ListItem>
+                        ))}
+                    </List>
+                </ConsolePanel>
             )}
         </Box>
     );

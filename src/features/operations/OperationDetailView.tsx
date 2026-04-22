@@ -6,6 +6,7 @@ import {
     StatusPill,
     TelemetryRow,
 } from '../../app/Console';
+import { formatTimestamp } from '../../app/timeFormat';
 import { useAppSelector } from '../../state/hooks';
 import { selectOperationById } from '../../state/selectors';
 
@@ -73,8 +74,14 @@ export const OperationDetailView = () => {
                 <DetailRow label="Request ID" value={operation.requestId} />
                 <DetailRow label="Kind" value={operation.kind} />
                 <DetailRow label="Phase" value={operation.phase} />
-                <DetailRow label="Started" value={operation.startedAt} />
-                <DetailRow label="Finished" value={operation.finishedAt} />
+                <DetailRow
+                    label="Started"
+                    value={formatTimestamp(operation.startedAt)}
+                />
+                <DetailRow
+                    label="Finished"
+                    value={formatTimestamp(operation.finishedAt)}
+                />
                 <DetailRow
                     label="KERIA operation"
                     value={operation.keriaOperationName}

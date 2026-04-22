@@ -2,6 +2,7 @@ import type { Operation as EffectionOperation } from 'effection';
 import { AppServicesContext } from '../effects/contexts';
 import {
     createIdentifierService,
+    getIdentifierService,
     listIdentifiersService,
     rotateIdentifierService,
 } from '../services/identifiers.service';
@@ -11,6 +12,7 @@ import type {
 } from '../features/identifiers/identifierTypes';
 import {
     identifierCreated,
+    identifierLoaded,
     identifierListLoaded,
     identifierRotated,
 } from '../state/identifiers.slice';
@@ -37,6 +39,28 @@ export function* listIdentifiersOp(): EffectionOperation<IdentifierSummary[]> {
     );
 
     return identifiers;
+}
+
+/**
+ * Fetch one identifier by alias or prefix and merge the richer state into Redux.
+ */
+export function* getIdentifierOp(
+    aid: string
+): EffectionOperation<IdentifierSummary> {
+    const services = yield* AppServicesContext.expect();
+    const identifier = yield* getIdentifierService({
+        client: services.runtime.requireConnectedClient(),
+        aid,
+    });
+
+    services.store.dispatch(
+        identifierLoaded({
+            identifier,
+            loadedAt: new Date().toISOString(),
+        })
+    );
+
+    return identifier;
 }
 
 /**

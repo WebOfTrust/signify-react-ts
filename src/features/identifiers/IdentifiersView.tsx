@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Button, Fab, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useFetcher, useLoaderData } from 'react-router-dom';
 import { ConnectionRequired } from '../../app/ConnectionRequired';
 import { EmptyState, PageHeader, StatusPill } from '../../app/Console';
+import { useAppRuntime } from '../../app/runtimeHooks';
 import type {
     IdentifierActionData,
     IdentifiersLoaderData,
@@ -15,6 +16,7 @@ import {
     idleIdentifierAction,
     type IdentifierActionState,
     type IdentifierCreateDraft,
+    type IdentifierSummary,
 } from './identifierTypes';
 import { useAppSelector } from '../../state/hooks';
 import {
@@ -32,6 +34,7 @@ import {
 export const IdentifiersView = () => {
     const loaderData = useLoaderData() as IdentifiersLoaderData;
     const fetcher = useFetcher<IdentifierActionData>();
+    const runtime = useAppRuntime();
     const [selectedIdentifierName, setSelectedIdentifierName] = useState<
         string | null
     >(null);
@@ -40,6 +43,10 @@ export const IdentifiersView = () => {
         string | null
     >(null);
     const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+    const [detailRefresh, setDetailRefresh] = useState<{
+        status: 'idle' | 'loading' | 'success' | 'error';
+        message: string | null;
+    }>({ status: 'idle', message: null });
     const actionRunning = fetcher.state !== 'idle';
     const liveIdentifiers = useAppSelector(selectIdentifiers);
     const activeOperations = useAppSelector(selectActiveOperations);
@@ -64,6 +71,40 @@ export const IdentifiersView = () => {
             : (identifiers.find(
                   (identifier) => identifier.name === selectedIdentifierName
               ) ?? null);
+
+    useEffect(() => {
+        if (selectedIdentifierName === null) {
+            return undefined;
+        }
+
+        const controller = new AbortController();
+
+        void runtime
+            .getIdentifier(selectedIdentifierName, {
+                signal: controller.signal,
+                track: false,
+            })
+            .then(() => {
+                if (!controller.signal.aborted) {
+                    setDetailRefresh({ status: 'success', message: null });
+                }
+            })
+            .catch((error: unknown) => {
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                setDetailRefresh({
+                    status: 'error',
+                    message:
+                        error instanceof Error ? error.message : String(error),
+                });
+            });
+
+        return () => {
+            controller.abort();
+        };
+    }, [runtime, selectedIdentifierName]);
 
     if (loaderData.status === 'blocked') {
         return <ConnectionRequired />;
@@ -132,6 +173,10 @@ export const IdentifiersView = () => {
     const openCreate = () => {
         setActiveCreateRequestId(null);
         setCreateOpen(true);
+    };
+    const handleSelectIdentifier = (identifier: IdentifierSummary) => {
+        setDetailRefresh({ status: 'loading', message: null });
+        setSelectedIdentifierName(identifier.name);
     };
 
     return (
@@ -215,9 +260,7 @@ export const IdentifiersView = () => {
             )}
             <IdentifierTable
                 identifiers={identifiers}
-                onSelect={(identifier) =>
-                    setSelectedIdentifierName(identifier.name)
-                }
+                onSelect={handleSelectIdentifier}
                 onRotate={handleRotate}
                 isRotateDisabled={(identifier) =>
                     isRotateDisabled(identifier.name)
@@ -229,12 +272,17 @@ export const IdentifiersView = () => {
                     selectedIdentifier !== null
                 }
                 identifier={selectedIdentifier}
+                refreshStatus={detailRefresh.status}
+                refreshMessage={detailRefresh.message}
                 actionRunning={
                     selectedIdentifierName === null
                         ? false
                         : isRotateDisabled(selectedIdentifierName)
                 }
-                onClose={() => setSelectedIdentifierName(null)}
+                onClose={() => {
+                    setSelectedIdentifierName(null);
+                    setDetailRefresh({ status: 'idle', message: null });
+                }}
                 onRotate={handleRotate}
             />
             {createDialogOpen && (
