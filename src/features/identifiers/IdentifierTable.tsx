@@ -26,6 +26,7 @@ import {
     identifierType,
     truncateMiddle,
 } from './identifierHelpers';
+import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 
 /**
  * Props for the identifier list table.
@@ -188,6 +189,7 @@ export const IdentifierTable = ({
                             <Stack
                                 spacing={0.75}
                                 onClick={() => onSelect(identifier)}
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
                                 sx={{ cursor: 'pointer' }}
                             >
                                 <Typography variant="subtitle1">
@@ -324,6 +326,7 @@ export const IdentifierTable = ({
                             <TableRow
                                 key={identifier.name}
                                 data-testid={`identifier-table-row-${identifier.name}`}
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
                                 sx={{
                                     cursor: 'pointer',
                                     '&:hover': {

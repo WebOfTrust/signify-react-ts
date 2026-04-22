@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import {
+    closestClickSoundTarget,
     closestHoverSoundTarget,
     enteredFromInsideTarget,
     hasFineHoverPointer,
+    shouldPlayClickSound,
     shouldPlayHoverSound,
     uiSoundEngine,
 } from './uiSound';
@@ -22,10 +24,7 @@ export const UiSoundEffects = () => {
         }
 
         let lastPlayedAtMs: number | null = null;
-
-        const unlockAudio = () => {
-            void uiSoundEngine.unlock();
-        };
+        let lastClickedAtMs: number | null = null;
 
         const playHoverSound = (event: PointerEvent) => {
             if (event.pointerType !== 'mouse') {
@@ -57,15 +56,58 @@ export const UiSoundEffects = () => {
             uiSoundEngine.playHover();
         };
 
-        window.addEventListener('pointerdown', unlockAudio, { passive: true });
-        window.addEventListener('keydown', unlockAudio);
+        const playClickSound = (event: Event) => {
+            const target = closestClickSoundTarget(event.target);
+            const nowMs = window.performance.now();
+
+            if (
+                !shouldPlayClickSound({
+                    muted,
+                    documentVisible: document.visibilityState !== 'hidden',
+                    targetAvailable: target !== null,
+                    nowMs,
+                    lastPlayedAtMs: lastClickedAtMs,
+                })
+            ) {
+                return;
+            }
+
+            lastClickedAtMs = nowMs;
+            void uiSoundEngine.playClick();
+        };
+
+        const playPointerClickSound = (event: PointerEvent) => {
+            playClickSound(event);
+        };
+
+        const playKeyboardClickSound = (event: KeyboardEvent) => {
+            if (event.key !== 'Enter' && event.key !== ' ') {
+                return;
+            }
+
+            playClickSound(event);
+        };
+
+        document.addEventListener('pointerdown', playPointerClickSound, {
+            capture: true,
+            passive: true,
+        });
+        document.addEventListener('keydown', playKeyboardClickSound, true);
         document.addEventListener('pointerover', playHoverSound, {
             passive: true,
         });
 
         return () => {
-            window.removeEventListener('pointerdown', unlockAudio);
-            window.removeEventListener('keydown', unlockAudio);
+            document.removeEventListener(
+                'pointerdown',
+                playPointerClickSound,
+                true
+            );
+            document.removeEventListener(
+                'keydown',
+                playKeyboardClickSound,
+                true
+            );
             document.removeEventListener('pointerover', playHoverSound);
         };
     }, [muted]);

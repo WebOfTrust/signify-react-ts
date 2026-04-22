@@ -19,6 +19,7 @@ import {
 import { PayloadDetails } from '../../app/PayloadDetails';
 import { formatTimestamp } from '../../app/timeFormat';
 import { ConnectionRequired } from '../../app/ConnectionRequired';
+import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 import type { NotificationsLoaderData } from '../../app/routeData';
 import { useAppDispatch, useAppSelector } from '../../state/hooks';
 import { allAppNotificationsRead } from '../../state/appNotifications.slice';
@@ -167,6 +168,9 @@ export const AppNotificationsView = () => {
                                                     key={`${notification.id}:${link.rel}`}
                                                     component={RouterLink}
                                                     to={link.path}
+                                                    data-ui-sound={
+                                                        UI_SOUND_HOVER_VALUE
+                                                    }
                                                 >
                                                     {link.label}
                                                 </Link>
@@ -194,6 +198,7 @@ export const AppNotificationsView = () => {
                                 to={`/notifications/${encodeURIComponent(
                                     notification.id
                                 )}`}
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
                                 sx={{
                                     border: 1,
                                     borderColor: 'divider',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     hasFineHoverPointer,
+    shouldPlayClickSound,
     shouldPlayHoverSound,
 } from '../../src/app/uiSound';
 
@@ -62,5 +63,39 @@ describe('UI hover sound helpers', () => {
 
         expect(hasFineHoverPointer(fineWindow)).toBe(true);
         expect(hasFineHoverPointer(coarseWindow)).toBe(false);
+    });
+
+    it('allows and throttles click sounds for primary targets', () => {
+        const clickableFacts = {
+            muted: false,
+            documentVisible: true,
+            targetAvailable: true,
+            nowMs: 500,
+            lastPlayedAtMs: null,
+        };
+
+        expect(shouldPlayClickSound(clickableFacts)).toBe(true);
+        expect(
+            shouldPlayClickSound({ ...clickableFacts, muted: true })
+        ).toBe(false);
+        expect(
+            shouldPlayClickSound({
+                ...clickableFacts,
+                documentVisible: false,
+            })
+        ).toBe(false);
+        expect(
+            shouldPlayClickSound({
+                ...clickableFacts,
+                targetAvailable: false,
+            })
+        ).toBe(false);
+        expect(
+            shouldPlayClickSound({
+                ...clickableFacts,
+                nowMs: 560,
+                lastPlayedAtMs: 500,
+            })
+        ).toBe(false);
     });
 });
