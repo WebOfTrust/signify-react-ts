@@ -1,4 +1,6 @@
 import type { RootState } from './store';
+import type { OperationRecord } from './operations.slice';
+import type { AppNotificationRecord } from './appNotifications.slice';
 
 /** Select the serializable session connection summary. */
 export const selectSession = (state: RootState) => state.session;
@@ -8,7 +10,9 @@ export const selectConnectionStatus = (state: RootState) => state.session.status
 
 /** Select operation records in display order. */
 export const selectOperationRecords = (state: RootState) =>
-    state.operations.order.map((requestId) => state.operations.byId[requestId]);
+    state.operations.order
+        .map((requestId) => state.operations.byId[requestId])
+        .filter((record): record is OperationRecord => record !== undefined);
 
 /** Select currently running operations. */
 export const selectActiveOperations = (state: RootState) =>
@@ -16,17 +20,64 @@ export const selectActiveOperations = (state: RootState) =>
         (operation) => operation?.status === 'running'
     );
 
+/** Select active operation count for compact shell indicators. */
+export const selectActiveOperationCount = (state: RootState): number =>
+    selectActiveOperations(state).length;
+
 /** Select the most recent running operation label for the global overlay. */
 export const selectLatestActiveOperationLabel = (
     state: RootState
 ): string | null =>
     [...selectActiveOperations(state)].reverse()[0]?.label ?? null;
 
+/** Find one operation record by request id. */
+export const selectOperationById =
+    (requestId: string) =>
+    (state: RootState): OperationRecord | null =>
+        state.operations.byId[requestId] ?? null;
+
+/** Return true when a running operation owns any of the supplied resources. */
+export const selectHasActiveResourceConflict =
+    (resourceKeys: readonly string[]) =>
+    (state: RootState): boolean => {
+        const requested = new Set(resourceKeys);
+        return selectActiveOperations(state).some((operation) =>
+            operation.resourceKeys.some((key) => requested.has(key))
+        );
+    };
+
 /** Select normalized identifiers in list order. */
 export const selectIdentifiers = (state: RootState) =>
-    state.identifiers.prefixes.map(
-        (prefix) => state.identifiers.byPrefix[prefix]
+    state.identifiers.prefixes
+        .map((prefix) => state.identifiers.byPrefix[prefix])
+        .filter((identifier) => identifier !== undefined);
+
+const byNewestTimestamp = (
+    left: AppNotificationRecord,
+    right: AppNotificationRecord
+): number => right.createdAt.localeCompare(left.createdAt);
+
+/** Select user-facing app notification records in descending timestamp order. */
+export const selectAppNotifications = (state: RootState) =>
+    state.appNotifications.ids
+        .map((id) => state.appNotifications.byId[id])
+        .filter(
+            (notification): notification is AppNotificationRecord =>
+                notification !== undefined
+        )
+        .sort(byNewestTimestamp);
+
+/** Select unread user-facing app notifications. */
+export const selectUnreadAppNotifications = (state: RootState) =>
+    selectAppNotifications(state).filter(
+        (notification) => notification?.status === 'unread'
     );
+
+/** Select one app notification by id. */
+export const selectAppNotificationById =
+    (id: string) =>
+    (state: RootState) =>
+        state.appNotifications.byId[id] ?? null;
 
 /** Build an alias lookup for resolved and pending contacts. */
 export const selectContactsByAlias = (state: RootState) => {

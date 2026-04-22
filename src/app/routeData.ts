@@ -10,6 +10,7 @@ import type {
     SignifyClientConfig,
     SignifyStateSummary,
 } from '../signify/client';
+import type { BackgroundWorkflowStartResult } from './runtime';
 
 /**
  * Canonical route used for startup redirects, unknown paths, and successful
@@ -71,13 +72,15 @@ export type IdentifierActionData =
           intent: 'create' | 'rotate';
           ok: true;
           message: string;
-          requestId?: string;
+          requestId: string;
+          operationRoute: string;
       }
     | {
           intent: 'create' | 'rotate' | 'unsupported';
           ok: false;
           message: string;
           requestId?: string;
+          operationRoute?: string;
       };
 
 /**
@@ -121,6 +124,16 @@ export interface RouteDataRuntime {
         aid: string,
         options?: { signal?: AbortSignal; requestId?: string }
     ): Promise<IdentifierSummary[]>;
+    /** Start identifier creation in the background. */
+    startCreateIdentifier(
+        draft: IdentifierCreateDraft,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start identifier rotation in the background. */
+    startRotateIdentifier(
+        aid: string,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
 }
 
 /**
@@ -317,15 +330,25 @@ export const identifiersAction = async (
         }
 
         try {
-            await runtime.createIdentifier(draft, {
-                signal: request.signal,
-                requestId,
+            const started = runtime.startCreateIdentifier(draft, {
+                requestId: requestId || undefined,
             });
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
             return {
                 intent,
                 ok: true,
-                message: `Created identifier ${draft.name}`,
-                requestId,
+                message: `Creating identifier ${draft.name}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
             };
         } catch (error) {
             return {
@@ -339,20 +362,34 @@ export const identifiersAction = async (
 
     if (intent === 'rotate') {
         const aid = formString(formData, 'aid');
+        const requestId = formString(formData, 'requestId');
         try {
-            await runtime.rotateIdentifier(aid, {
-                signal: request.signal,
+            const started = runtime.startRotateIdentifier(aid, {
+                requestId: requestId || undefined,
             });
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
             return {
                 intent,
                 ok: true,
-                message: `Rotated identifier ${aid}`,
+                message: `Rotating identifier ${aid}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
             };
         } catch (error) {
             return {
                 intent,
                 ok: false,
                 message: toRouteError(error).message,
+                requestId,
             };
         }
     }

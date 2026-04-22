@@ -57,6 +57,16 @@ const makeRuntime = (
     ]),
     createIdentifier: vi.fn(async () => []),
     rotateIdentifier: vi.fn(async () => []),
+    startCreateIdentifier: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'create-request-1',
+        operationRoute: '/operations/create-request-1',
+    })),
+    startRotateIdentifier: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'rotate-request-1',
+        operationRoute: '/operations/rotate-request-1',
+    })),
     ...overrides,
 });
 
@@ -207,13 +217,13 @@ describe('route actions', () => {
         ).resolves.toEqual({
             intent: 'create',
             ok: true,
-            message: 'Created identifier alice',
+            message: 'Creating identifier alice',
             requestId: 'create-request-1',
+            operationRoute: '/operations/create-request-1',
         });
-        expect(runtime.createIdentifier).toHaveBeenCalledWith(
+        expect(runtime.startCreateIdentifier).toHaveBeenCalledWith(
             draft,
             expect.objectContaining({
-                signal: expect.any(AbortSignal),
                 requestId: 'create-request-1',
             })
         );
@@ -248,16 +258,19 @@ describe('route actions', () => {
                 makeRequest('/identifiers', {
                     intent: 'rotate',
                     aid: 'alice',
+                    requestId: 'rotate-request-1',
                 })
             )
         ).resolves.toEqual({
             intent: 'rotate',
             ok: true,
-            message: 'Rotated identifier alice',
+            message: 'Rotating identifier alice',
+            requestId: 'rotate-request-1',
+            operationRoute: '/operations/rotate-request-1',
         });
-        expect(runtime.rotateIdentifier).toHaveBeenCalledWith(
+        expect(runtime.startRotateIdentifier).toHaveBeenCalledWith(
             'alice',
-            expect.objectContaining({ signal: expect.any(AbortSignal) })
+            expect.objectContaining({ requestId: 'rotate-request-1' })
         );
     });
 

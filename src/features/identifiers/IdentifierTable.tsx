@@ -1,8 +1,10 @@
+import { useState, type MouseEvent } from 'react';
 import {
     Box,
     Card,
-    CardActionArea,
+    CardActions,
     CardContent,
+    IconButton,
     Paper,
     Stack,
     Table,
@@ -11,9 +13,20 @@ import {
     TableContainer,
     TableHead,
     TableRow,
+    Tooltip,
     Typography,
 } from '@mui/material';
+import RotateRightIcon from '@mui/icons-material/RotateRight';
 import type { IdentifierSummary } from './identifierTypes';
+import {
+    formatIdentifierMetadata,
+    identifierCurrentKey,
+    identifierUnavailableValue,
+    identifierIdentifierIndex,
+    identifierKeyIndex,
+    identifierType,
+    truncateMiddle,
+} from './identifierHelpers';
 
 /**
  * Props for the identifier list table.
@@ -21,24 +34,68 @@ import type { IdentifierSummary } from './identifierTypes';
 export interface IdentifierTableProps {
     identifiers: readonly IdentifierSummary[];
     onSelect: (identifier: IdentifierSummary) => void;
+    onRotate: (name: string) => void;
+    isRotateDisabled: (identifier: IdentifierSummary) => boolean;
 }
 
-/**
- * Best-effort identifier algorithm/type label.
- *
- * This preserves the legacy table display until Signify identifier responses
- * are modeled explicitly.
- */
-const identifierType = (identifier: IdentifierSummary): string =>
-    'salty' in identifier
-        ? 'salty'
-        : 'randy' in identifier
-          ? 'randy'
-          : 'group' in identifier
-            ? 'group'
-            : 'extern' in identifier
-              ? 'extern'
-              : '';
+const monoSx = {
+    fontFamily: 'var(--app-mono-font)',
+    letterSpacing: 0,
+};
+
+interface CopyableMonoValueProps {
+    value: string;
+    label: string;
+    copied: boolean;
+    onCopy: (value: string) => void;
+    color?: string;
+}
+
+const CopyableMonoValue = ({
+    value,
+    label,
+    copied,
+    onCopy,
+    color = 'primary.main',
+}: CopyableMonoValueProps) => (
+    <Tooltip title={copied ? `Copied ${value}` : value}>
+        <Box
+            component="button"
+            type="button"
+            onClick={(event) => {
+                event.stopPropagation();
+                onCopy(value);
+            }}
+            sx={{
+                p: 0,
+                m: 0,
+                border: 0,
+                bgcolor: 'transparent',
+                color: copied ? 'success.main' : color,
+                cursor: 'copy',
+                fontSize: 'inherit',
+                lineHeight: 'inherit',
+                textAlign: 'left',
+                maxWidth: '100%',
+                ...monoSx,
+            }}
+            aria-label={`Copy ${label} ${value}`}
+        >
+            {truncateMiddle(value)}
+        </Box>
+    </Tooltip>
+);
+
+const MonospaceUnavailable = () => (
+    <Typography
+        component="span"
+        variant="body2"
+        color="text.disabled"
+        sx={monoSx}
+    >
+        {identifierUnavailableValue}
+    </Typography>
+);
 
 /**
  * Pure identifier list table.
@@ -49,71 +106,225 @@ const identifierType = (identifier: IdentifierSummary): string =>
 export const IdentifierTable = ({
     identifiers,
     onSelect,
-}: IdentifierTableProps) => (
-    <Box data-testid="identifier-table">
-        <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
-            {identifiers.map((identifier) => (
-                <Card key={identifier.name} variant="outlined">
-                    <CardActionArea onClick={() => onSelect(identifier)}>
+    onRotate,
+    isRotateDisabled,
+}: IdentifierTableProps) => {
+    const [copiedValue, setCopiedValue] = useState<string | null>(null);
+
+    const copyValue = (value: string) => {
+        void globalThis.navigator.clipboard
+            ?.writeText(value)
+            .catch(() => undefined);
+        setCopiedValue(value);
+        globalThis.setTimeout(() => {
+            setCopiedValue((current) => (current === value ? null : current));
+        }, 1500);
+    };
+
+    const rotate = (
+        event: MouseEvent<HTMLButtonElement>,
+        identifier: IdentifierSummary
+    ) => {
+        event.stopPropagation();
+        onRotate(identifier.name);
+    };
+
+    return (
+        <Box data-testid="identifier-table">
+            <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
+                {identifiers.map((identifier) => (
+                    <Card
+                        key={identifier.name}
+                        variant="outlined"
+                        data-testid={`identifier-row-${identifier.name}`}
+                    >
                         <CardContent>
-                            <Stack spacing={0.75}>
+                            <Stack
+                                spacing={0.75}
+                                onClick={() => onSelect(identifier)}
+                                sx={{ cursor: 'pointer' }}
+                            >
                                 <Typography variant="subtitle1">
                                     {identifier.name}
                                 </Typography>
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                    sx={{ overflowWrap: 'anywhere' }}
-                                >
-                                    {identifier.prefix}
-                                </Typography>
+                                <Box>
+                                    <CopyableMonoValue
+                                        value={identifier.prefix}
+                                        label="full AID"
+                                        copied={
+                                            copiedValue === identifier.prefix
+                                        }
+                                        onCopy={copyValue}
+                                    />
+                                </Box>
+                                <Stack spacing={0.25}>
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                    >
+                                        Current Key
+                                    </Typography>
+                                    {identifierCurrentKey(identifier) === null ? (
+                                        <MonospaceUnavailable />
+                                    ) : (
+                                        <CopyableMonoValue
+                                            value={
+                                                identifierCurrentKey(
+                                                    identifier
+                                                ) ?? ''
+                                            }
+                                            label="current key"
+                                            copied={
+                                                copiedValue ===
+                                                identifierCurrentKey(identifier)
+                                            }
+                                            onCopy={copyValue}
+                                            color="success.dark"
+                                        />
+                                    )}
+                                </Stack>
                                 <Typography
                                     variant="caption"
                                     color="text.secondary"
                                 >
                                     {identifierType(identifier)}
                                 </Typography>
+                                <Stack direction="row" spacing={2}>
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                    >
+                                        KIDX:{' '}
+                                        {formatIdentifierMetadata(
+                                            identifierKeyIndex(identifier)
+                                        )}
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                    >
+                                        PIDX:{' '}
+                                        {formatIdentifierMetadata(
+                                            identifierIdentifierIndex(identifier)
+                                        )}
+                                    </Typography>
+                                </Stack>
                             </Stack>
                         </CardContent>
-                    </CardActionArea>
-                </Card>
-            ))}
-        </Stack>
-        <TableContainer
-            component={Paper}
-            sx={{ display: { xs: 'none', sm: 'block' } }}
-        >
-            <Table sx={{ minWidth: 650 }} aria-label="identifier table">
-                <TableHead>
-                    <TableRow>
-                        <TableCell>Name</TableCell>
-                        <TableCell>Prefix</TableCell>
-                        <TableCell>Type</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {identifiers.map((identifier) => (
-                        <TableRow
-                            key={identifier.name}
-                            sx={{
-                                cursor: 'pointer',
-                                '&:last-child td, &:last-child th': {
-                                    border: 0,
-                                },
-                            }}
-                            onClick={() => onSelect(identifier)}
-                        >
-                            <TableCell component="th" scope="row">
-                                {identifier.name}
-                            </TableCell>
-                            <TableCell sx={{ overflowWrap: 'anywhere' }}>
-                                {identifier.prefix}
-                            </TableCell>
-                            <TableCell>{identifierType(identifier)}</TableCell>
+                        <CardActions sx={{ justifyContent: 'flex-end', pt: 0 }}>
+                            <Tooltip title="Rotate identifier">
+                                <span>
+                                    <IconButton
+                                        aria-label={`Rotate identifier ${identifier.name}`}
+                                        disabled={isRotateDisabled(identifier)}
+                                        onClick={(event) =>
+                                            rotate(event, identifier)
+                                        }
+                                    >
+                                        <RotateRightIcon />
+                                    </IconButton>
+                                </span>
+                            </Tooltip>
+                        </CardActions>
+                    </Card>
+                ))}
+            </Stack>
+            <TableContainer
+                component={Paper}
+                sx={{ display: { xs: 'none', sm: 'block' } }}
+            >
+                <Table sx={{ minWidth: 980 }} aria-label="identifier table">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>Name</TableCell>
+                            <TableCell>AID</TableCell>
+                            <TableCell>Current Key</TableCell>
+                            <TableCell>Type</TableCell>
+                            <TableCell>KIDX</TableCell>
+                            <TableCell>PIDX</TableCell>
+                            <TableCell align="right">Actions</TableCell>
                         </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </TableContainer>
-    </Box>
-);
+                    </TableHead>
+                    <TableBody>
+                        {identifiers.map((identifier) => (
+                            <TableRow
+                                key={identifier.name}
+                                sx={{
+                                    cursor: 'pointer',
+                                    '&:last-child td, &:last-child th': {
+                                        border: 0,
+                                    },
+                                }}
+                                onClick={() => onSelect(identifier)}
+                            >
+                                <TableCell component="th" scope="row">
+                                    {identifier.name}
+                                </TableCell>
+                                <TableCell>
+                                    <CopyableMonoValue
+                                        value={identifier.prefix}
+                                        label="full AID"
+                                        copied={
+                                            copiedValue === identifier.prefix
+                                        }
+                                        onCopy={copyValue}
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    {identifierCurrentKey(identifier) === null ? (
+                                        <MonospaceUnavailable />
+                                    ) : (
+                                        <CopyableMonoValue
+                                            value={
+                                                identifierCurrentKey(
+                                                    identifier
+                                                ) ?? ''
+                                            }
+                                            label="current key"
+                                            copied={
+                                                copiedValue ===
+                                                identifierCurrentKey(identifier)
+                                            }
+                                            onCopy={copyValue}
+                                            color="success.dark"
+                                        />
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    {identifierType(identifier)}
+                                </TableCell>
+                                <TableCell>
+                                    {formatIdentifierMetadata(
+                                        identifierKeyIndex(identifier)
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    {formatIdentifierMetadata(
+                                        identifierIdentifierIndex(identifier)
+                                    )}
+                                </TableCell>
+                                <TableCell align="right">
+                                    <Tooltip title="Rotate identifier">
+                                        <span>
+                                            <IconButton
+                                                aria-label={`Rotate identifier ${identifier.name}`}
+                                                disabled={isRotateDisabled(
+                                                    identifier
+                                                )}
+                                                onClick={(event) =>
+                                                    rotate(event, identifier)
+                                                }
+                                            >
+                                                <RotateRightIcon />
+                                            </IconButton>
+                                        </span>
+                                    </Tooltip>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+        </Box>
+    );
+};

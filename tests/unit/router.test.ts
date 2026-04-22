@@ -34,13 +34,29 @@ describe('data-router route metadata', () => {
                 testId: 'nav-client',
                 path: '/client',
             },
+            {
+                routeId: 'operations',
+                label: 'Operations',
+                gate: 'none',
+                nav: true,
+                testId: 'nav-operations',
+                path: '/operations',
+            },
+            {
+                routeId: 'appNotifications',
+                label: 'Notifications',
+                gate: 'none',
+                nav: true,
+                testId: 'nav-notifications',
+                path: '/notifications',
+            },
         ]);
     });
 
     it('attaches handles to the feature route objects', () => {
         const rootRoute = createAppRoutes({} as AppRuntime)[0];
         const featureRoutes = rootRoute.children?.filter(
-            (route) => route.id !== undefined
+            (route) => route.id !== undefined && route.handle !== undefined
         );
         const routeHandles = APP_NAV_ITEMS.map((item) => ({
             routeId: item.routeId,
@@ -67,6 +83,14 @@ describe('data-router route metadata', () => {
             {
                 id: 'client',
                 handle: routeHandles[2],
+            },
+            {
+                id: 'operations',
+                handle: routeHandles[3],
+            },
+            {
+                id: 'appNotifications',
+                handle: routeHandles[4],
             },
         ]);
     });

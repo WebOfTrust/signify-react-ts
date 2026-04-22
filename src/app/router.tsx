@@ -6,6 +6,9 @@ import {
 import { ClientView } from '../features/client/ClientView';
 import { CredentialsView } from '../features/credentials/CredentialsView';
 import { IdentifiersView } from '../features/identifiers/IdentifiersView';
+import { AppNotificationsView } from '../features/notifications/AppNotificationsView';
+import { OperationDetailView } from '../features/operations/OperationDetailView';
+import { OperationsView } from '../features/operations/OperationsView';
 import type { AppRuntime } from './runtime';
 import {
     DEFAULT_APP_PATH,
@@ -21,7 +24,12 @@ import { RouteErrorBoundary } from './RouteErrorBoundary';
 /**
  * Stable IDs for feature routes that appear in the app shell.
  */
-export type AppRouteId = 'identifiers' | 'credentials' | 'client';
+export type AppRouteId =
+    | 'identifiers'
+    | 'credentials'
+    | 'client'
+    | 'operations'
+    | 'appNotifications';
 
 /**
  * Gate policy declared by a route handle.
@@ -29,7 +37,7 @@ export type AppRouteId = 'identifiers' | 'credentials' | 'client';
  * `client` means the route needs a connected Signify client. `state` means the
  * route also needs the latest normalized client state snapshot.
  */
-export type AppRouteGate = 'client' | 'state';
+export type AppRouteGate = 'none' | 'client' | 'state';
 
 /**
  * Metadata stored in React Router's native `handle` field for app routes.
@@ -110,6 +118,28 @@ const APP_FEATURE_ROUTES: readonly AppFeatureRouteDescriptor[] = [
             testId: 'nav-client',
         },
     },
+    {
+        id: 'operations',
+        path: 'operations',
+        handle: {
+            routeId: 'operations',
+            label: 'Operations',
+            gate: 'none',
+            nav: true,
+            testId: 'nav-operations',
+        },
+    },
+    {
+        id: 'appNotifications',
+        path: 'notifications',
+        handle: {
+            routeId: 'appNotifications',
+            label: 'Notifications',
+            gate: 'none',
+            nav: true,
+            testId: 'nav-notifications',
+        },
+    },
 ] as const;
 
 /**
@@ -170,6 +200,32 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
                 loader: ({ request }) => loadClient(runtime, request),
                 element: <ClientView />,
                 errorElement: <RouteErrorBoundary title="Client route failed" />,
+            },
+            {
+                id: 'operations',
+                path: 'operations',
+                handle: APP_FEATURE_ROUTES[3].handle,
+                element: <OperationsView />,
+                errorElement: (
+                    <RouteErrorBoundary title="Operations route failed" />
+                ),
+            },
+            {
+                id: 'operationDetail',
+                path: 'operations/:requestId',
+                element: <OperationDetailView />,
+                errorElement: (
+                    <RouteErrorBoundary title="Operation route failed" />
+                ),
+            },
+            {
+                id: 'appNotifications',
+                path: 'notifications',
+                handle: APP_FEATURE_ROUTES[4].handle,
+                element: <AppNotificationsView />,
+                errorElement: (
+                    <RouteErrorBoundary title="Notifications route failed" />
+                ),
             },
             {
                 path: '*',

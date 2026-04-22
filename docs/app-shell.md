@@ -9,6 +9,8 @@ Feature UI remains under `src/features/*`. Feature components render loader and
 action state; they do not construct Signify clients or own route registration.
 For the Effection, service, workflow, and Redux state layers behind
 `AppRuntime`, see [Workflow and state architecture](./workflow-state-architecture.md).
+For the background operation indicator and notification bell, see
+[Background operations and app notifications](./background-operations-and-notifications.md).
 
 ## Runtime Boundary
 
@@ -118,8 +120,8 @@ fields are `routeId`, `label`, `gate`, `nav`, and `testId`.
 
 `AppRouteId`
 
-: Closed set of current feature route IDs: `identifiers`, `credentials`, and
-`client`.
+: Closed set of current feature route IDs: `identifiers`, `credentials`,
+`client`, `operations`, and `appNotifications`.
 
 `AppRouteGate`
 
@@ -132,13 +134,19 @@ their handles.
 
 ## Current Routes
 
-| Path           | Route behavior                 | Loader/action owner        | Gating                            |
-| -------------- | ------------------------------ | -------------------------- | --------------------------------- |
-| `/`            | redirects to `/identifiers`    | root child index loader    | none                              |
-| `/identifiers` | identifier list/detail/create  | identifiers loader/action  | connected Signify client required |
-| `/credentials` | connected placeholder          | credentials loader         | connected Signify client required |
-| `/client`      | client/controller/agent state  | client loader              | connected Signify state required  |
-| `*`            | redirects to `/identifiers`    | catch-all loader           | none                              |
+| Path                     | Route behavior                         | Loader/action owner       | Gating                            |
+|--------------------------|----------------------------------------|---------------------------|-----------------------------------|
+| `/`                      | redirects to `/identifiers`            | root child index loader   | none                              |
+| `/identifiers`           | identifier list/detail/create/rotate   | identifiers loader/action | connected Signify client required |
+| `/credentials`           | connected placeholder                  | credentials loader        | connected Signify client required |
+| `/client`                | client/controller/agent state          | client loader             | connected Signify state required  |
+| `/operations`            | persisted/background operation history | Redux selectors           | none                              |
+| `/operations/:requestId` | operation detail and result links      | Redux selectors           | none                              |
+| `/notifications`         | app-level user notifications           | Redux selectors           | none                              |
+| `*`                      | redirects to `/identifiers`            | catch-all loader          | none                              |
+
+Operations and app-notification routes are intentionally ungated. Persisted
+history should remain viewable after disconnect, refresh, or reconnect.
 
 Direct navigation to a gated route renders `ConnectionRequired` until the user
 connects. Routes do not auto-open the connect dialog.
@@ -206,6 +214,9 @@ needs.
   handled by `RouteErrorBoundary`.
 - Mutations that affect a route's loader data should live in that route's
   action so React Router revalidation stays predictable.
+- Background mutations return accepted/conflict action data immediately. They
+  should update visible route state through Redux completion facts rather than
+  relying only on route revalidation.
 - Future credential actions should use explicit intents such as `issue`,
   `grant`, `admit`, and `present`, not a generic command string.
 
@@ -246,7 +257,9 @@ route descriptor and handle, not editing a second navigation registry.
 `TopBar`
 
 : Shell-only app bar with the stable `nav-open` and `connect-open` smoke-test
-selectors.
+selectors. It also renders the active-operation indicator and app notification
+bell from Redux selectors. It must not know Signify clients or route loader
+internals.
 
 ## Adding A Route
 

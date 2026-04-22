@@ -15,10 +15,10 @@ The architecture has four layers:
 | Workflows | `src/workflows/*.op.ts` | Effection operations that orchestrate services, handle route aborts, and dispatch Redux state changes. |
 | State | `src/state/*.slice.ts` | Serializable Redux projections for session, operations, identifiers, contacts, challenges, credentials, schemas, registries, roles, and notifications. |
 
-React Router talks to `AppRuntime`. `AppRuntime` launches workflows and exposes
-Promise-returning methods to loaders/actions. Components render route data and
-Redux-derived shell state; they do not construct Signify clients or call
-`signify-ts` directly.
+React Router talks to `AppRuntime`. `AppRuntime` launches foreground workflows
+for loaders/actions and background workflows for non-blocking KERIA work.
+Components render route data and Redux-derived shell state; they do not
+construct Signify clients or call `signify-ts` directly.
 
 ```mermaid
 flowchart TD
@@ -37,8 +37,10 @@ flowchart TD
 ## Runtime And Effection
 
 `src/app/runtime.ts` is the bridge between React Router's Promise-facing API and
-Effection's operation model. Public runtime methods such as `connect`,
-`listIdentifiers`, and `createIdentifier` call `runWorkflow`.
+Effection's operation model. Public runtime methods such as `connect` and
+`listIdentifiers` call `runWorkflow` for foreground work. Background methods
+such as `startCreateIdentifier` and `startRotateIdentifier` call
+`startBackgroundWorkflow`.
 
 `runWorkflow` is responsible for:
 
@@ -47,6 +49,21 @@ Effection's operation model. Public runtime methods such as `connect`,
 - running the Effection operation in the app or session scope,
 - wiring React Router abort signals into `task.halt()`,
 - reporting success, failure, or cancellation to `state.operations`.
+
+`startBackgroundWorkflow` is responsible for:
+
+- rejecting resource-key conflicts before task launch,
+- recording a running operation with operation/result routes,
+- starting a session-scoped Effection task and returning immediately,
+- watching task completion outside the route action,
+- recording success/failure/cancellation,
+- creating app notifications when templates are supplied.
+
+Use foreground workflows when route rendering cannot proceed without the
+result. Use background workflows when the user can keep navigating while KERIA
+finishes the work. Top-level background handoff belongs to `AppRuntime`; use
+Effection `spawn` inside workflows only for child concurrency within one unit of
+work.
 
 Use `scope: "app"` for work that may run before or outside a KERIA session,
 such as passcode generation or initial connect. Use the default session scope
@@ -122,12 +139,13 @@ State slices:
 | Slice | Purpose |
 | --- | --- |
 | `session` | Serializable connection state: status, boot flag, controller AID, agent AID, error, connected time. |
-| `operations` | Runtime workflow lifecycle records for pending overlays, diagnostics, cancellation, and history. |
+| `operations` | Runtime workflow lifecycle records for foreground diagnostics, background operation history, active conflict guards, cancellation, and persistence. |
+| `appNotifications` | User-facing app notification records for operation completion/failure and shell notification UX. |
 | `identifiers` | Normalized identifier inventory and last identifier mutation. |
 | `contacts` | OOBI/contact resolution records. |
 | `challenges` | Challenge/response exchange records. |
 | `credentials` | Credential summary records by SAID. |
-| `notifications` | Notification route processing status. |
+| `notifications` | KERIA notification inventory and processing status. This is separate from app-level user notifications. |
 | `schema` | Credential schema resolution records. |
 | `registry` | Issuer registry records. |
 | `roles` | Local issuer/holder/verifier role bindings. |
@@ -135,6 +153,11 @@ State slices:
 Selectors in `src/state/selectors.ts` are the preferred read API. Add selectors
 when a component or workflow needs a derived view of state; do not duplicate
 derivation in components.
+
+Persisted operation and app notification records are documented in
+[Local persistence](./persistence.md). The background operation and
+app-notification lifecycle is documented in
+[Background operations and app notifications](./background-operations-and-notifications.md).
 
 ## Adding A New KERIA Flow
 
@@ -147,10 +170,13 @@ Use this order:
 3. Add or update Redux slice records for durable, serializable progress.
 4. Add an Effection workflow that calls the service and dispatches slice
    actions.
-5. Add an `AppRuntime` method if React Router loaders/actions need the flow.
-6. Add route loader/action wiring and UI rendering.
-7. Add unit tests for parsing/reducers/runtime workflow behavior.
-8. Add scenario tests only when the flow must prove real KERIA behavior.
+5. Decide foreground versus background launch. Background flows must define
+   resource keys, operation metadata, result links, and notification templates
+   before UI wiring.
+6. Add an `AppRuntime` method if React Router loaders/actions need the flow.
+7. Add route loader/action wiring and UI rendering.
+8. Add unit tests for parsing/reducers/runtime workflow behavior.
+9. Add scenario tests only when the flow must prove real KERIA behavior.
 
 If a value is app/runtime configuration, add it to `src/config.ts`. If it is an
 optional external fixture only needed by Vitest, add it to
