@@ -116,7 +116,7 @@ try {
     timeout: 10000,
   });
   const identifierTableText = await textContent(page, '[data-testid="identifier-table"]');
-  for (const expectedHeader of ['AID', 'Current Key', 'KIDX', 'PIDX', 'Actions']) {
+  for (const expectedHeader of ['AID', 'KIDX', 'PIDX', 'Actions']) {
     if (!identifierTableText.includes(expectedHeader)) {
       throw new Error(`Identifier table is missing ${expectedHeader} header`);
     }

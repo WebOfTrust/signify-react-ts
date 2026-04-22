@@ -20,8 +20,6 @@ import RotateRightIcon from '@mui/icons-material/RotateRight';
 import type { IdentifierSummary } from './identifierTypes';
 import {
     formatIdentifierMetadata,
-    identifierCurrentKey,
-    identifierUnavailableValue,
     identifierIdentifierIndex,
     identifierKeyIndex,
     identifierType,
@@ -48,7 +46,6 @@ interface CopyableMonoValueProps {
     label: string;
     copied: boolean;
     onCopy: (value: string) => void;
-    color?: string;
 }
 
 const CopyableMonoValue = ({
@@ -56,7 +53,6 @@ const CopyableMonoValue = ({
     label,
     copied,
     onCopy,
-    color = 'primary.main',
 }: CopyableMonoValueProps) => (
     <Tooltip title={copied ? `Copied ${value}` : value}>
         <Box
@@ -71,7 +67,7 @@ const CopyableMonoValue = ({
                 m: 0,
                 border: 0,
                 bgcolor: 'transparent',
-                color: copied ? 'success.main' : color,
+                color: copied ? 'success.main' : 'primary.main',
                 cursor: 'copy',
                 fontSize: 'inherit',
                 lineHeight: 'inherit',
@@ -84,17 +80,6 @@ const CopyableMonoValue = ({
             {truncateMiddle(value)}
         </Box>
     </Tooltip>
-);
-
-const MonospaceUnavailable = () => (
-    <Typography
-        component="span"
-        variant="body2"
-        color="text.disabled"
-        sx={monoSx}
-    >
-        {identifierUnavailableValue}
-    </Typography>
 );
 
 /**
@@ -157,32 +142,6 @@ export const IdentifierTable = ({
                                         onCopy={copyValue}
                                     />
                                 </Box>
-                                <Stack spacing={0.25}>
-                                    <Typography
-                                        variant="caption"
-                                        color="text.secondary"
-                                    >
-                                        Current Key
-                                    </Typography>
-                                    {identifierCurrentKey(identifier) === null ? (
-                                        <MonospaceUnavailable />
-                                    ) : (
-                                        <CopyableMonoValue
-                                            value={
-                                                identifierCurrentKey(
-                                                    identifier
-                                                ) ?? ''
-                                            }
-                                            label="current key"
-                                            copied={
-                                                copiedValue ===
-                                                identifierCurrentKey(identifier)
-                                            }
-                                            onCopy={copyValue}
-                                            color="success.dark"
-                                        />
-                                    )}
-                                </Stack>
                                 <Typography
                                     variant="caption"
                                     color="text.secondary"
@@ -233,12 +192,11 @@ export const IdentifierTable = ({
                 component={Paper}
                 sx={{ display: { xs: 'none', sm: 'block' } }}
             >
-                <Table sx={{ minWidth: 980 }} aria-label="identifier table">
+                <Table sx={{ minWidth: 800 }} aria-label="identifier table">
                     <TableHead>
                         <TableRow>
                             <TableCell>Name</TableCell>
                             <TableCell>AID</TableCell>
-                            <TableCell>Current Key</TableCell>
                             <TableCell>Type</TableCell>
                             <TableCell>KIDX</TableCell>
                             <TableCell>PIDX</TableCell>
@@ -269,26 +227,6 @@ export const IdentifierTable = ({
                                         }
                                         onCopy={copyValue}
                                     />
-                                </TableCell>
-                                <TableCell>
-                                    {identifierCurrentKey(identifier) === null ? (
-                                        <MonospaceUnavailable />
-                                    ) : (
-                                        <CopyableMonoValue
-                                            value={
-                                                identifierCurrentKey(
-                                                    identifier
-                                                ) ?? ''
-                                            }
-                                            label="current key"
-                                            copied={
-                                                copiedValue ===
-                                                identifierCurrentKey(identifier)
-                                            }
-                                            onCopy={copyValue}
-                                            color="success.dark"
-                                        />
-                                    )}
                                 </TableCell>
                                 <TableCell>
                                     {identifierType(identifier)}
