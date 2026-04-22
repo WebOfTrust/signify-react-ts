@@ -5,6 +5,9 @@ import { isSyntheticExchangeNotificationId } from '../services/notifications.ser
 import { exchangeTombstoneRecorded } from '../state/exchangeTombstones.slice';
 import { syncSessionInventoryOp } from './contacts.op';
 
+/**
+ * Workflow command for hiding an exchange-backed notification from app UI.
+ */
 export interface DismissExchangeNotificationInput {
     notificationId: string;
     exnSaid: string;
@@ -20,6 +23,9 @@ const requireNonEmpty = (value: string, label: string): string => {
     return normalized;
 };
 
+/**
+ * Tombstone a synthetic/real exchange notification and best-effort delete it.
+ */
 export function* dismissExchangeNotificationOp(
     input: DismissExchangeNotificationInput
 ): EffectionOperation<void> {

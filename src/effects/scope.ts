@@ -35,11 +35,18 @@ const seedScope = (scope: Scope, services: AppServices): void => {
  * disconnect/reconnect so polling and child waits cannot outlive a session.
  */
 export class AppEffectionScopes {
+    /** Root Effection scope for app-lifetime work. */
     private readonly appScope: Scope;
+    /** Cleanup function for the root app scope. */
     private readonly destroyAppScope: () => Promise<void>;
+    /** Child scope for work tied to the current connected KERIA session. */
     private sessionScope: Scope | null = null;
+    /** Cleanup function for the current session scope, when connected. */
     private destroySessionScope: (() => Promise<void>) | null = null;
 
+    /**
+     * Create app-scope infrastructure and seed it with shared services.
+     */
     constructor(private readonly services: AppServices) {
         const [appScope, destroyAppScope] = createScope();
         this.appScope = appScope;

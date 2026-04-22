@@ -9,12 +9,19 @@ import type {
     NotificationRecord,
 } from '../state/notifications.slice';
 
+/**
+ * Normalized KERIA notification inventory plus app-derived challenge notices.
+ */
 export interface NotificationInventorySnapshot {
     notifications: NotificationRecord[];
     loadedAt: string;
     unknownChallengeSenders: UnknownChallengeSenderNotice[];
 }
 
+/**
+ * Challenge request metadata that needs an app-level notice because the sender
+ * is not yet a resolved contact.
+ */
 export interface UnknownChallengeSenderNotice {
     notificationId: string;
     exnSaid: string;
@@ -22,18 +29,37 @@ export interface UnknownChallengeSenderNotice {
     createdAt: string;
 }
 
+/**
+ * Prefix for app-created notifications backed by challenge request EXNs.
+ */
 export const SYNTHETIC_CHALLENGE_NOTIFICATION_PREFIX = 'challenge-request:';
+
+/**
+ * Prefix for generic app-created notifications backed by exchange EXNs.
+ */
 export const SYNTHETIC_EXCHANGE_NOTIFICATION_PREFIX = 'exchange:';
 
+/**
+ * Build the stable synthetic notification id for one challenge request EXN.
+ */
 export const syntheticChallengeNotificationId = (exnSaid: string): string =>
     `${SYNTHETIC_CHALLENGE_NOTIFICATION_PREFIX}${exnSaid}`;
 
+/**
+ * Test whether an id belongs to the synthetic challenge request namespace.
+ */
 export const isSyntheticChallengeNotificationId = (id: string): boolean =>
     id.startsWith(SYNTHETIC_CHALLENGE_NOTIFICATION_PREFIX);
 
+/**
+ * Build the stable synthetic notification id for a non-notification EXN.
+ */
 export const syntheticExchangeNotificationId = (exnSaid: string): string =>
     `${SYNTHETIC_EXCHANGE_NOTIFICATION_PREFIX}${exnSaid}`;
 
+/**
+ * Test whether an id belongs to any synthetic exchange-backed namespace.
+ */
 export const isSyntheticExchangeNotificationId = (id: string): boolean =>
     isSyntheticChallengeNotificationId(id) ||
     id.startsWith(SYNTHETIC_EXCHANGE_NOTIFICATION_PREFIX);
@@ -69,6 +95,9 @@ const notificationItemsFromResponse = (raw: unknown): unknown[] => {
     return [];
 };
 
+/**
+ * Project KERIA's loose notification response into serializable app records.
+ */
 export const notificationRecordsFromResponse = (
     raw: unknown,
     loadedAt: string
@@ -166,6 +195,9 @@ const isOutboundOrUnrelatedChallengeRequest = ({
     );
 };
 
+/**
+ * Validate and extract challenge-request metadata from a KERIA exchange.
+ */
 export const challengeRequestFromExchange = ({
     notification,
     exchange,
@@ -280,6 +312,8 @@ function* hydrateChallengeRequestNotification({
                 : { notification, unknownChallengeSender: null };
         }
 
+        // Hydrate first with a placeholder alias; contact inventory below is
+        // the source of truth for whether this sender is known and actionable.
         const provisional = challengeRequestFromExchange({
             notification,
             exchange,
@@ -324,6 +358,8 @@ function* hydrateChallengeRequestNotification({
                 );
             }
 
+            // Unknown senders are marked read in KERIA so the protocol inbox
+            // does not keep resurfacing an item the app cannot safely answer.
             const challengeRequest = {
                 ...provisional,
                 status: 'senderUnknown' as const,
@@ -414,6 +450,8 @@ function* hydrateChallengeRequestNotifications({
         const exnSaid =
             result.notification.challengeRequest?.exnSaid ??
             result.notification.anchorSaid;
+        // Tombstones are app-local deletions for exchange-backed items that
+        // may still be discoverable through `/exchanges/query`.
         if (exnSaid !== null && tombstonedExnSaids.has(exnSaid)) {
             continue;
         }
@@ -457,6 +495,9 @@ function* listChallengeRequestExchanges({
     return challengeRequestExchangesFromResponse(raw);
 }
 
+/**
+ * Create a notification shell for a challenge EXN that has no KERIA note.
+ */
 const syntheticNotificationFromExchange = (
     exchange: unknown,
     loadedAt: string
@@ -569,6 +610,8 @@ function* syntheticChallengeRequestNotifications({
                 continue;
             }
 
+            // Synthetic requests do not have KERIA read state, so local
+            // challenge records decide whether the user already responded.
             const responded =
                 respondedChallengeIds.has(provisional.challengeId) ||
                 respondedWordsHashes.has(provisional.wordsHash);

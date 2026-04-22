@@ -5,9 +5,16 @@ import {
 import type { AppStateStorage } from './persistence';
 
 const UI_PREFERENCES_VERSION = 1;
+
+/**
+ * Global UI-preference storage bucket, intentionally not controller-scoped.
+ */
 export const UI_PREFERENCES_STORAGE_KEY =
     'signify-react-ts:ui-preferences:v1';
 
+/**
+ * Versioned UI preferences persisted outside Signify controller state.
+ */
 export interface PersistedUiPreferences {
     version: typeof UI_PREFERENCES_VERSION;
     hoverSoundMuted: boolean;
@@ -38,6 +45,9 @@ const defaultUiPreferences = (): UiPreferencesState => ({
     ...defaultUiPreferencesState,
 });
 
+/**
+ * Project Redux UI preferences into the persisted JSON shape.
+ */
 export const persistedUiPreferencesFromState = (
     state: UiPreferencesState
 ): PersistedUiPreferences => ({
@@ -45,6 +55,9 @@ export const persistedUiPreferencesFromState = (
     hoverSoundMuted: state.hoverSoundMuted,
 });
 
+/**
+ * Load global UI preferences, falling back safely on absent or invalid data.
+ */
 export const loadPersistedUiPreferences = (
     storage: AppStateStorage | null = browserStorage()
 ): UiPreferencesState => {
@@ -75,6 +88,9 @@ export const loadPersistedUiPreferences = (
     }
 };
 
+/**
+ * Save global UI preferences without touching controller-scoped app history.
+ */
 export const savePersistedUiPreferences = (
     state: UiPreferencesState,
     storage: AppStateStorage | null = browserStorage()
@@ -89,6 +105,9 @@ export const savePersistedUiPreferences = (
     );
 };
 
+/**
+ * Subscribe to preference changes and avoid duplicate localStorage writes.
+ */
 export const installUiPreferencesPersistence = (
     store: UiPreferencesStore,
     storage: AppStateStorage | null = browserStorage()

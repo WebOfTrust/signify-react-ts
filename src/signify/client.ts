@@ -51,6 +51,9 @@ export interface SignifyStateSummary {
   state: SignifyState;
 }
 
+/**
+ * Connected client plus normalized state returned by the boundary.
+ */
 export interface ConnectedSignifyClient {
   /** Connected raw Signify client. Callers may use resource APIs from here. */
   client: SignifyClient;
@@ -60,11 +63,17 @@ export interface ConnectedSignifyClient {
   booted: boolean;
 }
 
+/**
+ * Controls for boot/connect behavior at the KERIA boundary.
+ */
 export interface ConnectOptions {
   /** Boot only when KERIA says the controller has no agent yet. */
   bootIfMissing?: boolean;
 }
 
+/**
+ * Structured telemetry emitted around Signify operation waits.
+ */
 export type OperationLogEvent =
   | {
       status: 'start';
@@ -86,8 +95,14 @@ export type OperationLogEvent =
       error: Error;
     };
 
+/**
+ * Optional observer for wait-operation telemetry.
+ */
 export type OperationLogger = (event: OperationLogEvent) => void;
 
+/**
+ * App policy for waiting on one long-running KERIA operation.
+ */
 export interface WaitOperationOptions extends Partial<OperationConfig> {
   /** Human-readable phase included in timeout/failure messages. */
   label: string;
@@ -100,6 +115,9 @@ export interface WaitOperationOptions extends Partial<OperationConfig> {
 const isMissingAgentError = (error: unknown): boolean =>
   error instanceof Error && error.message.includes('agent does not exist');
 
+/**
+ * Normalize unknown catches into `Error` instances without losing messages.
+ */
 export const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
 

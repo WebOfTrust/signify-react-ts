@@ -158,4 +158,7 @@ export const {
     appNotificationsRehydrated,
 } = appNotificationsSlice.actions;
 
+/**
+ * Reducer installed into the root store for user-facing app notifications.
+ */
 export const appNotificationsReducer = appNotificationsSlice.reducer;

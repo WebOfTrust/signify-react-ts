@@ -1,6 +1,9 @@
 import { Backdrop, Box, CircularProgress, Typography } from '@mui/material';
 import type { PendingSource } from './pendingState';
 
+/**
+ * Derived foreground-pending state for the global loading dimmer.
+ */
 export interface LoadingOverlayProps {
     active: boolean;
     label: string;

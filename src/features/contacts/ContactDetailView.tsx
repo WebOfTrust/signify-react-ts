@@ -76,6 +76,9 @@ const resolutionTone = (
             ? 'success'
             : 'neutral';
 
+/**
+ * Route view for one contact's metadata, OOBIs, and challenge workflows.
+ */
 export const ContactDetailView = () => {
     const loaderData = useLoaderData() as ContactsLoaderData;
     const { contactId = '' } = useParams();

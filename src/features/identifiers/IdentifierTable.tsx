@@ -40,6 +40,9 @@ export interface IdentifierTableProps {
     agentOobiCopyStatus: Record<string, IdentifierOobiCopyStatus>;
 }
 
+/**
+ * Per-identifier agent OOBI copy/generation feedback for table actions.
+ */
 export interface IdentifierOobiCopyStatus {
     status: 'idle' | 'loading' | 'success' | 'error';
     message: string | null;

@@ -19,6 +19,9 @@ import {
  */
 export type ClientBoundarySmokeMode = 'connect' | 'witness';
 
+/**
+ * Runtime options accepted by the reusable client-boundary smoke runner.
+ */
 export interface ClientBoundarySmokeOptions {
   /** `connect` verifies boot/connect/state only; `witness` also creates an AID. */
   mode?: ClientBoundarySmokeMode;

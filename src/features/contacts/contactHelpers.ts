@@ -9,6 +9,9 @@ import type { ChallengeRecord } from '../../state/challenges.slice';
 import type { IdentifierSummary } from '../identifiers/identifierTypes';
 import { challengeWordsFingerprint } from './challengeWords';
 
+/**
+ * KERIA endpoint roles the app preserves from contact `ends` records.
+ */
 export const CONTACT_ENDPOINT_ROLES = [
     'agent',
     'controller',
@@ -21,25 +24,40 @@ export const CONTACT_ENDPOINT_ROLES = [
     'mailbox',
 ] as const satisfies readonly ContactEndpointRole[];
 
+/**
+ * OOBI roles the UI can request for a local managed identifier.
+ */
 export type OobiGenerationRole = 'agent' | 'witness';
 
+/**
+ * Contact challenge state used by shield icon presentation.
+ */
 export type ContactChallengeDisplayStatus =
     | 'verified'
     | 'pending'
     | 'unverified';
 
+/**
+ * Compact role summary rendered on contact cards.
+ */
 export interface ContactOobiRoleSummary {
     primaryRole: ContactEndpointRole | null;
     roles: ContactEndpointRole[];
     label: string;
 }
 
+/**
+ * Human-readable challenge trust summary for a contact.
+ */
 export interface ContactChallengeStatusSummary {
     status: ContactChallengeDisplayStatus;
     label: string;
     tooltip: string;
 }
 
+/**
+ * Group of copyable OOBI URLs for one contact detail role.
+ */
 export interface ContactOobiGroup {
     role: ContactEndpointRole;
     label: string;
@@ -574,6 +592,9 @@ export const challengeRecordsFromKeriaContacts = (
         })
     );
 
+/**
+ * Dashboard/component table projection derived from contact metadata.
+ */
 export interface KnownComponentRecord {
     id: string;
     contactId: string;

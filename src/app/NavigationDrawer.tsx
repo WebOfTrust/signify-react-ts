@@ -34,6 +34,9 @@ export interface NavigationDrawerProps {
     onClearLocalState: () => void;
 }
 
+/**
+ * Props for the desktop one-click route rail.
+ */
 export interface DesktopNavigationRailProps {
     /** Clear all persisted local app state for every controller bucket. */
     onClearLocalState: () => void;
@@ -216,6 +219,9 @@ export const NavigationDrawer = ({
     );
 };
 
+/**
+ * Persistent desktop route rail generated from the same route metadata.
+ */
 export const DesktopNavigationRail = ({
     onClearLocalState,
 }: DesktopNavigationRailProps) => {

@@ -9,6 +9,9 @@ import type {
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null;
 
+/**
+ * Shared display value for optional Signify fields missing from a HabState.
+ */
 export const identifierUnavailableValue = 'Unavailable';
 
 /**

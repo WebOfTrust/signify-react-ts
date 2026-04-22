@@ -8,6 +8,7 @@ import { call, race, sleep, until, type Operation } from 'effection';
  * configured budget.
  */
 export class WorkflowTimeoutError extends Error {
+    /** Create a workflow-specific timeout error for reducers/tests. */
     constructor(message: string) {
         super(message);
         this.name = 'WorkflowTimeoutError';

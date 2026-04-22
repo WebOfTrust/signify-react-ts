@@ -14,6 +14,9 @@ import { createAppStore } from '../../src/state/store';
 import { selectHoverSoundMuted } from '../../src/state/selectors';
 import type { AppStateStorage } from '../../src/state/persistence';
 
+/**
+ * Minimal storage fake for global UI-preference persistence.
+ */
 class MemoryStorage implements AppStateStorage {
     private readonly values = new Map<string, string>();
 
@@ -26,6 +29,9 @@ class MemoryStorage implements AppStateStorage {
     }
 }
 
+/**
+ * Decode the persisted preference bucket for assertions.
+ */
 const persisted = (storage: MemoryStorage): PersistedUiPreferences | null => {
     const text = storage.getItem(UI_PREFERENCES_STORAGE_KEY);
     return text === null ? null : (JSON.parse(text) as PersistedUiPreferences);

@@ -34,20 +34,32 @@ import { notificationInventoryLoaded } from '../state/notifications.slice';
 import type { AppDispatch, AppStore } from '../state/store';
 import type { ChallengeRecord } from '../state/challenges.slice';
 
+/**
+ * Workflow command for creating one identifier OOBI by role.
+ */
 export interface GenerateOobiInput {
     identifier: string;
     role: OobiRole;
 }
 
+/**
+ * Workflow command for changing app-visible contact metadata.
+ */
 export interface UpdateContactAliasInput {
     contactId: string;
     alias: string;
 }
 
+/**
+ * Combined live inventory snapshot published after contact/notification sync.
+ */
 export interface SessionInventorySnapshot extends ContactInventorySnapshot {
     notificationsLoadedAt: string;
 }
 
+/**
+ * Publish KERIA contact inventory and derived challenge records together.
+ */
 export const publishContactInventory = (
     dispatch: AppDispatch,
     inventory: ContactInventorySnapshot
@@ -66,6 +78,10 @@ export const publishContactInventory = (
     );
 };
 
+/**
+ * Publish KERIA protocol notifications and raise app notices for unsafe
+ * challenge requests that cannot be answered because the sender is unknown.
+ */
 export const publishNotificationInventory = (
     store: Pick<AppStore, 'dispatch' | 'getState'>,
     inventory: NotificationInventorySnapshot
@@ -122,6 +138,9 @@ export const publishNotificationInventory = (
     }
 };
 
+/**
+ * Return the local AIDs used to decide whether EXNs are inbound to this wallet.
+ */
 export const localIdentifierAids = (
     store: Pick<AppStore, 'getState'>
 ): string[] => {
@@ -135,6 +154,9 @@ export const localIdentifierAids = (
     return [...new Set(aids)];
 };
 
+/**
+ * Return app-local EXN tombstones that should be hidden from future inventory.
+ */
 export const tombstonedExchangeSaids = (
     store: Pick<AppStore, 'getState'>
 ): string[] => store.getState().exchangeTombstones.saids;

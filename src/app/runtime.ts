@@ -168,12 +168,21 @@ export interface WorkflowRunOptions {
     track?: boolean;
 }
 
+/**
+ * User-facing completion copy attached to a background operation outcome.
+ */
 export interface OperationNotificationTemplate {
     title: string;
     message: string;
     severity?: AppNotificationSeverity;
 }
 
+/**
+ * Runtime-owned metadata for one non-blocking Effection workflow.
+ *
+ * The workflow file owns Signify/KERIA behavior; these options describe how the
+ * shell should track, de-duplicate, link, and announce that work.
+ */
 export interface BackgroundWorkflowRunOptions {
     requestId?: string;
     label: string;
@@ -187,6 +196,12 @@ export interface BackgroundWorkflowRunOptions {
     failureNotification?: OperationNotificationTemplate;
 }
 
+/**
+ * Immediate route-action result from a background workflow launch.
+ *
+ * Route actions return this instead of waiting for KERIA, which lets the UI
+ * navigate while operation records and app notifications carry progress.
+ */
 export type BackgroundWorkflowStartResult =
     | {
           status: 'accepted';
@@ -338,20 +353,28 @@ const payloadDetailsFromWorkflowResult = (
  * actions, route loaders, and visible shell state on one source of truth.
  */
 export class AppRuntime {
+    /** Serializable fact store used by workflows and shell selectors. */
     private readonly store: AppStore;
 
+    /** Parsed app configuration shared by runtime-launched workflows. */
     private readonly config: AppConfig;
 
+    /** Effection app/session scopes that own cancellation and lifetimes. */
     private readonly scopes: AppEffectionScopes;
 
+    /** Foreground and background task handles keyed by route request id. */
     private readonly activeTasks = new Map<string, Task<unknown>>();
 
+    /** Session-scoped live inventory poller; halted on disconnect/reconnect. */
     private liveSyncTask: Task<void> | null = null;
 
+    /** Optional storage override for tests; `undefined` means browser default. */
     private readonly storage: AppStateStorage | null | undefined;
 
+    /** Controller AID selecting the current persisted app-state bucket. */
     private currentControllerAid: string | null = null;
 
+    /** Store subscription cleanup for controller-scoped persistence writes. */
     private readonly uninstallPersistence: () => void;
 
     /**
@@ -366,6 +389,9 @@ export class AppRuntime {
      */
     private readonly listeners = new Set<AppRuntimeListener>();
 
+    /**
+     * Build a runtime around injectable store/config/storage dependencies.
+     */
     constructor(options: AppRuntimeOptions = {}) {
         this.store = options.store ?? appStore;
         this.config = options.config ?? appConfig;
@@ -698,6 +724,9 @@ export class AppRuntime {
             track: options.track ?? false,
         });
 
+    /**
+     * Launch identifier creation as background work with name-level conflicts.
+     */
     startCreateIdentifier = (
         draft: IdentifierCreateDraft,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
@@ -725,6 +754,9 @@ export class AppRuntime {
         });
     };
 
+    /**
+     * Launch identifier rotation as background work keyed by identifier AID.
+     */
     startRotateIdentifier = (
         aid: string,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
@@ -750,6 +782,9 @@ export class AppRuntime {
             },
         });
 
+    /**
+     * Launch OOBI generation/authorization without blocking navigation.
+     */
     startGenerateOobi = (
         input: GenerateOobiInput,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
@@ -782,6 +817,9 @@ export class AppRuntime {
         );
     };
 
+    /**
+     * Launch contact OOBI resolution and protect both URL and alias resources.
+     */
     startResolveContact = (
         input: ResolveContactInput,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
@@ -824,6 +862,9 @@ export class AppRuntime {
         );
     };
 
+    /**
+     * Launch KERIA contact deletion and refresh inventory on completion.
+     */
     startDeleteContact = (
         contactId: string,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
@@ -848,6 +889,9 @@ export class AppRuntime {
             },
         });
 
+    /**
+     * Launch local contact metadata update for the selected KERIA contact.
+     */
     startUpdateContactAlias = (
         input: UpdateContactAliasInput,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
@@ -872,6 +916,9 @@ export class AppRuntime {
             },
         });
 
+    /**
+     * Generate challenge words in the foreground so the route can display them.
+     */
     generateContactChallenge = async (
         input: GenerateContactChallengeInput,
         options: Pick<WorkflowRunOptions, 'requestId' | 'signal'> = {}
@@ -882,6 +929,9 @@ export class AppRuntime {
             track: false,
         });
 
+    /**
+     * Launch responder-side signed challenge response delivery.
+     */
     startRespondToChallenge = (
         input: RespondToContactChallengeInput,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
@@ -909,6 +959,9 @@ export class AppRuntime {
             },
         });
 
+    /**
+     * Launch challenger-side notification that asks a contact to respond.
+     */
     startSendChallengeRequest = (
         input: SendChallengeRequestInput,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
@@ -938,6 +991,9 @@ export class AppRuntime {
             },
         });
 
+    /**
+     * Launch challenger-side wait/verify/responded acceptance workflow.
+     */
     startVerifyContactChallenge = (
         input: VerifyContactChallengeInput,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
@@ -965,6 +1021,9 @@ export class AppRuntime {
             },
         });
 
+    /**
+     * Tombstone a handled exchange notification without blocking the route.
+     */
     dismissExchangeNotification = async (
         input: DismissExchangeNotificationInput,
         options: Pick<WorkflowRunOptions, 'requestId' | 'signal'> = {}
@@ -1108,6 +1167,9 @@ export class AppRuntime {
         }
     };
 
+    /**
+     * Observe detached background work and close operation/notification facts.
+     */
     private watchBackgroundTask = async <T>(
         task: Task<T>,
         requestId: string,
@@ -1310,6 +1372,10 @@ export class AppRuntime {
         }
     };
 
+    /**
+     * Start the session poller that keeps contacts, challenges, and KERIA
+     * notifications fresh without component-owned timers.
+     */
     private startLiveSync = (): void => {
         if (this.liveSyncTask !== null) {
             void this.liveSyncTask.halt();
@@ -1346,6 +1412,9 @@ export class AppRuntime {
         })();
     };
 
+    /**
+     * Halt the live inventory poller before disconnect, reconnect, or destroy.
+     */
     private stopLiveSync = async (): Promise<void> => {
         const task = this.liveSyncTask;
         if (task === null) {
@@ -1356,6 +1425,9 @@ export class AppRuntime {
         await task.halt();
     };
 
+    /**
+     * Switch the active localStorage bucket to the connected controller AID.
+     */
     private setPersistenceController = (controllerAid: string | null): void => {
         if (controllerAid === this.currentControllerAid) {
             return;
@@ -1369,6 +1441,9 @@ export class AppRuntime {
         }
     };
 
+    /**
+     * Eagerly persist the current controller bucket before lifecycle changes.
+     */
     private flushPersistence = (): void => {
         flushPersistedAppState(
             this.store,

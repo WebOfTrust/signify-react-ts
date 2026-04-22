@@ -70,6 +70,9 @@ const CountTile = ({
     </Box>
 );
 
+/**
+ * Route view that summarizes session health, activity, and known components.
+ */
 export const DashboardView = () => {
     const loaderData = useLoaderData() as DashboardLoaderData;
     const runtimeSnapshot = useAppSession();

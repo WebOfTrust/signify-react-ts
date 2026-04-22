@@ -42,6 +42,9 @@ import { ChallengeRequestResponseForm } from './ChallengeRequestResponseForm';
 const timestampText = (value: string | null): string =>
     value === null ? 'Not available' : (formatTimestamp(value) ?? value);
 
+/**
+ * Route view for one KERIA protocol notification or synthetic challenge item.
+ */
 export const NotificationDetailView = () => {
     const loaderData = useLoaderData() as NotificationsLoaderData;
     const { notificationId = '' } = useParams();

@@ -30,6 +30,9 @@ import {
 
 const APP_NOTIFICATION_READ_DELAY_MS = 1250;
 
+/**
+ * Route view that combines app notifications and KERIA protocol inbox records.
+ */
 export const AppNotificationsView = () => {
     const loaderData = useLoaderData() as NotificationsLoaderData;
     const dispatch = useAppDispatch();

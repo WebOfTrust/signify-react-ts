@@ -11,6 +11,12 @@ import {
 import { useAppSelector } from '../state/hooks';
 import { selectHoverSoundMuted } from '../state/selectors';
 
+/**
+ * Install delegated UI sound listeners once for the shell.
+ *
+ * Event delegation keeps individual buttons/panels free of audio code while
+ * still letting Web Audio unlock from real pointer/keyboard user gestures.
+ */
 export const UiSoundEffects = () => {
     const muted = useAppSelector(selectHoverSoundMuted);
 

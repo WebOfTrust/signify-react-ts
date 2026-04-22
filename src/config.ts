@@ -50,6 +50,9 @@ export interface ConnectionOption {
     bootUrl: string;
 }
 
+/**
+ * Active local/default KERIA endpoint set used by Signify browser clients.
+ */
 export interface KeriaConfig {
     /** KERIA admin API URL used by authenticated Signify client calls. */
     adminUrl: string;
@@ -59,6 +62,9 @@ export interface KeriaConfig {
     bootUrl: string;
 }
 
+/**
+ * Runtime timing policy for KERIA waits and live inventory polling.
+ */
 export interface OperationConfig {
     /** Upper bound for a single KERIA operation wait. */
     timeoutMs: number;
@@ -70,6 +76,9 @@ export interface OperationConfig {
     liveRefreshMs: number;
 }
 
+/**
+ * Witness defaults used by local demos and witnessed identifier creation.
+ */
 export interface WitnessConfig {
     /** Witness AIDs used by local smoke scenarios and witnessed AID creation. */
     aids: string[];
@@ -88,12 +97,18 @@ export interface DemoRoleConfig {
     passcode: string | null;
 }
 
+/**
+ * Demo role aliases/passcodes shared by issuer, holder, and verifier flows.
+ */
 export interface RoleConfig {
     issuer: DemoRoleConfig;
     holder: DemoRoleConfig;
     verifier: DemoRoleConfig;
 }
 
+/**
+ * Config for one credential schema that may be resolved through OOBI.
+ */
 export interface SchemaConfig {
     /** SAID of the schema the demo should resolve and issue against. */
     said: string | null;
@@ -101,10 +116,16 @@ export interface SchemaConfig {
     oobiUrl: string | null;
 }
 
+/**
+ * Registry of schema configs known to the demo runtime.
+ */
 export interface SchemaConfigs {
     sediVoterId: SchemaConfig;
 }
 
+/**
+ * Sally-style verifier endpoints and trust policy knobs.
+ */
 export interface VerifierConfig {
     /** Sally-style direct-mode endpoint for holder presentation grants. */
     directUrl: string;

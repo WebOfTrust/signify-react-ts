@@ -103,6 +103,9 @@ const byNewestStoredChallengeWordsTimestamp = (
 const byUpdatedContact = (left: ContactRecord, right: ContactRecord): number =>
     (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '');
 
+/**
+ * Select tombstoned EXN SAIDs to filter synthetic exchange-backed inventory.
+ */
 export const selectExchangeTombstoneSaids = (state: RootState) =>
     state.exchangeTombstones.saids;
 
@@ -252,6 +255,9 @@ export const selectChallengesForContact =
             (challenge) => challenge.counterpartyAid === contactId
         );
 
+/**
+ * Select locally stored challenge words newest first for resumable verify UX.
+ */
 export const selectStoredChallengeWords = (state: RootState) =>
     state.challenges.storedWordIds
         .map((id) => state.challenges.storedWordsById[id])
@@ -261,6 +267,9 @@ export const selectStoredChallengeWords = (state: RootState) =>
         )
         .sort(byNewestStoredChallengeWordsTimestamp);
 
+/**
+ * Select pending stored challenge words for one contact detail page.
+ */
 export const selectStoredChallengeWordsForContact =
     (contactId: string) =>
     (state: RootState): StoredChallengeWordsRecord[] =>

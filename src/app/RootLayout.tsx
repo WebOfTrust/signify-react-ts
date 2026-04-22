@@ -19,6 +19,9 @@ import {
     selectUnreadAppNotifications,
 } from '../state/selectors';
 
+/**
+ * Props for the root route element that bridges router and runtime state.
+ */
 export interface RootLayoutProps {
     /** Runtime instance injected into the data-router route tree. */
     runtime: AppRuntime;

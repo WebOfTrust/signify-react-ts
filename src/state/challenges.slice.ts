@@ -39,6 +39,12 @@ export interface ChallengeRecord {
     updatedAt: string;
 }
 
+/**
+ * In-progress challenge words kept only for the local session/controller.
+ *
+ * These words are needed to continue verification, but they must stay out of
+ * operation payloads and app notifications where they would be too visible.
+ */
 export interface StoredChallengeWordsRecord {
     challengeId: string;
     counterpartyAid: string;

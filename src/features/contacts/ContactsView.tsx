@@ -94,6 +94,9 @@ const resolutionTone = (
             ? 'success'
             : 'neutral';
 
+/**
+ * Route view for OOBI generation, OOBI resolution, and contact inventory.
+ */
 export const ContactsView = () => {
     const loaderData = useLoaderData() as ContactsLoaderData;
     const fetcher = useFetcher<ContactActionData>();

@@ -29,6 +29,9 @@ const operationTone = (status: string) => {
     return 'neutral' as const;
 };
 
+/**
+ * Route view for persisted foreground/background operation history.
+ */
 export const OperationsView = () => {
     const operations = [...useAppSelector(selectOperationRecords)].reverse();
 

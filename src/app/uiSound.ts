@@ -1,5 +1,16 @@
+/**
+ * Data attribute value that opts an element into hover sound feedback.
+ */
 export const UI_SOUND_HOVER_VALUE = 'hover';
+
+/**
+ * Selector used by delegated pointerover handling for explicit hover targets.
+ */
 export const UI_SOUND_HOVER_SELECTOR = `[data-ui-sound="${UI_SOUND_HOVER_VALUE}"]`;
+
+/**
+ * Delegated click target selector for native controls and explicit sound zones.
+ */
 export const UI_SOUND_CLICK_SELECTOR = [
     UI_SOUND_HOVER_SELECTOR,
     'a[href]',
@@ -11,9 +22,20 @@ export const UI_SOUND_CLICK_SELECTOR = [
     'input[type="button"]',
     'input[type="submit"]',
 ].join(',');
+
+/**
+ * Minimum hover spacing to avoid audio chatter while moving across dense UI.
+ */
 export const HOVER_SOUND_MIN_INTERVAL_MS = 90;
+
+/**
+ * Minimum click spacing to avoid duplicate sounds from bubbling controls.
+ */
 export const CLICK_SOUND_MIN_INTERVAL_MS = 120;
 
+/**
+ * Pure facts used to decide whether delegated hover audio should play.
+ */
 export interface HoverSoundGateFacts {
     muted: boolean;
     finePointer: boolean;
@@ -25,6 +47,9 @@ export interface HoverSoundGateFacts {
     minIntervalMs?: number;
 }
 
+/**
+ * Pure facts used to decide whether delegated click audio should play.
+ */
 export interface ClickSoundGateFacts {
     muted: boolean;
     documentVisible: boolean;
@@ -34,12 +59,17 @@ export interface ClickSoundGateFacts {
     minIntervalMs?: number;
 }
 
+/** Constructor alias for standard and WebKit-prefixed audio contexts. */
 type AudioContextConstructor = new () => AudioContext;
 
+/** Safari compatibility surface for the prefixed Web Audio constructor. */
 interface WebKitAudioWindow extends Window {
     webkitAudioContext?: AudioContextConstructor;
 }
 
+/**
+ * Decide hover playback without touching the DOM or Web Audio state.
+ */
 export const shouldPlayHoverSound = ({
     muted,
     finePointer,
@@ -65,6 +95,9 @@ export const shouldPlayHoverSound = ({
     );
 };
 
+/**
+ * Decide click playback without touching the DOM or Web Audio state.
+ */
 export const shouldPlayClickSound = ({
     muted,
     documentVisible,
@@ -82,6 +115,9 @@ export const shouldPlayClickSound = ({
     );
 };
 
+/**
+ * Return whether this browser input setup supports intentional hover feedback.
+ */
 export const hasFineHoverPointer = (
     targetWindow: Pick<Window, 'matchMedia'> | undefined =
         typeof window === 'undefined' ? undefined : window
@@ -106,6 +142,9 @@ const isElement = (target: EventTarget | null): target is Element =>
 const isHTMLElement = (target: Element | null): target is HTMLElement =>
     typeof HTMLElement !== 'undefined' && target instanceof HTMLElement;
 
+/**
+ * Find the nearest enabled explicit hover-sound target for a delegated event.
+ */
 export const closestHoverSoundTarget = (
     target: EventTarget | null
 ): HTMLElement | null => {
@@ -129,6 +168,9 @@ export const closestHoverSoundTarget = (
     return candidate;
 };
 
+/**
+ * Find the nearest enabled clickable sound target for a delegated event.
+ */
 export const closestClickSoundTarget = (
     target: EventTarget | null
 ): HTMLElement | null => {
@@ -152,6 +194,9 @@ export const closestClickSoundTarget = (
     return candidate;
 };
 
+/**
+ * Filter pointerover events that move within the same target.
+ */
 export const enteredFromInsideTarget = (
     target: HTMLElement,
     relatedTarget: EventTarget | null
@@ -175,17 +220,29 @@ const getAudioContextConstructor = (): AudioContextConstructor | null => {
     );
 };
 
+/**
+ * Browser-local sound synthesizer for short UI feedback tones.
+ *
+ * This class owns Web Audio state outside React/Redux. Redux stores only the
+ * mute preference; audio context handles stay here because they are
+ * nonserializable browser capabilities and must respect autoplay unlock rules.
+ */
 export class UiSoundEngine {
+    /** Lazily created browser audio context after user interaction. */
     private context: AudioContext | null = null;
 
+    /** Runtime mute gate mirrored from persisted UI preferences. */
     private muted = false;
 
+    /** Whether autoplay policy has allowed the context to run. */
     private activated = false;
 
+    /** Update the runtime mute gate without touching Web Audio state. */
     setMuted(muted: boolean): void {
         this.muted = muted;
     }
 
+    /** Resume audio after a user gesture so later hover sounds can play. */
     async unlock(): Promise<void> {
         const context = this.ensureContext();
         if (context === null) {
@@ -202,6 +259,7 @@ export class UiSoundEngine {
         }
     }
 
+    /** Play the short hover cue when gating has already accepted the event. */
     playHover(): void {
         if (this.muted || !this.activated) {
             return;
@@ -228,6 +286,7 @@ export class UiSoundEngine {
         }, 180);
     }
 
+    /** Play the longer click cue, resuming the context from the click gesture. */
     async playClick(): Promise<void> {
         if (this.muted) {
             return;
@@ -267,6 +326,7 @@ export class UiSoundEngine {
         }, 340);
     }
 
+    /** Create or reuse the browser audio context, returning null if blocked. */
     private ensureContext(): AudioContext | null {
         if (this.context !== null) {
             return this.context;
@@ -285,6 +345,7 @@ export class UiSoundEngine {
         }
     }
 
+    /** Schedule the low hover tone body. */
     private scheduleBody(
         context: AudioContext,
         destination: AudioNode,
@@ -306,6 +367,7 @@ export class UiSoundEngine {
         oscillator.stop(now + 0.135);
     }
 
+    /** Schedule the hover overtone that gives the cue its terminal character. */
     private scheduleOvertone(
         context: AudioContext,
         destination: AudioNode,
@@ -332,6 +394,7 @@ export class UiSoundEngine {
         oscillator.stop(now + 0.1);
     }
 
+    /** Schedule the brief filtered-noise attack for the hover cue. */
     private scheduleTransient(
         context: AudioContext,
         destination: AudioNode,
@@ -369,6 +432,7 @@ export class UiSoundEngine {
         source.stop(now + durationSeconds);
     }
 
+    /** Schedule the low click body tone. */
     private scheduleClickBody(
         context: AudioContext,
         destination: AudioNode,
@@ -395,6 +459,7 @@ export class UiSoundEngine {
         oscillator.stop(now + 0.275);
     }
 
+    /** Schedule the delayed latch overtone for click confirmation. */
     private scheduleClickLatch(
         context: AudioContext,
         destination: AudioNode,
@@ -421,6 +486,7 @@ export class UiSoundEngine {
         oscillator.stop(now + 0.15);
     }
 
+    /** Schedule the filtered-noise attack for the click cue. */
     private scheduleClickTransient(
         context: AudioContext,
         destination: AudioNode,
@@ -459,4 +525,7 @@ export class UiSoundEngine {
     }
 }
 
+/**
+ * Shared browser sound engine instance used by the delegated React effect.
+ */
 export const uiSoundEngine = new UiSoundEngine();

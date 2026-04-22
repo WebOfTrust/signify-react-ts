@@ -35,6 +35,9 @@ const operationTone = (status: string) => {
     return 'neutral' as const;
 };
 
+/**
+ * Route view for one foreground/background operation record.
+ */
 export const OperationDetailView = () => {
     const { requestId = '' } = useParams();
     const operation = useAppSelector(selectOperationById(requestId));

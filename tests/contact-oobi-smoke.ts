@@ -8,14 +8,17 @@ import {
     uniqueAlias,
 } from './support/keria';
 
+/** Browser app URL; a local Vite server is started when unreachable. */
 const appUrl =
     process.env.CONTACT_OOBI_SMOKE_URL ?? 'http://127.0.0.1:5176';
 
+/** Small polling delay helper for server and UI readiness checks. */
 const sleep = (ms: number): Promise<void> =>
     new Promise((resolve) => {
         globalThis.setTimeout(resolve, ms);
     });
 
+/** Check whether an existing dev server can serve the app. */
 const canReachApp = async (): Promise<boolean> => {
     try {
         const response = await fetch(appUrl);
@@ -25,6 +28,7 @@ const canReachApp = async (): Promise<boolean> => {
     }
 };
 
+/** Wait for Vite to become reachable before launching browser actions. */
 const waitForApp = async (): Promise<void> => {
     for (let attempt = 0; attempt < 60; attempt += 1) {
         if (await canReachApp()) {
@@ -36,6 +40,7 @@ const waitForApp = async (): Promise<void> => {
     throw new Error(`Vite app did not become reachable at ${appUrl}`);
 };
 
+/** Reuse an existing app server or start a strict-port Vite child process. */
 const startViteIfNeeded = async (): Promise<ChildProcess | null> => {
     if (await canReachApp()) {
         return null;
@@ -66,12 +71,14 @@ const startViteIfNeeded = async (): Promise<ChildProcess | null> => {
     return child;
 };
 
+/** Read the generated passcode from the MUI password input. */
 const passcodeValue = (page: Page): Promise<string> =>
     page.$eval(
         '#outlined-password-input',
         (element) => (element as HTMLInputElement).value ?? ''
     );
 
+/** Return a required element handle with a clearer smoke-test error. */
 const elementFor = async (
     page: Page,
     selector: string
@@ -84,6 +91,7 @@ const elementFor = async (
     return element;
 };
 
+/** Replace a MUI input/textarea value using browser-like keyboard actions. */
 const setInputValue = async (
     page: Page,
     selector: string,
@@ -95,6 +103,7 @@ const setInputValue = async (
     await element.type(value);
 };
 
+/** Wait until any visible matching element contains expected text. */
 const waitForText = async (
     page: Page,
     selector: string,
@@ -112,6 +121,7 @@ const waitForText = async (
     );
 };
 
+/** Wait until the contact card shows KERIA resolution has completed. */
 const waitForResolvedContact = async (
     page: Page,
     alias: string
@@ -132,6 +142,7 @@ const waitForResolvedContact = async (
     );
 };
 
+/** Boot/connect the browser wallet and land on the dashboard route. */
 const connectBrowserAgent = async (page: Page): Promise<string> => {
     await page.goto(appUrl, { waitUntil: 'networkidle0' });
     await page.click('[data-testid="connect-open"]');
@@ -161,6 +172,7 @@ const connectBrowserAgent = async (page: Page): Promise<string> => {
     return passcode;
 };
 
+/** Navigate through the mobile drawer path used by smoke viewports. */
 const navigateInApp = async (
     page: Page,
     navTestId: string,
@@ -176,6 +188,7 @@ const navigateInApp = async (
     });
 };
 
+/** Submit one OOBI through the Contacts UI and wait for resolution. */
 const resolveOobiInContacts = async (
     page: Page,
     oobi: string,
@@ -195,6 +208,7 @@ const resolveOobiInContacts = async (
     await waitForResolvedContact(page, alias);
 };
 
+/** Open the contact detail route by visible contact alias. */
 const openContactDetail = async (page: Page, alias: string): Promise<void> => {
     await page.waitForFunction(
         (expectedAlias) =>
@@ -221,6 +235,7 @@ const openContactDetail = async (page: Page, alias: string): Promise<void> => {
     });
 };
 
+/** Prove OOBI payload details are linked from quick notification to operation. */
 const assertQuickNotificationAndOperationPayload = async (
     page: Page
 ): Promise<void> => {
@@ -249,6 +264,7 @@ const assertQuickNotificationAndOperationPayload = async (
     });
 };
 
+/** Build a local witness controller OOBI from configured witness fixtures. */
 const witnessOobi = (): string => {
     const wanAid = appConfig.witnesses.aids[0];
     if (wanAid === undefined) {

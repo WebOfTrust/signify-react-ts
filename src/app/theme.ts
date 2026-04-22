@@ -18,6 +18,9 @@ const graphite = {
     violet: '#a778ff',
 };
 
+/**
+ * Central dark command-console MUI theme for the app shell and feature routes.
+ */
 export const appTheme = createTheme({
     palette: {
         mode: 'dark',

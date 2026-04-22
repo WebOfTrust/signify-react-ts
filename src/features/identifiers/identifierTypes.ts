@@ -17,14 +17,23 @@ export type IdentifierActionState =
     | { status: 'success'; message: string; error: null }
     | { status: 'error'; message: string; error: Error };
 
+/**
+ * Reusable idle action state for identifier route feedback.
+ */
 export const idleIdentifierAction: IdentifierActionState = {
     status: 'idle',
     message: null,
     error: null,
 };
 
+/**
+ * Upstream Signify create-identifier args alias used at the service boundary.
+ */
 export type IdentifierCreateArgs = CreateIdentiferArgs;
 
+/**
+ * Witness selection mode exposed by the identifier create form.
+ */
 export type IdentifierWitnessMode = 'none' | 'demo';
 
 /**
