@@ -9,6 +9,7 @@ import { derivePendingState } from './pendingState';
 import { LoadingOverlay } from './LoadingOverlay';
 import { DesktopNavigationRail, NavigationDrawer } from './NavigationDrawer';
 import { TopBar } from './TopBar';
+import { UiSoundEffects } from './UiSoundEffects';
 import { useAppSelector } from '../state/hooks';
 import {
     selectActiveOperations,
@@ -60,6 +61,7 @@ const RootLayoutContent = () => {
                 color: 'text.primary',
             }}
         >
+            <UiSoundEffects />
             <TopBar
                 isConnected={connection.status === 'connected'}
                 activeOperations={activeOperations}

@@ -38,6 +38,7 @@ import {
 } from '../../app/Console';
 import { clickablePanelSx, monoValueSx } from '../../app/consoleStyles';
 import { formatTimestamp } from '../../app/timeFormat';
+import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 import type {
     ContactActionData,
     ContactsLoaderData,
@@ -311,6 +312,7 @@ export const ContactsView = () => {
                             onClick={submitResolve}
                             disabled={actionRunning || oobi.trim().length === 0}
                             data-testid="contact-resolve-submit"
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                         >
                             Resolve OOBI
                         </Button>
@@ -373,6 +375,7 @@ export const ContactsView = () => {
                                 activeIdentifier.length === 0 ||
                                 roleOptions.length === 0
                             }
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                         >
                             Generate OOBI
                         </Button>
@@ -426,6 +429,9 @@ export const ContactsView = () => {
                                                                                 generated
                                                                             );
                                                                         }}
+                                                                        data-ui-sound={
+                                                                            UI_SOUND_HOVER_VALUE
+                                                                        }
                                                                     >
                                                                         <ContentCopyIcon fontSize="small" />
                                                                     </IconButton>
@@ -584,6 +590,7 @@ const ContactCard = ({
                 component={RouterLink}
                 to={contactDetailPath(contact.id)}
                 data-testid="contact-card-link"
+                data-ui-sound={UI_SOUND_HOVER_VALUE}
                 sx={[
                     {
                         display: 'grid',
@@ -685,6 +692,7 @@ const ContactCard = ({
                             onClick={() => {
                                 copyText(contact.oobi ?? '');
                             }}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                         >
                             <ContentCopyIcon fontSize="small" />
                         </IconButton>
@@ -700,6 +708,7 @@ const ContactCard = ({
                             onClick={() => {
                                 onDelete(contact.id);
                             }}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                         >
                             <DeleteIcon fontSize="small" />
                         </IconButton>

@@ -5,6 +5,7 @@ import { useFetcher, useLoaderData } from 'react-router-dom';
 import { ConnectionRequired } from '../../app/ConnectionRequired';
 import { EmptyState, PageHeader, StatusPill } from '../../app/Console';
 import { useAppRuntime } from '../../app/runtimeHooks';
+import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 import type {
     IdentifierActionData,
     IdentifiersLoaderData,
@@ -302,6 +303,7 @@ export const IdentifiersView = () => {
                         onClick={openCreate}
                         disabled={actionRunning}
                         sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+                        data-ui-sound={UI_SOUND_HOVER_VALUE}
                     >
                         Create Identifier
                     </Button>
@@ -361,6 +363,7 @@ export const IdentifiersView = () => {
                             onClick={openCreate}
                             disabled={actionRunning}
                             sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                         >
                             Create Identifier
                         </Button>

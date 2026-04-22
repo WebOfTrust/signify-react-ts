@@ -20,6 +20,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { APP_NAV_ITEMS } from './router';
 import type { AppRouteId } from './router';
+import { UI_SOUND_HOVER_VALUE } from './uiSound';
 
 /**
  * Props for the route navigation drawer.
@@ -182,6 +183,7 @@ export const NavigationDrawer = ({
                                 onClose();
                             }}
                             data-testid={view.testId}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                             sx={navButtonSx(
                                 location.pathname.startsWith(view.path)
                             )}
@@ -200,6 +202,7 @@ export const NavigationDrawer = ({
                         confirmAndClearLocalState(onClearLocalState, onClose)
                     }
                     data-testid="clear-local-state"
+                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                     sx={clearLocalStateButtonSx}
                 >
                     <ClearLocalStateIcon />
@@ -253,6 +256,7 @@ export const DesktopNavigationRail = ({
                         <ListItemButton
                             onClick={() => navigate(view.path)}
                             data-testid={`rail-${view.testId}`}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                             selected={active}
                             sx={{
                                 ...navButtonSx(active),
@@ -283,6 +287,7 @@ export const DesktopNavigationRail = ({
                 <ListItemButton
                     onClick={() => confirmAndClearLocalState(onClearLocalState)}
                     data-testid="rail-clear-local-state"
+                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                     sx={{
                         ...clearLocalStateButtonSx,
                         mx: 0,

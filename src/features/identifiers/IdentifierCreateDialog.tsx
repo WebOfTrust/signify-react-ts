@@ -26,6 +26,7 @@ import {
     isIdentifierCreateDraft,
 } from './identifierHelpers';
 import type { IdentifierCreateDraft } from './identifierTypes';
+import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 
 /**
  * Props for the identifier create modal.
@@ -266,6 +267,7 @@ export const IdentifierCreateDialog = ({
                 <Button
                     onClick={onClose}
                     sx={{ width: { xs: '100%', sm: 'auto' } }}
+                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                 >
                     Cancel
                 </Button>
@@ -274,6 +276,7 @@ export const IdentifierCreateDialog = ({
                     disabled={createDisabled}
                     onClick={handleComplete}
                     sx={{ width: { xs: '100%', sm: 'auto' } }}
+                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                 >
                     {actionRunning ? 'Working...' : 'Create'}
                 </Button>

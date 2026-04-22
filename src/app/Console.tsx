@@ -3,6 +3,7 @@ import { Box, Button, Stack, Typography } from '@mui/material';
 import type { ButtonProps, SxProps, Theme } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { clickablePanelSx, monoValueSx } from './consoleStyles';
+import { UI_SOUND_HOVER_VALUE } from './uiSound';
 
 export interface PageHeaderProps {
     eyebrow?: string;
@@ -79,6 +80,7 @@ export const ConsolePanel = ({
         component={to === undefined ? 'section' : RouterLink}
         to={to}
         data-testid={testId}
+        data-ui-sound={to === undefined ? undefined : UI_SOUND_HOVER_VALUE}
         sx={[
             {
                 position: 'relative',
@@ -245,5 +247,10 @@ export const TelemetryRow = ({
 );
 
 export const CommandButton = (props: ButtonProps) => (
-    <Button variant="contained" color="primary" {...props} />
+    <Button
+        variant="contained"
+        color="primary"
+        data-ui-sound={UI_SOUND_HOVER_VALUE}
+        {...props}
+    />
 );

@@ -22,6 +22,10 @@ export const selectSession = (state: RootState) => state.session;
 export const selectConnectionStatus = (state: RootState) =>
     state.session.status;
 
+/** Select the persisted interface sound preference. */
+export const selectHoverSoundMuted = (state: RootState): boolean =>
+    state.uiPreferences.hoverSoundMuted;
+
 /** Select operation records in display order. */
 export const selectOperationRecords = (state: RootState) =>
     state.operations.order
