@@ -20,6 +20,7 @@ import type {
     SendChallengeRequestInput,
     VerifyContactChallengeInput,
 } from '../workflows/challenges.op';
+import type { DismissExchangeNotificationInput } from '../workflows/notifications.op';
 import type {
     ConnectedSignifyClient,
     SignifyClientConfig,
@@ -130,6 +131,7 @@ export type ContactActionData =
               | 'generateOobi'
               | 'respondChallenge'
               | 'verifyChallenge'
+              | 'dismissExchangeNotification'
               | 'delete'
               | 'updateAlias';
           ok: true;
@@ -152,6 +154,7 @@ export type ContactActionData =
               | 'generateChallenge'
               | 'respondChallenge'
               | 'verifyChallenge'
+              | 'dismissExchangeNotification'
               | 'delete'
               | 'updateAlias'
               | 'unsupported';
@@ -258,6 +261,11 @@ export interface RouteDataRuntime {
         input: VerifyContactChallengeInput,
         options?: { requestId?: string }
     ): BackgroundWorkflowStartResult;
+    /** Locally tombstone and optionally delete a KERIA notification note. */
+    dismissExchangeNotification(
+        input: DismissExchangeNotificationInput,
+        options?: { signal?: AbortSignal; requestId?: string }
+    ): Promise<void>;
 }
 
 /**
@@ -302,6 +310,7 @@ const contactIntentFromString = (
     value === 'generateChallenge' ||
     value === 'respondChallenge' ||
     value === 'verifyChallenge' ||
+    value === 'dismissExchangeNotification' ||
     value === 'delete' ||
     value === 'updateAlias'
         ? value
@@ -926,6 +935,41 @@ export const contactsAction = async (
                 message: `Waiting for challenge response from ${contactId}`,
                 requestId: started.requestId,
                 operationRoute: started.operationRoute,
+            };
+        }
+
+        if (intent === 'dismissExchangeNotification') {
+            const notificationId = formString(
+                formData,
+                'notificationId'
+            ).trim();
+            const exnSaid = formString(formData, 'exnSaid').trim();
+            const route = formString(formData, 'route').trim();
+            if (
+                notificationId.length === 0 ||
+                exnSaid.length === 0 ||
+                route.length === 0
+            ) {
+                return {
+                    intent,
+                    ok: false,
+                    message:
+                        'Notification id, EXN SAID, and route are required.',
+                    requestId,
+                };
+            }
+
+            await runtime.dismissExchangeNotification(
+                { notificationId, exnSaid, route },
+                { requestId: requestId || undefined, signal: request.signal }
+            );
+
+            return {
+                intent,
+                ok: true,
+                message: 'Exchange notification dismissed.',
+                requestId: requestId || '',
+                operationRoute: '/notifications',
             };
         }
 

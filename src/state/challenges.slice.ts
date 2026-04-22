@@ -39,18 +39,36 @@ export interface ChallengeRecord {
     updatedAt: string;
 }
 
+export interface StoredChallengeWordsRecord {
+    challengeId: string;
+    counterpartyAid: string;
+    counterpartyAlias?: string | null;
+    localIdentifier: string;
+    localAid?: string | null;
+    words: string[];
+    wordsHash: string;
+    strength: number;
+    generatedAt: string;
+    updatedAt: string;
+    status: 'pending' | 'failed';
+}
+
 /**
  * Challenge slice state keyed by local challenge id.
  */
 export interface ChallengesState {
     byId: Record<string, ChallengeRecord>;
     ids: string[];
+    storedWordsById: Record<string, StoredChallengeWordsRecord>;
+    storedWordIds: string[];
     loadedAt: string | null;
 }
 
 const createInitialState = (): ChallengesState => ({
     byId: {},
     ids: [],
+    storedWordsById: {},
+    storedWordIds: [],
     loadedAt: null,
 });
 
@@ -104,6 +122,52 @@ export const challengesSlice = createSlice({
                 state.ids.push(payload.id);
             }
         },
+        storedChallengeWordsRecorded(
+            state,
+            { payload }: PayloadAction<StoredChallengeWordsRecord>
+        ) {
+            state.storedWordsById[payload.challengeId] = payload;
+            if (!state.storedWordIds.includes(payload.challengeId)) {
+                state.storedWordIds.push(payload.challengeId);
+            }
+        },
+        storedChallengeWordsFailed(
+            state,
+            {
+                payload,
+            }: PayloadAction<{
+                challengeId: string;
+                updatedAt: string;
+            }>
+        ) {
+            const record = state.storedWordsById[payload.challengeId];
+            if (record !== undefined) {
+                record.status = 'failed';
+                record.updatedAt = payload.updatedAt;
+            }
+        },
+        storedChallengeWordsCleared(
+            state,
+            { payload }: PayloadAction<{ challengeId: string }>
+        ) {
+            delete state.storedWordsById[payload.challengeId];
+            state.storedWordIds = state.storedWordIds.filter(
+                (id) => id !== payload.challengeId
+            );
+        },
+        storedChallengeWordsRehydrated(
+            state,
+            {
+                payload,
+            }: PayloadAction<{ records: StoredChallengeWordsRecord[] }>
+        ) {
+            state.storedWordsById = Object.fromEntries(
+                payload.records.map((record) => [record.challengeId, record])
+            );
+            state.storedWordIds = payload.records.map(
+                (record) => record.challengeId
+            );
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -114,7 +178,14 @@ export const challengesSlice = createSlice({
 });
 
 /** Action creators for recording challenge workflow progress. */
-export const { challengesLoaded, challengeRecorded } = challengesSlice.actions;
+export const {
+    challengesLoaded,
+    challengeRecorded,
+    storedChallengeWordsRecorded,
+    storedChallengeWordsFailed,
+    storedChallengeWordsCleared,
+    storedChallengeWordsRehydrated,
+} = challengesSlice.actions;
 
 /** Reducer mounted at `state.challenges`. */
 export const challengesReducer = challengesSlice.reducer;

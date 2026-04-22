@@ -18,11 +18,14 @@ import {
     type SignifyStateSummary,
 } from '../signify/client';
 import {
+    appNotificationsRehydrated,
     appNotificationRecorded,
     type AppNotificationLink,
     type AppNotificationRecord,
     type AppNotificationSeverity,
 } from '../state/appNotifications.slice';
+import { storedChallengeWordsRehydrated } from '../state/challenges.slice';
+import { exchangeTombstonesRehydrated } from '../state/exchangeTombstones.slice';
 import {
     cancelRunningOperations,
     type OperationKind,
@@ -30,18 +33,26 @@ import {
     operationCanceled,
     operationFailed,
     operationPayloadDetailsRecorded,
+    operationsRehydrated,
     operationResultLinked,
     operationStarted,
     operationSucceeded,
 } from '../state/operations.slice';
 import type { PayloadDetailRecord } from '../state/payloadDetails';
 import {
+    clearAllPersistedAppStates,
     flushPersistedAppState,
     installAppStatePersistence,
     rehydratePersistedAppState,
     type AppStateStorage,
 } from '../state/persistence';
-import { sessionDisconnected } from '../state/session.slice';
+import {
+    sessionConnected,
+    sessionConnectionFailed,
+    sessionConnecting,
+    sessionDisconnected,
+    sessionStateRefreshed,
+} from '../state/session.slice';
 import { appStore, type AppStore } from '../state/store';
 import {
     createIdentifierOp,
@@ -77,6 +88,10 @@ import {
     getSignifyStateOp,
     randomPasscodeOp,
 } from '../workflows/signify.op';
+import {
+    dismissExchangeNotificationOp,
+    type DismissExchangeNotificationInput,
+} from '../workflows/notifications.op';
 
 /**
  * Complete connection-state model for the app runtime.
@@ -423,6 +438,7 @@ export class AppRuntime {
         config: SignifyClientConfig,
         options: WorkflowRunOptions = {}
     ): Promise<ConnectedSignifyClient | null> => {
+        this.store.dispatch(sessionConnecting());
         this.setConnection({
             status: 'connecting',
             client: null,
@@ -450,10 +466,19 @@ export class AppRuntime {
                 error: null,
                 booted: connected.booted,
             });
+            this.store.dispatch(
+                sessionConnected({
+                    booted: connected.booted,
+                    controllerAid: connected.state.controllerPre,
+                    agentAid: connected.state.agentPre,
+                    connectedAt: new Date().toISOString(),
+                })
+            );
             this.startLiveSync();
             return connected;
         } catch (error) {
             const normalized = toError(error);
+            this.store.dispatch(sessionConnectionFailed(normalized.message));
             this.setConnection({
                 status: 'error',
                 client: null,
@@ -518,7 +543,48 @@ export class AppRuntime {
             ...connection,
             state,
         });
+        this.store.dispatch(
+            sessionStateRefreshed({
+                controllerAid: state.controllerPre,
+                agentAid: state.agentPre,
+            })
+        );
         return state;
+    };
+
+    /**
+     * Clear all browser-persisted app state buckets and the current in-memory
+     * projections that are backed by those buckets.
+     */
+    clearAllLocalState = (): number => {
+        const previousControllerAid = this.currentControllerAid;
+        this.currentControllerAid = null;
+        try {
+            this.store.dispatch(
+                operationsRehydrated({
+                    records: [],
+                    interruptedAt: new Date().toISOString(),
+                })
+            );
+            this.store.dispatch(
+                appNotificationsRehydrated({
+                    records: [],
+                })
+            );
+            this.store.dispatch(
+                exchangeTombstonesRehydrated({
+                    records: [],
+                })
+            );
+            this.store.dispatch(
+                storedChallengeWordsRehydrated({
+                    records: [],
+                })
+            );
+            return clearAllPersistedAppStates(this.storage);
+        } finally {
+            this.currentControllerAid = previousControllerAid;
+        }
     };
 
     /**
@@ -897,6 +963,16 @@ export class AppRuntime {
                 message: 'The challenge response was not verified.',
                 severity: 'error',
             },
+        });
+
+    dismissExchangeNotification = async (
+        input: DismissExchangeNotificationInput,
+        options: Pick<WorkflowRunOptions, 'requestId' | 'signal'> = {}
+    ): Promise<void> =>
+        this.runWorkflow(() => dismissExchangeNotificationOp(input), {
+            ...options,
+            kind: 'workflow',
+            track: false,
         });
 
     /**

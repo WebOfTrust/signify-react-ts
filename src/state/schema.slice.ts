@@ -1,4 +1,9 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import {
+    sessionConnectionFailed,
+    sessionConnecting,
+    sessionDisconnected,
+} from './session.slice';
 
 /** Resolution lifecycle for a credential schema OOBI. */
 export type SchemaResolutionStatus = 'unknown' | 'resolving' | 'resolved' | 'error';
@@ -22,10 +27,12 @@ export interface SchemaState {
     saids: string[];
 }
 
-const initialState: SchemaState = {
+const createInitialState = (): SchemaState => ({
     bySaid: {},
     saids: [],
-};
+});
+
+const initialState: SchemaState = createInitialState();
 
 /**
  * Redux slice for credential schema resolution state.
@@ -40,6 +47,12 @@ export const schemaSlice = createSlice({
                 state.saids.push(payload.said);
             }
         },
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(sessionConnecting, createInitialState)
+            .addCase(sessionConnectionFailed, createInitialState)
+            .addCase(sessionDisconnected, createInitialState);
     },
 });
 

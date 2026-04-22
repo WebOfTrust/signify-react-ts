@@ -20,6 +20,10 @@ import {
     selectChallenges,
     selectChallengesForContact,
     selectDashboardCounts,
+    selectActionableChallengeRequestNotifications,
+    selectChallengeRequestNotificationById,
+    selectKeriaNotifications,
+    selectStoredChallengeWordsForContact,
 } from '../../src/state/selectors';
 import {
     sessionConnected,
@@ -30,7 +34,11 @@ import { notificationRecorded } from '../../src/state/notifications.slice';
 import {
     challengeRecorded,
     challengesLoaded,
+    storedChallengeWordsCleared,
+    storedChallengeWordsFailed,
+    storedChallengeWordsRecorded,
 } from '../../src/state/challenges.slice';
+import { exchangeTombstoneRecorded } from '../../src/state/exchangeTombstones.slice';
 import {
     contactInventoryLoaded,
     generatedOobiRecorded,
@@ -40,6 +48,10 @@ import {
     allAppNotificationsRead,
     appNotificationRecorded,
 } from '../../src/state/appNotifications.slice';
+import { credentialRecorded } from '../../src/state/credentials.slice';
+import { registryRecorded } from '../../src/state/registry.slice';
+import { roleRecorded } from '../../src/state/roles.slice';
+import { schemaRecorded } from '../../src/state/schema.slice';
 
 describe('RTK state foundation', () => {
     it('records session connection facts without live capabilities', () => {
@@ -176,6 +188,66 @@ describe('RTK state foundation', () => {
         expect(JSON.parse(JSON.stringify(store.getState()))).toMatchObject(
             store.getState()
         );
+    });
+
+    it('filters locally tombstoned EXN notifications from selectors', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            notificationRecorded({
+                id: 'challenge-request:Eexn',
+                dt: '2026-04-21T00:00:00.000Z',
+                read: false,
+                route: '/challenge/request',
+                anchorSaid: 'Eexn',
+                status: 'unread',
+                message: 'Challenge request from Wan',
+                updatedAt: '2026-04-21T00:00:00.000Z',
+                challengeRequest: {
+                    notificationId: 'challenge-request:Eexn',
+                    exnSaid: 'Eexn',
+                    senderAid: 'Econtact',
+                    senderAlias: 'Wan',
+                    recipientAid: 'Ealice',
+                    challengeId: 'challenge-1',
+                    wordsHash: 'hash-one',
+                    strength: 128,
+                    createdAt: '2026-04-21T00:00:00.000Z',
+                    status: 'actionable',
+                },
+            })
+        );
+
+        expect(selectKeriaNotifications(store.getState())).toHaveLength(1);
+        expect(
+            selectActionableChallengeRequestNotifications(store.getState())
+        ).toHaveLength(1);
+        expect(
+            selectChallengeRequestNotificationById('challenge-request:Eexn')(
+                store.getState()
+            )
+        ).not.toBeNull();
+
+        store.dispatch(
+            exchangeTombstoneRecorded({
+                exnSaid: 'Eexn',
+                route: '/challenge/request',
+                notificationId: 'challenge-request:Eexn',
+                reason: 'userDismissed',
+                createdAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+
+        expect(selectUnreadNotifications(store.getState())).toHaveLength(0);
+        expect(selectKeriaNotifications(store.getState())).toHaveLength(0);
+        expect(
+            selectActionableChallengeRequestNotifications(store.getState())
+        ).toHaveLength(0);
+        expect(
+            selectChallengeRequestNotificationById('challenge-request:Eexn')(
+                store.getState()
+            )
+        ).toBeNull();
     });
 
     it('tracks contact inventory, generated OOBIs, components, and challenges', () => {
@@ -330,6 +402,54 @@ describe('RTK state foundation', () => {
         ]);
     });
 
+    it('tracks saved challenge words for failed verification recovery', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            storedChallengeWordsRecorded({
+                challengeId: 'challenge-1',
+                counterpartyAid: 'Econtact',
+                counterpartyAlias: 'Wan',
+                localIdentifier: 'alice',
+                localAid: 'Ealice',
+                words: Array.from({ length: 12 }, (_, index) => `word${index}`),
+                wordsHash: 'hash-one',
+                strength: 128,
+                generatedAt: '2026-04-21T00:00:00.000Z',
+                updatedAt: '2026-04-21T00:00:00.000Z',
+                status: 'pending',
+            })
+        );
+
+        expect(
+            selectStoredChallengeWordsForContact('Econtact')(store.getState())
+        ).toEqual([expect.objectContaining({ status: 'pending' })]);
+
+        store.dispatch(
+            storedChallengeWordsFailed({
+                challengeId: 'challenge-1',
+                updatedAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+
+        expect(
+            selectStoredChallengeWordsForContact('Econtact')(store.getState())
+        ).toEqual([
+            expect.objectContaining({
+                status: 'failed',
+                updatedAt: '2026-04-21T00:00:01.000Z',
+            }),
+        ]);
+
+        store.dispatch(
+            storedChallengeWordsCleared({ challengeId: 'challenge-1' })
+        );
+
+        expect(
+            selectStoredChallengeWordsForContact('Econtact')(store.getState())
+        ).toEqual([]);
+    });
+
     it('clears session-scoped inventory when a new connection starts', () => {
         const store = createAppStore();
 
@@ -404,6 +524,43 @@ describe('RTK state foundation', () => {
                 ],
             })
         );
+        store.dispatch(
+            roleRecorded({
+                role: 'issuer',
+                alias: 'Alice',
+                aid: 'Ealice',
+                registryId: 'registry-1',
+                updatedAt: '2026-04-21T00:00:03.000Z',
+            })
+        );
+        store.dispatch(
+            schemaRecorded({
+                said: 'schema-1',
+                oobi: 'http://127.0.0.1:3902/oobi/schema-1',
+                status: 'resolved',
+                error: null,
+                updatedAt: '2026-04-21T00:00:04.000Z',
+            })
+        );
+        store.dispatch(
+            registryRecorded({
+                id: 'registry-1',
+                issuerAid: 'Ealice',
+                status: 'ready',
+                error: null,
+                updatedAt: '2026-04-21T00:00:05.000Z',
+            })
+        );
+        store.dispatch(
+            credentialRecorded({
+                said: 'credential-1',
+                schemaSaid: 'schema-1',
+                issuerAid: 'Ealice',
+                holderAid: 'Eholder',
+                status: 'issued',
+                updatedAt: '2026-04-21T00:00:06.000Z',
+            })
+        );
 
         store.dispatch(sessionConnecting());
 
@@ -412,6 +569,11 @@ describe('RTK state foundation', () => {
         expect(selectUnreadNotifications(store.getState())).toHaveLength(0);
         expect(store.getState().contacts.generatedOobiIds).toEqual([]);
         expect(store.getState().identifiers.prefixes).toEqual([]);
+        expect(store.getState().roles.byRole.issuer.aid).toBeNull();
+        expect(store.getState().roles.byRole.issuer.registryId).toBeNull();
+        expect(store.getState().schema.saids).toEqual([]);
+        expect(store.getState().registry.ids).toEqual([]);
+        expect(store.getState().credentials.saids).toEqual([]);
     });
 
     it('tracks unread app notifications separately from KERIA notifications', () => {

@@ -6,7 +6,10 @@ import type {
     NotificationRecord,
 } from './notifications.slice';
 import type { ContactRecord } from './contacts.slice';
-import type { ChallengeRecord } from './challenges.slice';
+import type {
+    ChallengeRecord,
+    StoredChallengeWordsRecord,
+} from './challenges.slice';
 import {
     knownComponentsFromContacts,
     type KnownComponentRecord,
@@ -88,8 +91,25 @@ const byNewestChallengeTimestamp = (
     right: ChallengeRecord
 ): number => right.updatedAt.localeCompare(left.updatedAt);
 
+const byNewestStoredChallengeWordsTimestamp = (
+    left: StoredChallengeWordsRecord,
+    right: StoredChallengeWordsRecord
+): number => right.updatedAt.localeCompare(left.updatedAt);
+
 const byUpdatedContact = (left: ContactRecord, right: ContactRecord): number =>
     (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '');
+
+export const selectExchangeTombstoneSaids = (state: RootState) =>
+    state.exchangeTombstones.saids;
+
+const notificationExnSaid = (notification: NotificationRecord): string | null =>
+    notification.challengeRequest?.exnSaid ?? notification.anchorSaid;
+
+const isExchangeTombstoned = (
+    state: RootState,
+    exnSaid: string | null
+): boolean =>
+    exnSaid !== null && state.exchangeTombstones.bySaid[exnSaid] !== undefined;
 
 /** Select user-facing app notification records in descending timestamp order. */
 export const selectAppNotifications = (state: RootState) =>
@@ -156,6 +176,10 @@ export const selectUnreadNotifications = (state: RootState) =>
         .filter(
             (notification): notification is NotificationRecord =>
                 notification !== undefined &&
+                !isExchangeTombstoned(
+                    state,
+                    notificationExnSaid(notification)
+                ) &&
                 (notification.status === 'unread' || !notification.read)
         );
 
@@ -165,15 +189,21 @@ export const selectKeriaNotifications = (state: RootState) =>
         .map((id) => state.notifications.byId[id])
         .filter(
             (notification): notification is NotificationRecord =>
-                notification !== undefined
+                notification !== undefined &&
+                !isExchangeTombstoned(state, notificationExnSaid(notification))
         )
         .sort(byNewestKeriaNotificationTimestamp);
 
 /** Select one KERIA notification by id. */
 export const selectKeriaNotificationById =
     (id: string) =>
-    (state: RootState): NotificationRecord | null =>
-        state.notifications.byId[id] ?? null;
+    (state: RootState): NotificationRecord | null => {
+        const notification = state.notifications.byId[id] ?? null;
+        return notification !== null &&
+            isExchangeTombstoned(state, notificationExnSaid(notification))
+            ? null
+            : notification;
+    };
 
 /** Select hydrated challenge request notifications newest first. */
 export const selectChallengeRequestNotifications = (state: RootState) =>
@@ -198,7 +228,8 @@ export const selectActionableChallengeRequestNotifications = (
 export const selectChallengeRequestNotificationById =
     (notificationId: string) =>
     (state: RootState): ChallengeRequestNotification | null =>
-        state.notifications.byId[notificationId]?.challengeRequest ?? null;
+        selectKeriaNotificationById(notificationId)(state)?.challengeRequest ??
+        null;
 
 /** Select challenge-response records newest first. */
 export const selectChallenges = (state: RootState) =>
@@ -215,6 +246,22 @@ export const selectChallengesForContact =
     (state: RootState): ChallengeRecord[] =>
         selectChallenges(state).filter(
             (challenge) => challenge.counterpartyAid === contactId
+        );
+
+export const selectStoredChallengeWords = (state: RootState) =>
+    state.challenges.storedWordIds
+        .map((id) => state.challenges.storedWordsById[id])
+        .filter(
+            (record): record is StoredChallengeWordsRecord =>
+                record !== undefined
+        )
+        .sort(byNewestStoredChallengeWordsTimestamp);
+
+export const selectStoredChallengeWordsForContact =
+    (contactId: string) =>
+    (state: RootState): StoredChallengeWordsRecord[] =>
+        selectStoredChallengeWords(state).filter(
+            (record) => record.counterpartyAid === contactId
         );
 
 /** Select known witnesses/watchers/mailboxes/components derived from contacts. */

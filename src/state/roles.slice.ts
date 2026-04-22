@@ -1,4 +1,9 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import {
+    sessionConnectionFailed,
+    sessionConnecting,
+    sessionDisconnected,
+} from './session.slice';
 
 /** Demo role names used by issuer/holder/verifier workflows. */
 export type LocalRole = 'issuer' | 'holder' | 'verifier';
@@ -32,13 +37,15 @@ const emptyRole = (role: LocalRole): RoleRecord => ({
     updatedAt: null,
 });
 
-const initialState: RolesState = {
+const createInitialState = (): RolesState => ({
     byRole: {
         issuer: emptyRole('issuer'),
         holder: emptyRole('holder'),
         verifier: emptyRole('verifier'),
     },
-};
+});
+
+const initialState: RolesState = createInitialState();
 
 /**
  * Redux slice for issuer/holder/verifier role bindings.
@@ -50,6 +57,12 @@ export const rolesSlice = createSlice({
         roleRecorded(state, { payload }: PayloadAction<RoleRecord>) {
             state.byRole[payload.role] = payload;
         },
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(sessionConnecting, createInitialState)
+            .addCase(sessionConnectionFailed, createInitialState)
+            .addCase(sessionDisconnected, createInitialState);
     },
 });
 

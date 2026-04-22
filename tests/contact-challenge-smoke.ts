@@ -434,6 +434,9 @@ const waitForChallengeNotificationCard = async (page: Page): Promise<void> => {
     }
 };
 
+const visibleChallengeResponseTextarea = (scope: string): string =>
+    `${scope} [data-testid="challenge-notification-response-input"] textarea:not([aria-hidden="true"])`;
+
 const respondFromBellNotification = async (
     page: Page,
     words: readonly string[]
@@ -441,12 +444,45 @@ const respondFromBellNotification = async (
     await waitForChallengeNotificationCard(page);
     await setInputValue(
         page,
-        '[data-testid="challenge-notification-card"] [data-testid="challenge-notification-response-input"] textarea',
+        visibleChallengeResponseTextarea(
+            '[data-testid="challenge-notification-card"]'
+        ),
         words.join(' ')
     );
-    await page.click(
+    await clickEnabledChallengeResponseSubmit(
+        page,
         '[data-testid="challenge-notification-card"] [data-testid="challenge-notification-response-submit"]'
     );
+};
+
+const clickEnabledChallengeResponseSubmit = async (
+    page: Page,
+    selector: string
+): Promise<void> => {
+    try {
+        await page.waitForFunction(
+            (submitSelector) => {
+                const element =
+                    globalThis.document.querySelector(submitSelector);
+                return (
+                    element instanceof globalThis.HTMLButtonElement &&
+                    !element.disabled
+                );
+            },
+            { timeout: 10_000 },
+            selector
+        );
+    } catch (error) {
+        const visibleText = await page.evaluate(
+            () => globalThis.document.body.textContent?.slice(0, 4000) ?? ''
+        );
+        throw new Error(
+            `Challenge response submit did not become enabled for ${selector}. Visible text: ${visibleText}`,
+            { cause: error }
+        );
+    }
+
+    await page.click(selector);
 };
 
 const respondFromNotificationDetail = async (
@@ -461,7 +497,7 @@ const respondFromNotificationDetail = async (
     );
     try {
         await page.waitForSelector(
-            'main [data-testid="challenge-notification-response-input"] textarea',
+            visibleChallengeResponseTextarea('main'),
             { timeout: 45_000 }
         );
     } catch (error) {
@@ -475,10 +511,11 @@ const respondFromNotificationDetail = async (
     }
     await setInputValue(
         page,
-        'main [data-testid="challenge-notification-response-input"] textarea',
+        visibleChallengeResponseTextarea('main'),
         words.join(' ')
     );
-    await page.click(
+    await clickEnabledChallengeResponseSubmit(
+        page,
         'main [data-testid="challenge-notification-response-submit"]'
     );
 };

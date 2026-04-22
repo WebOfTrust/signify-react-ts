@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Box } from '@mui/material';
 import { Outlet, useFetchers, useNavigation } from 'react-router-dom';
 import type { AppRuntime } from './runtime';
-import { useAppSession } from './runtimeHooks';
+import { useAppRuntime, useAppSession } from './runtimeHooks';
 import { AppRuntimeProvider } from './runtimeContext';
 import { ConnectDialog } from './ConnectDialog';
 import { derivePendingState } from './pendingState';
@@ -36,6 +36,7 @@ const RootLayoutContent = () => {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const navigation = useNavigation();
     const fetchers = useFetchers();
+    const runtime = useAppRuntime();
     const { connection } = useAppSession();
     const activeOperations = useAppSelector(selectActiveOperations);
     const appNotifications = useAppSelector(selectAppNotifications);
@@ -74,8 +75,15 @@ const RootLayoutContent = () => {
             <NavigationDrawer
                 open={drawerOpen}
                 onClose={() => setDrawerOpen(false)}
+                onClearLocalState={() => {
+                    runtime.clearAllLocalState();
+                }}
             />
-            <DesktopNavigationRail />
+            <DesktopNavigationRail
+                onClearLocalState={() => {
+                    runtime.clearAllLocalState();
+                }}
+            />
             <ConnectDialog
                 open={connectDialogOpen}
                 connection={connection}

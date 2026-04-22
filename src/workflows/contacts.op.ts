@@ -135,6 +135,10 @@ export const localIdentifierAids = (
     return [...new Set(aids)];
 };
 
+export const tombstonedExchangeSaids = (
+    store: Pick<AppStore, 'getState'>
+): string[] => store.getState().exchangeTombstones.saids;
+
 const respondedChallengeKeys = (
     store: Pick<AppStore, 'getState'>,
     inventory: ContactInventorySnapshot
@@ -175,6 +179,7 @@ export function* syncSessionInventoryOp(): EffectionOperation<SessionInventorySn
         client,
         contacts: contactInventory.contacts,
         localAids: localIdentifierAids(services.store),
+        tombstonedExnSaids: tombstonedExchangeSaids(services.store),
         respondedChallengeIds: responded.ids,
         respondedWordsHashes: responded.wordsHashes,
     });

@@ -12,6 +12,7 @@ import {
     loadCredentials,
     loadDashboard,
     loadIdentifiers,
+    notificationsAction,
     rootAction,
     type RouteDataRuntime,
 } from '../../src/app/routeData';
@@ -117,6 +118,7 @@ const makeRuntime = (
         requestId: 'verify-challenge-request-1',
         operationRoute: '/operations/verify-challenge-request-1',
     })),
+    dismissExchangeNotification: vi.fn(async () => undefined),
     ...overrides,
 });
 
@@ -554,6 +556,40 @@ describe('route actions', () => {
             },
             expect.objectContaining({
                 requestId: 'respond-challenge-request-3',
+            })
+        );
+    });
+
+    it('dismisses exchange notifications through the notifications action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            notificationsAction(
+                runtime,
+                makeRequest('/notifications', {
+                    intent: 'dismissExchangeNotification',
+                    requestId: 'dismiss-request-1',
+                    notificationId: 'challenge-request:Eexn',
+                    exnSaid: 'Eexn',
+                    route: '/challenge/request',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'dismissExchangeNotification',
+            ok: true,
+            message: 'Exchange notification dismissed.',
+            requestId: 'dismiss-request-1',
+            operationRoute: '/notifications',
+        });
+        expect(runtime.dismissExchangeNotification).toHaveBeenCalledWith(
+            {
+                notificationId: 'challenge-request:Eexn',
+                exnSaid: 'Eexn',
+                route: '/challenge/request',
+            },
+            expect.objectContaining({
+                requestId: 'dismiss-request-1',
+                signal: expect.any(AbortSignal),
             })
         );
     });

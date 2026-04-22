@@ -1,6 +1,10 @@
 import { appNotificationsRehydrated } from './appNotifications.slice';
+import { storedChallengeWordsRehydrated } from './challenges.slice';
+import { exchangeTombstonesRehydrated } from './exchangeTombstones.slice';
 import { operationsRehydrated } from './operations.slice';
 import type { AppNotificationRecord } from './appNotifications.slice';
+import type { StoredChallengeWordsRecord } from './challenges.slice';
+import type { ExchangeTombstoneRecord } from './exchangeTombstones.slice';
 import type { OperationRecord } from './operations.slice';
 import type { AppStore, RootState } from './store';
 
@@ -14,6 +18,9 @@ const PERSISTENCE_KEY_PREFIX = 'signify-react-ts:app-state:v1';
 export interface AppStateStorage {
     getItem(key: string): string | null;
     setItem(key: string, value: string): void;
+    removeItem?(key: string): void;
+    key?(index: number): string | null;
+    readonly length?: number;
 }
 
 /**
@@ -28,6 +35,8 @@ export interface PersistedAppState {
     version: typeof PERSISTENCE_VERSION;
     operations: OperationRecord[];
     appNotifications: AppNotificationRecord[];
+    exchangeTombstones: ExchangeTombstoneRecord[];
+    storedChallengeWords: StoredChallengeWordsRecord[];
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -72,6 +81,45 @@ const isAppNotificationRecord = (
     );
 };
 
+const isExchangeTombstoneRecord = (
+    value: unknown
+): value is ExchangeTombstoneRecord => {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    return (
+        hasString(value, 'exnSaid') &&
+        hasString(value, 'route') &&
+        value.reason === 'userDismissed' &&
+        hasString(value, 'createdAt') &&
+        (value.notificationId === undefined ||
+            value.notificationId === null ||
+            typeof value.notificationId === 'string')
+    );
+};
+
+const isStoredChallengeWordsRecord = (
+    value: unknown
+): value is StoredChallengeWordsRecord => {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    return (
+        hasString(value, 'challengeId') &&
+        hasString(value, 'counterpartyAid') &&
+        hasString(value, 'localIdentifier') &&
+        Array.isArray(value.words) &&
+        value.words.every((word) => typeof word === 'string') &&
+        hasString(value, 'wordsHash') &&
+        typeof value.strength === 'number' &&
+        hasString(value, 'generatedAt') &&
+        hasString(value, 'updatedAt') &&
+        (value.status === 'pending' || value.status === 'failed')
+    );
+};
+
 const browserStorage = (): AppStateStorage | null => {
     try {
         const storage = globalThis.localStorage;
@@ -93,6 +141,36 @@ const browserStorage = (): AppStateStorage | null => {
  */
 export const persistedAppStateKey = (controllerAid: string): string =>
     `${PERSISTENCE_KEY_PREFIX}:${controllerAid}`;
+
+/**
+ * Remove every controller-scoped app-state bucket owned by this app.
+ */
+export const clearAllPersistedAppStates = (
+    storage: AppStateStorage | null = browserStorage()
+): number => {
+    if (
+        storage === null ||
+        typeof storage.removeItem !== 'function' ||
+        typeof storage.key !== 'function' ||
+        typeof storage.length !== 'number'
+    ) {
+        return 0;
+    }
+
+    const keysToRemove: string[] = [];
+    for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (key?.startsWith(`${PERSISTENCE_KEY_PREFIX}:`) === true) {
+            keysToRemove.push(key);
+        }
+    }
+
+    for (const key of keysToRemove) {
+        storage.removeItem(key);
+    }
+
+    return keysToRemove.length;
+};
 
 /**
  * Load one controller's persisted app state, filtering malformed records.
@@ -122,11 +200,19 @@ export const loadPersistedAppState = (
         const appNotifications = Array.isArray(parsed.appNotifications)
             ? parsed.appNotifications.filter(isAppNotificationRecord)
             : [];
+        const exchangeTombstones = Array.isArray(parsed.exchangeTombstones)
+            ? parsed.exchangeTombstones.filter(isExchangeTombstoneRecord)
+            : [];
+        const storedChallengeWords = Array.isArray(parsed.storedChallengeWords)
+            ? parsed.storedChallengeWords.filter(isStoredChallengeWordsRecord)
+            : [];
 
         return {
             version: PERSISTENCE_VERSION,
             operations,
             appNotifications,
+            exchangeTombstones,
+            storedChallengeWords,
         };
     } catch {
         return null;
@@ -148,10 +234,21 @@ export const persistedAppStateFromRoot = (
         .filter(
             (record): record is AppNotificationRecord => record !== undefined
         ),
+    exchangeTombstones: state.exchangeTombstones.saids
+        .map((said) => state.exchangeTombstones.bySaid[said])
+        .filter(
+            (record): record is ExchangeTombstoneRecord => record !== undefined
+        ),
+    storedChallengeWords: state.challenges.storedWordIds
+        .map((id) => state.challenges.storedWordsById[id])
+        .filter(
+            (record): record is StoredChallengeWordsRecord =>
+                record !== undefined
+        ),
 });
 
 /**
- * Save the current operation and app-notification facts for one controller.
+ * Save the current controller-scoped local app facts.
  */
 export const savePersistedAppState = (
     state: RootState,
@@ -190,6 +287,16 @@ export const rehydratePersistedAppState = (
     store.dispatch(
         appNotificationsRehydrated({
             records: persisted?.appNotifications ?? [],
+        })
+    );
+    store.dispatch(
+        exchangeTombstonesRehydrated({
+            records: persisted?.exchangeTombstones ?? [],
+        })
+    );
+    store.dispatch(
+        storedChallengeWordsRehydrated({
+            records: persisted?.storedChallengeWords ?? [],
         })
     );
 };

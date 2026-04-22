@@ -1,6 +1,22 @@
-import { Box, Button, Divider, Stack, Typography } from '@mui/material';
+import { useEffect } from 'react';
+import {
+    Box,
+    Button,
+    Divider,
+    IconButton,
+    Stack,
+    Tooltip,
+    Typography,
+} from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { Link as RouterLink, useLoaderData, useParams } from 'react-router-dom';
+import DeleteIcon from '@mui/icons-material/Delete';
+import {
+    Link as RouterLink,
+    useFetcher,
+    useLoaderData,
+    useNavigate,
+    useParams,
+} from 'react-router-dom';
 import { ConnectionRequired } from '../../app/ConnectionRequired';
 import {
     ConsolePanel,
@@ -10,7 +26,10 @@ import {
     TelemetryRow,
 } from '../../app/Console';
 import { formatTimestamp } from '../../app/timeFormat';
-import type { NotificationsLoaderData } from '../../app/routeData';
+import type {
+    ContactActionData,
+    NotificationsLoaderData,
+} from '../../app/routeData';
 import { useAppSelector } from '../../state/hooks';
 import {
     selectChallengeRequestNotificationById,
@@ -25,6 +44,8 @@ const timestampText = (value: string | null): string =>
 export const NotificationDetailView = () => {
     const loaderData = useLoaderData() as NotificationsLoaderData;
     const { notificationId = '' } = useParams();
+    const navigate = useNavigate();
+    const dismissFetcher = useFetcher<ContactActionData>();
     const notification = useAppSelector(
         selectKeriaNotificationById(notificationId)
     );
@@ -32,6 +53,15 @@ export const NotificationDetailView = () => {
         selectChallengeRequestNotificationById(notificationId)
     );
     const identifiers = useAppSelector(selectIdentifiers);
+
+    useEffect(() => {
+        if (
+            dismissFetcher.data?.ok === true &&
+            dismissFetcher.data.intent === 'dismissExchangeNotification'
+        ) {
+            navigate('/notifications');
+        }
+    }, [dismissFetcher.data, navigate]);
 
     if (loaderData.status === 'blocked') {
         return <ConnectionRequired />;
@@ -72,13 +102,60 @@ export const NotificationDetailView = () => {
                 }
                 summary={notification.id}
                 actions={
-                    <Button
-                        component={RouterLink}
-                        to="/notifications"
-                        startIcon={<ArrowBackIcon />}
-                    >
-                        Back to notifications
-                    </Button>
+                    <Stack direction="row" spacing={1}>
+                        {challengeRequest !== null && (
+                            <Tooltip title="Dismiss challenge request">
+                                <span>
+                                    <IconButton
+                                        color="error"
+                                        aria-label="dismiss challenge request"
+                                        data-testid="challenge-notification-detail-dismiss"
+                                        disabled={
+                                            dismissFetcher.state !== 'idle'
+                                        }
+                                        onClick={() => {
+                                            const formData = new FormData();
+                                            formData.set(
+                                                'intent',
+                                                'dismissExchangeNotification'
+                                            );
+                                            formData.set(
+                                                'requestId',
+                                                globalThis.crypto.randomUUID()
+                                            );
+                                            formData.set(
+                                                'notificationId',
+                                                notification.id
+                                            );
+                                            formData.set(
+                                                'exnSaid',
+                                                challengeRequest.exnSaid
+                                            );
+                                            formData.set(
+                                                'route',
+                                                notification.route
+                                            );
+                                            dismissFetcher.submit(formData, {
+                                                method: 'post',
+                                                action: `/notifications/${encodeURIComponent(
+                                                    notification.id
+                                                )}`,
+                                            });
+                                        }}
+                                    >
+                                        <DeleteIcon />
+                                    </IconButton>
+                                </span>
+                            </Tooltip>
+                        )}
+                        <Button
+                            component={RouterLink}
+                            to="/notifications"
+                            startIcon={<ArrowBackIcon />}
+                        >
+                            Back to notifications
+                        </Button>
+                    </Stack>
                 }
             />
             {loaderData.status === 'error' && (
@@ -121,11 +198,11 @@ export const NotificationDetailView = () => {
                     <Stack spacing={2}>
                         <Stack spacing={0.5}>
                             <TelemetryRow
-                                label="Sender"
+                                label="From"
                                 value={challengeRequest.senderAlias}
                             />
                             <TelemetryRow
-                                label="Sender AID"
+                                label="From AID"
                                 value={challengeRequest.senderAid}
                                 mono
                             />

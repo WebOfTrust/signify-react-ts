@@ -17,12 +17,14 @@ import {
     Typography,
 } from '@mui/material';
 import CircleIcon from '@mui/icons-material/Circle';
+import DeleteIcon from '@mui/icons-material/Delete';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useFetcher } from 'react-router-dom';
 import { StatusPill } from './Console';
 import { PayloadDetails } from './PayloadDetails';
 import { formatOperationWindow, formatTimestamp } from './timeFormat';
+import type { ContactActionData } from './routeData';
 import type { AppNotificationRecord } from '../state/appNotifications.slice';
 import type { ChallengeRequestNotification } from '../state/notifications.slice';
 import type { OperationRecord } from '../state/operations.slice';
@@ -30,6 +32,7 @@ import type { IdentifierSummary } from '../features/identifiers/identifierTypes'
 import { allAppNotificationsRead } from '../state/appNotifications.slice';
 import { useAppDispatch } from '../state/hooks';
 import { ChallengeRequestResponseForm } from '../features/notifications/ChallengeRequestResponseForm';
+import { abbreviateMiddle } from '../features/contacts/contactHelpers';
 
 const APP_NOTIFICATION_READ_DELAY_MS = 1250;
 
@@ -76,6 +79,7 @@ export const TopBar = ({
         useState<HTMLElement | null>(null);
     const [notificationsAnchor, setNotificationsAnchor] =
         useState<HTMLElement | null>(null);
+    const dismissFetcher = useFetcher<ContactActionData>();
     const dispatch = useAppDispatch();
     const operationsOpen = operationsAnchor !== null;
     const notificationsOpen = notificationsAnchor !== null;
@@ -108,6 +112,19 @@ export const TopBar = ({
 
     const openNotifications = (event: MouseEvent<HTMLElement>) => {
         setNotificationsAnchor(event.currentTarget);
+    };
+
+    const dismissChallengeRequest = (request: ChallengeRequestNotification) => {
+        const formData = new FormData();
+        formData.set('intent', 'dismissExchangeNotification');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('notificationId', request.notificationId);
+        formData.set('exnSaid', request.exnSaid);
+        formData.set('route', '/challenge/request');
+        dismissFetcher.submit(formData, {
+            method: 'post',
+            action: '/notifications',
+        });
     };
 
     return (
@@ -325,12 +342,17 @@ export const TopBar = ({
                                             direction="row"
                                             spacing={1}
                                             sx={{
-                                                alignItems: 'center',
+                                                alignItems: 'flex-start',
                                                 justifyContent: 'space-between',
                                                 gap: 1,
                                             }}
                                         >
-                                            <Box sx={{ minWidth: 0 }}>
+                                            <Box
+                                                sx={{
+                                                    minWidth: 0,
+                                                    flex: '1 1 auto',
+                                                }}
+                                            >
                                                 <Typography
                                                     variant="subtitle2"
                                                     noWrap
@@ -338,33 +360,87 @@ export const TopBar = ({
                                                     Challenge request
                                                 </Typography>
                                                 <Typography
+                                                    component="div"
                                                     variant="caption"
                                                     color="text.secondary"
                                                     noWrap
+                                                    data-testid="challenge-notification-from"
+                                                    sx={{
+                                                        display: 'block',
+                                                        minWidth: 0,
+                                                    }}
                                                 >
-                                                    {request.senderAlias}
-                                                    {formatTimestamp(
-                                                        request.createdAt
-                                                    ) === null
-                                                        ? ''
-                                                        : ` - ${formatTimestamp(
-                                                              request.createdAt
-                                                          )}`}
+                                                    From {request.senderAlias} (
+                                                    {abbreviateMiddle(
+                                                        request.senderAid,
+                                                        28
+                                                    )}
+                                                    )
                                                 </Typography>
+                                                {formatTimestamp(
+                                                    request.createdAt
+                                                ) !== null && (
+                                                    <Typography
+                                                        component="div"
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        noWrap
+                                                        sx={{
+                                                            display: 'block',
+                                                            mt: 0.25,
+                                                        }}
+                                                    >
+                                                        {formatTimestamp(
+                                                            request.createdAt
+                                                        )}
+                                                    </Typography>
+                                                )}
                                             </Box>
-                                            <Button
-                                                component={RouterLink}
-                                                to={`/notifications/${encodeURIComponent(
-                                                    request.notificationId
-                                                )}`}
-                                                size="small"
-                                                data-testid="challenge-notification-detail-link"
-                                                onClick={() =>
-                                                    setNotificationsAnchor(null)
-                                                }
+                                            <Stack
+                                                direction="row"
+                                                spacing={0.5}
+                                                sx={{
+                                                    alignItems: 'center',
+                                                    flex: '0 0 auto',
+                                                }}
                                             >
-                                                Open
-                                            </Button>
+                                                <Button
+                                                    component={RouterLink}
+                                                    to={`/notifications/${encodeURIComponent(
+                                                        request.notificationId
+                                                    )}`}
+                                                    size="small"
+                                                    data-testid="challenge-notification-detail-link"
+                                                    onClick={() =>
+                                                        setNotificationsAnchor(
+                                                            null
+                                                        )
+                                                    }
+                                                >
+                                                    Open
+                                                </Button>
+                                                <Tooltip title="Dismiss challenge request">
+                                                    <span>
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            aria-label="dismiss challenge request"
+                                                            data-testid="challenge-notification-dismiss"
+                                                            disabled={
+                                                                dismissFetcher.state !==
+                                                                'idle'
+                                                            }
+                                                            onClick={() =>
+                                                                dismissChallengeRequest(
+                                                                    request
+                                                                )
+                                                            }
+                                                        >
+                                                            <DeleteIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </span>
+                                                </Tooltip>
+                                            </Stack>
                                         </Stack>
                                         <ChallengeRequestResponseForm
                                             request={request}

@@ -20,6 +20,9 @@ import {
 } from '../services/notifications.service';
 import {
     challengeRecorded,
+    storedChallengeWordsCleared,
+    storedChallengeWordsFailed,
+    storedChallengeWordsRecorded,
     type ChallengeRecord,
 } from '../state/challenges.slice';
 import { challengeRequestNotificationResponded } from '../state/notifications.slice';
@@ -27,6 +30,7 @@ import {
     localIdentifierAids,
     publishContactInventory,
     publishNotificationInventory,
+    tombstonedExchangeSaids,
 } from './contacts.op';
 
 export interface GenerateContactChallengeInput {
@@ -212,6 +216,21 @@ export function* generateContactChallengeOp(
             })
         )
     );
+    services.store.dispatch(
+        storedChallengeWordsRecorded({
+            challengeId,
+            counterpartyAid,
+            counterpartyAlias: input.counterpartyAlias ?? null,
+            localIdentifier,
+            localAid: input.localAid ?? null,
+            words,
+            wordsHash,
+            strength,
+            generatedAt,
+            updatedAt: generatedAt,
+            status: 'pending',
+        })
+    );
 
     return {
         challengeId,
@@ -294,6 +313,7 @@ export function* respondToContactChallengeOp(
                 notificationId,
                 contacts: currentContacts(services),
                 localAids: localIdentifierAids(services.store),
+                tombstonedExnSaids: tombstonedExchangeSaids(services.store),
                 respondedChallengeIds: [record.id],
                 respondedWordsHashes:
                     record.wordsHash === undefined || record.wordsHash === null
@@ -398,6 +418,9 @@ export function* verifyContactChallengeOp(
         });
 
         services.store.dispatch(challengeRecorded(record));
+        services.store.dispatch(
+            storedChallengeWordsCleared({ challengeId: input.challengeId })
+        );
         const inventory = yield* listContactsService({
             client: services.runtime.requireConnectedClient(),
         });
@@ -422,6 +445,12 @@ export function* verifyContactChallengeOp(
             updatedAt: failedAt,
         });
         services.store.dispatch(challengeRecorded(record));
+        services.store.dispatch(
+            storedChallengeWordsFailed({
+                challengeId: input.challengeId,
+                updatedAt: failedAt,
+            })
+        );
         throw error;
     }
 }

@@ -23,12 +23,20 @@ export interface UnknownChallengeSenderNotice {
 }
 
 export const SYNTHETIC_CHALLENGE_NOTIFICATION_PREFIX = 'challenge-request:';
+export const SYNTHETIC_EXCHANGE_NOTIFICATION_PREFIX = 'exchange:';
 
 export const syntheticChallengeNotificationId = (exnSaid: string): string =>
     `${SYNTHETIC_CHALLENGE_NOTIFICATION_PREFIX}${exnSaid}`;
 
 export const isSyntheticChallengeNotificationId = (id: string): boolean =>
     id.startsWith(SYNTHETIC_CHALLENGE_NOTIFICATION_PREFIX);
+
+export const syntheticExchangeNotificationId = (exnSaid: string): string =>
+    `${SYNTHETIC_EXCHANGE_NOTIFICATION_PREFIX}${exnSaid}`;
+
+export const isSyntheticExchangeNotificationId = (id: string): boolean =>
+    isSyntheticChallengeNotificationId(id) ||
+    id.startsWith(SYNTHETIC_EXCHANGE_NOTIFICATION_PREFIX);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null;
@@ -379,12 +387,14 @@ function* hydrateChallengeRequestNotifications({
     notifications,
     contacts,
     localAids,
+    tombstonedExnSaids,
     loadedAt,
 }: {
     client: SignifyClient;
     notifications: NotificationRecord[];
     contacts: readonly ContactRecord[];
     localAids: ReadonlySet<string>;
+    tombstonedExnSaids: ReadonlySet<string>;
     loadedAt: string;
 }): EffectionOperation<{
     notifications: NotificationRecord[];
@@ -401,6 +411,13 @@ function* hydrateChallengeRequestNotifications({
             localAids,
             loadedAt,
         });
+        const exnSaid =
+            result.notification.challengeRequest?.exnSaid ??
+            result.notification.anchorSaid;
+        if (exnSaid !== null && tombstonedExnSaids.has(exnSaid)) {
+            continue;
+        }
+
         hydrated.push(result.notification);
         if (result.unknownChallengeSender !== null) {
             unknownChallengeSenders.push(result.unknownChallengeSender);
@@ -468,6 +485,7 @@ function* syntheticChallengeRequestNotifications({
     client,
     contacts,
     localAids,
+    tombstonedExnSaids,
     loadedAt,
     existingExnSaids,
     respondedChallengeIds,
@@ -476,6 +494,7 @@ function* syntheticChallengeRequestNotifications({
     client: SignifyClient;
     contacts: readonly ContactRecord[];
     localAids: ReadonlySet<string>;
+    tombstonedExnSaids: ReadonlySet<string>;
     loadedAt: string;
     existingExnSaids: ReadonlySet<string>;
     respondedChallengeIds: ReadonlySet<string>;
@@ -490,7 +509,11 @@ function* syntheticChallengeRequestNotifications({
 
     for (const exchange of exchanges) {
         const exnSaid = exchangeSaid(exchange);
-        if (exnSaid === null || existingExnSaids.has(exnSaid)) {
+        if (
+            exnSaid === null ||
+            existingExnSaids.has(exnSaid) ||
+            tombstonedExnSaids.has(exnSaid)
+        ) {
             continue;
         }
 
@@ -583,12 +606,14 @@ export function* listNotificationsService({
     client,
     contacts = [],
     localAids = [],
+    tombstonedExnSaids = [],
     respondedChallengeIds = [],
     respondedWordsHashes = [],
 }: {
     client: SignifyClient;
     contacts?: readonly ContactRecord[];
     localAids?: readonly string[];
+    tombstonedExnSaids?: readonly string[];
     respondedChallengeIds?: readonly string[];
     respondedWordsHashes?: readonly string[];
 }): EffectionOperation<NotificationInventorySnapshot> {
@@ -597,12 +622,18 @@ export function* listNotificationsService({
     );
     const loadedAt = new Date().toISOString();
     const localAidSet = aidSet(localAids);
-    const notifications = notificationRecordsFromResponse(raw, loadedAt);
+    const tombstoneSet = aidSet(tombstonedExnSaids);
+    const notifications = notificationRecordsFromResponse(raw, loadedAt).filter(
+        (notification) =>
+            notification.anchorSaid === null ||
+            !tombstoneSet.has(notification.anchorSaid)
+    );
     const hydrated = yield* hydrateChallengeRequestNotifications({
         client,
         notifications,
         contacts,
         localAids: localAidSet,
+        tombstonedExnSaids: tombstoneSet,
         loadedAt,
     });
     const existingExnSaids = new Set(
@@ -618,6 +649,7 @@ export function* listNotificationsService({
         client,
         contacts,
         localAids: localAidSet,
+        tombstonedExnSaids: tombstoneSet,
         loadedAt,
         existingExnSaids,
         respondedChallengeIds: new Set(respondedChallengeIds),
@@ -642,6 +674,7 @@ export function* markNotificationReadService({
     notificationId,
     contacts = [],
     localAids = [],
+    tombstonedExnSaids = [],
     respondedChallengeIds = [],
     respondedWordsHashes = [],
 }: {
@@ -649,6 +682,7 @@ export function* markNotificationReadService({
     notificationId: string;
     contacts?: readonly ContactRecord[];
     localAids?: readonly string[];
+    tombstonedExnSaids?: readonly string[];
     respondedChallengeIds?: readonly string[];
     respondedWordsHashes?: readonly string[];
 }): EffectionOperation<NotificationInventorySnapshot> {
@@ -657,6 +691,7 @@ export function* markNotificationReadService({
         client,
         contacts,
         localAids,
+        tombstonedExnSaids,
         respondedChallengeIds,
         respondedWordsHashes,
     });
@@ -670,6 +705,7 @@ export function* deleteNotificationService({
     notificationId,
     contacts = [],
     localAids = [],
+    tombstonedExnSaids = [],
     respondedChallengeIds = [],
     respondedWordsHashes = [],
 }: {
@@ -677,6 +713,7 @@ export function* deleteNotificationService({
     notificationId: string;
     contacts?: readonly ContactRecord[];
     localAids?: readonly string[];
+    tombstonedExnSaids?: readonly string[];
     respondedChallengeIds?: readonly string[];
     respondedWordsHashes?: readonly string[];
 }): EffectionOperation<NotificationInventorySnapshot> {
@@ -685,6 +722,7 @@ export function* deleteNotificationService({
         client,
         contacts,
         localAids,
+        tombstonedExnSaids,
         respondedChallengeIds,
         respondedWordsHashes,
     });

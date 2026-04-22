@@ -48,6 +48,7 @@ import {
     selectChallengesForContact,
     selectContactById,
     selectIdentifiers,
+    selectStoredChallengeWordsForContact,
 } from '../../state/selectors';
 import {
     contactChallengeStatus,
@@ -84,6 +85,9 @@ export const ContactDetailView = () => {
     const responseFetcher = useFetcher<ContactActionData>();
     const contact = useAppSelector(selectContactById(contactId));
     const challenges = useAppSelector(selectChallengesForContact(contactId));
+    const storedChallengeWords = useAppSelector(
+        selectStoredChallengeWordsForContact(contactId)
+    );
     const identifiers = useAppSelector(selectIdentifiers);
     const [aliasDraft, setAliasDraft] = useState({
         contactId,
@@ -153,6 +157,30 @@ export const ContactDetailView = () => {
         formData.set('contactAlias', contact.alias);
         formData.set('localIdentifier', activeIdentifierSummary.name);
         formData.set('localAid', activeIdentifierSummary.prefix);
+        challengeFetcher.submit(formData, { method: 'post' });
+    };
+
+    const submitRetryVerifyChallenge = (challenge: {
+        challengeId: string;
+        counterpartyAid: string;
+        counterpartyAlias?: string | null;
+        localIdentifier: string;
+        localAid?: string | null;
+        words: readonly string[];
+        wordsHash: string;
+        generatedAt: string;
+    }) => {
+        const formData = new FormData();
+        formData.set('intent', 'verifyChallenge');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('challengeId', challenge.challengeId);
+        formData.set('contactId', challenge.counterpartyAid);
+        formData.set('contactAlias', challenge.counterpartyAlias ?? '');
+        formData.set('localIdentifier', challenge.localIdentifier);
+        formData.set('localAid', challenge.localAid ?? '');
+        formData.set('words', challenge.words.join(' '));
+        formData.set('wordsHash', challenge.wordsHash);
+        formData.set('generatedAt', challenge.generatedAt);
         challengeFetcher.submit(formData, { method: 'post' });
     };
 
@@ -232,6 +260,9 @@ export const ContactDetailView = () => {
         : generatedChallengeCandidate;
     const generatedChallengePhrase =
         generatedChallenge === null ? null : generatedChallenge.words.join(' ');
+    const savedChallengeWords = storedChallengeWords.filter(
+        (record) => record.challengeId !== generatedChallenge?.challengeId
+    );
     const canUseChallenge = activeIdentifierSummary !== null && aid.length > 0;
 
     return (
@@ -475,6 +506,92 @@ export const ContactDetailView = () => {
                                         Waiting operation{' '}
                                         {generatedChallenge.challengeId}
                                     </Typography>
+                                )}
+                                {savedChallengeWords.length > 0 && (
+                                    <Stack spacing={1}>
+                                        <Divider />
+                                        <Typography
+                                            variant="caption"
+                                            color="primary.main"
+                                            sx={{
+                                                display: 'block',
+                                                fontWeight: 700,
+                                                textTransform: 'uppercase',
+                                            }}
+                                        >
+                                            Saved challenge words
+                                        </Typography>
+                                        {savedChallengeWords.map((record) => (
+                                            <Box
+                                                key={record.challengeId}
+                                                data-testid="saved-challenge-words"
+                                                sx={{
+                                                    border: 1,
+                                                    borderColor: 'divider',
+                                                    borderRadius: 1,
+                                                    p: 1,
+                                                }}
+                                            >
+                                                <Stack spacing={1}>
+                                                    <Stack
+                                                        direction="row"
+                                                        spacing={1}
+                                                        sx={{
+                                                            alignItems:
+                                                                'center',
+                                                            justifyContent:
+                                                                'space-between',
+                                                            gap: 1,
+                                                        }}
+                                                    >
+                                                        <StatusPill
+                                                            label={
+                                                                record.status
+                                                            }
+                                                            tone={
+                                                                record.status ===
+                                                                'failed'
+                                                                    ? 'warning'
+                                                                    : 'info'
+                                                            }
+                                                        />
+                                                        <Typography
+                                                            variant="caption"
+                                                            color="text.secondary"
+                                                        >
+                                                            {timestampText(
+                                                                record.updatedAt
+                                                            )}
+                                                        </Typography>
+                                                    </Stack>
+                                                    <CopyBlock
+                                                        label="Challenge words"
+                                                        value={record.words.join(
+                                                            ' '
+                                                        )}
+                                                        valueTestId="saved-challenge-generated-words"
+                                                    />
+                                                    <Button
+                                                        variant="outlined"
+                                                        startIcon={
+                                                            <ShieldOutlinedIcon />
+                                                        }
+                                                        disabled={
+                                                            challengeRunning
+                                                        }
+                                                        data-testid="saved-challenge-retry-verify"
+                                                        onClick={() =>
+                                                            submitRetryVerifyChallenge(
+                                                                record
+                                                            )
+                                                        }
+                                                    >
+                                                        Retry verification
+                                                    </Button>
+                                                </Stack>
+                                            </Box>
+                                        ))}
+                                    </Stack>
                                 )}
                             </Stack>
                         </Box>
