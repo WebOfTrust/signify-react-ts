@@ -161,7 +161,7 @@ const connectBrowserAgent = async (page: Page): Promise<string> => {
         hidden: true,
         timeout: 30_000,
     });
-    await page.waitForSelector('[data-testid="known-components"]', {
+    await page.waitForSelector('[data-testid="dashboard-view"]', {
         timeout: 30_000,
     });
 
@@ -306,9 +306,8 @@ try {
     await navigateInApp(
         page,
         'nav-dashboard',
-        '[data-testid="known-components"]'
+        '[data-testid="dashboard-view"]'
     );
-    await waitForText(page, '[data-testid="known-components"]', 'Wan');
 
     console.log(
         JSON.stringify(

@@ -167,7 +167,7 @@ try {
     hidden: true,
     timeout: 10000,
   });
-  await page.waitForSelector('[data-testid="known-components"]', {
+  await page.waitForSelector('[data-testid="dashboard-view"]', {
     timeout: 10000,
   });
   if (!page.url().endsWith('/dashboard')) {
