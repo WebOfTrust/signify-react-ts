@@ -15,7 +15,8 @@
         "browser:smoke": "node tests/browser-smoke.mjs",
         "responsive:smoke": "node tests/responsive-smoke.mjs",
         "unit:test": "vitest run tests/unit",
-        "scenario:test": "vitest run tests/scenarios/salty.test.ts tests/scenarios/randy.test.ts tests/scenarios/witnessed.test.ts tests/scenarios/challenge.test.ts tests/scenarios/controller-rotation.test.ts tests/scenarios/oobi-contacts.test.ts tests/scenarios/credentials.test.ts",
+        "multisig:test": "vitest run tests/scenarios/multisig.test.ts tests/scenarios/multisig-interaction.test.ts",
+        "scenario:test": "vitest run tests/scenarios/salty.test.ts tests/scenarios/randy.test.ts tests/scenarios/witnessed.test.ts tests/scenarios/challenge.test.ts tests/scenarios/controller-rotation.test.ts tests/scenarios/oobi-contacts.test.ts tests/scenarios/credentials.test.ts tests/scenarios/multisig.test.ts tests/scenarios/multisig-interaction.test.ts",
         "delegation:test": "vitest run tests/scenarios/optional/delegation.test.ts",
         "scenario:test:all": "vitest run tests/scenarios",
         "test:ci": "pnpm lint && pnpm build && pnpm unit:test && pnpm responsive:smoke && pnpm keria:smoke -- --mode connect && pnpm keria:smoke && pnpm scenario:test && pnpm contact:ui-smoke && pnpm browser:smoke"
@@ -24,6 +25,9 @@
         "node": ">=20.19.0"
     },
     "dependencies": {
+        "@dnd-kit/core": "^6.3.1",
+        "@dnd-kit/sortable": "^10.0.0",
+        "@dnd-kit/utilities": "^3.2.2",
         "@emotion/react": "^11.14.0",
         "@emotion/styled": "^11.14.1",
         "@mui/icons-material": "^9.0.0",
