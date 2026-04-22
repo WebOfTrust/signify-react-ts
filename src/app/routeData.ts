@@ -21,6 +21,7 @@ import type {
     VerifyContactChallengeInput,
 } from '../workflows/challenges.op';
 import type { DismissExchangeNotificationInput } from '../workflows/notifications.op';
+import type { ApproveDelegationInput } from '../workflows/delegations.op';
 import type {
     AdmitCredentialGrantInput,
     CreateCredentialRegistryInput,
@@ -139,6 +140,7 @@ export type ContactActionData =
               | 'respondChallenge'
               | 'verifyChallenge'
               | 'dismissExchangeNotification'
+              | 'approveDelegationRequest'
               | 'delete'
               | 'updateAlias';
           ok: true;
@@ -162,6 +164,7 @@ export type ContactActionData =
               | 'respondChallenge'
               | 'verifyChallenge'
               | 'dismissExchangeNotification'
+              | 'approveDelegationRequest'
               | 'delete'
               | 'updateAlias'
               | 'unsupported';
@@ -321,6 +324,11 @@ export interface RouteDataRuntime {
         input: DismissExchangeNotificationInput,
         options?: { signal?: AbortSignal; requestId?: string }
     ): Promise<void>;
+    /** Start manual delegation approval in the background. */
+    startApproveDelegation(
+        input: ApproveDelegationInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
     /** Start adding the SEDI credential schema type in the background. */
     startResolveCredentialSchema(
         input: ResolveCredentialSchemaInput,
@@ -391,6 +399,7 @@ const contactIntentFromString = (
     value === 'respondChallenge' ||
     value === 'verifyChallenge' ||
     value === 'dismissExchangeNotification' ||
+    value === 'approveDelegationRequest' ||
     value === 'delete' ||
     value === 'updateAlias'
         ? value
@@ -1094,6 +1103,80 @@ export const contactsAction = async (
             };
         }
 
+        if (intent === 'approveDelegationRequest') {
+            const notificationId = formString(
+                formData,
+                'notificationId'
+            ).trim();
+            const delegatorName = formString(formData, 'delegatorName').trim();
+            const delegatorAid = formString(formData, 'delegatorAid').trim();
+            const delegateAid = formString(formData, 'delegateAid').trim();
+            const delegateEventSaid = formString(
+                formData,
+                'delegateEventSaid'
+            ).trim();
+            const sequence = formString(formData, 'sequence').trim();
+            const sourceAid = formString(formData, 'sourceAid').trim();
+            const createdAt = formString(formData, 'createdAt').trim();
+            if (
+                notificationId.length === 0 ||
+                delegatorName.length === 0 ||
+                delegatorAid.length === 0 ||
+                delegateAid.length === 0 ||
+                delegateEventSaid.length === 0 ||
+                sequence.length === 0 ||
+                createdAt.length === 0
+            ) {
+                return {
+                    intent,
+                    ok: false,
+                    message:
+                        'Notification id, delegator, delegate event, sequence, and request time are required.',
+                    requestId,
+                };
+            }
+
+            const started = runtime.startApproveDelegation(
+                {
+                    notificationId,
+                    delegatorName,
+                    request: {
+                        notificationId,
+                        delegatorAid,
+                        delegateAid,
+                        delegateEventSaid,
+                        sequence,
+                        anchor: {
+                            i: delegateAid,
+                            s: sequence,
+                            d: delegateEventSaid,
+                        },
+                        sourceAid: sourceAid.length > 0 ? sourceAid : null,
+                        createdAt,
+                        status: 'actionable',
+                    },
+                },
+                { requestId: requestId || undefined }
+            );
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Approving delegation for ${delegateAid}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
         if (intent === 'delete') {
             const contactId = formString(formData, 'contactId').trim();
             if (contactId.length === 0) {
@@ -1215,7 +1298,9 @@ export const credentialsAction = async (
                 runtime.syncCredentialRegistries({ signal: request.signal }),
                 runtime.syncCredentialInventory({ signal: request.signal }),
             ]);
-            await runtime.syncCredentialIpexActivity({ signal: request.signal });
+            await runtime.syncCredentialIpexActivity({
+                signal: request.signal,
+            });
             return {
                 intent,
                 ok: true,

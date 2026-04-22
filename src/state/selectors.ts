@@ -5,6 +5,7 @@ import type {
     ChallengeRequestNotification,
     CredentialAdmitNotification,
     CredentialGrantNotification,
+    DelegationRequestNotification,
     NotificationRecord,
 } from './notifications.slice';
 import type { ContactRecord } from './contacts.slice';
@@ -142,6 +143,7 @@ const notificationExnSaid = (notification: NotificationRecord): string | null =>
     notification.challengeRequest?.exnSaid ??
     notification.credentialGrant?.grantSaid ??
     notification.credentialAdmit?.admitSaid ??
+    notification.delegationRequest?.delegateEventSaid ??
     notification.anchorSaid;
 
 const isExchangeTombstoned = (
@@ -391,6 +393,11 @@ const byNewestCredentialAdmitTimestamp = (
     right: CredentialAdmitNotification
 ): number => right.createdAt.localeCompare(left.createdAt);
 
+const byNewestDelegationRequestTimestamp = (
+    left: DelegationRequestNotification,
+    right: DelegationRequestNotification
+): number => right.createdAt.localeCompare(left.createdAt);
+
 /** Select credential grant notifications newest first. */
 export const selectCredentialGrantNotifications = (state: RootState) =>
     selectKeriaNotifications(state)
@@ -427,6 +434,32 @@ export const selectCredentialAdmitNotifications = (state: RootState) =>
                 : [notification.credentialAdmit]
         )
         .sort(byNewestCredentialAdmitTimestamp);
+
+/** Select delegator-side delegation request notifications newest first. */
+export const selectDelegationRequestNotifications = (state: RootState) =>
+    selectKeriaNotifications(state)
+        .flatMap((notification) =>
+            notification.delegationRequest === null ||
+            notification.delegationRequest === undefined
+                ? []
+                : [notification.delegationRequest]
+        )
+        .sort(byNewestDelegationRequestTimestamp);
+
+/** Select delegation requests that still need manual approval. */
+export const selectActionableDelegationRequestNotifications = (
+    state: RootState
+) =>
+    selectDelegationRequestNotifications(state).filter(
+        (notification) => notification.status === 'actionable'
+    );
+
+/** Select one delegation request notification by KERIA notification id. */
+export const selectDelegationRequestNotificationById =
+    (notificationId: string) =>
+    (state: RootState): DelegationRequestNotification | null =>
+        selectKeriaNotificationById(notificationId)(state)?.delegationRequest ??
+        null;
 
 /** Select challenge-response records newest first. */
 export const selectChallenges = (state: RootState) =>

@@ -19,6 +19,7 @@ describe('buildAppConfig', () => {
         ]);
         expect(config.operations).toEqual({
             timeoutMs: 30000,
+            delegationApprovalTimeoutMs: 300000,
             minSleepMs: 1000,
             maxSleepMs: 5000,
             liveRefreshMs: 3000,
@@ -52,6 +53,7 @@ describe('buildAppConfig', () => {
             VITE_CLOUD_KERIA_BOOT_URL: 'https://cloud.example.test/boot',
             VITE_CLOUD_KERIA_CONNECTION_LABEL: 'Cloud Demo',
             VITE_OPERATION_TIMEOUT_MS: '45000',
+            VITE_DELEGATION_APPROVAL_TIMEOUT_MS: '180000',
             VITE_OPERATION_MIN_SLEEP_MS: '250',
             VITE_OPERATION_MAX_SLEEP_MS: '2000',
             VITE_LIVE_REFRESH_MS: '750',
@@ -85,6 +87,7 @@ describe('buildAppConfig', () => {
             },
         ]);
         expect(config.operations.timeoutMs).toBe(45000);
+        expect(config.operations.delegationApprovalTimeoutMs).toBe(180000);
         expect(config.operations.minSleepMs).toBe(250);
         expect(config.operations.maxSleepMs).toBe(2000);
         expect(config.operations.liveRefreshMs).toBe(750);

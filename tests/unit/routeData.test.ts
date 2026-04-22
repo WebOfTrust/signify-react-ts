@@ -124,6 +124,11 @@ const makeRuntime = (
         operationRoute: '/operations/verify-challenge-request-1',
     })),
     dismissExchangeNotification: vi.fn(async () => undefined),
+    startApproveDelegation: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'approve-delegation-request-1',
+        operationRoute: '/operations/approve-delegation-request-1',
+    })),
     startResolveCredentialSchema: vi.fn(() => ({
         status: 'accepted',
         requestId: 'resolve-schema-request-1',
@@ -602,6 +607,54 @@ describe('route actions', () => {
             },
             expect.objectContaining({
                 requestId: 'respond-challenge-request-1',
+            })
+        );
+    });
+
+    it('starts delegation approval through the notifications action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            notificationsAction(
+                runtime,
+                makeRequest('/notifications/delegate-note-1', {
+                    intent: 'approveDelegationRequest',
+                    requestId: 'approve-delegation-request-1',
+                    notificationId: 'delegate-note-1',
+                    delegatorName: 'delegator',
+                    delegatorAid: 'Edelegator',
+                    delegateAid: 'Edelegate',
+                    delegateEventSaid: 'Edelegate-event',
+                    sequence: '0',
+                    sourceAid: 'Edelegate',
+                    createdAt: '2026-04-22T00:00:00.000Z',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'approveDelegationRequest',
+            ok: true,
+            message: 'Approving delegation for Edelegate',
+            requestId: 'approve-delegation-request-1',
+            operationRoute: '/operations/approve-delegation-request-1',
+        });
+        expect(runtime.startApproveDelegation).toHaveBeenCalledWith(
+            {
+                notificationId: 'delegate-note-1',
+                delegatorName: 'delegator',
+                request: expect.objectContaining({
+                    delegatorAid: 'Edelegator',
+                    delegateAid: 'Edelegate',
+                    delegateEventSaid: 'Edelegate-event',
+                    sequence: '0',
+                    anchor: {
+                        i: 'Edelegate',
+                        s: '0',
+                        d: 'Edelegate-event',
+                    },
+                }),
+            },
+            expect.objectContaining({
+                requestId: 'approve-delegation-request-1',
             })
         );
     });

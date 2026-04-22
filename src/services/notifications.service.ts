@@ -1,6 +1,7 @@
 import type { Operation as EffectionOperation } from 'effection';
 import type { SignifyClient } from 'signify-ts';
 import { callPromise } from '../effects/promise';
+import { delegationAnchorFromEvent } from '../features/identifiers/delegationHelpers';
 import { CHALLENGE_REQUEST_ROUTE } from './challenges.service';
 import {
     credentialAdmitFromExchange,
@@ -12,8 +13,11 @@ import type { ContactRecord } from '../state/contacts.slice';
 import type {
     ChallengeRequestNotification,
     ChallengeRequestNotificationStatus,
+    DelegationRequestNotification,
     NotificationRecord,
 } from '../state/notifications.slice';
+
+export const DELEGATION_REQUEST_NOTIFICATION_ROUTE = '/delegate/request';
 
 /**
  * Normalized KERIA notification inventory plus app-derived challenge notices.
@@ -101,6 +105,8 @@ const notificationItemsFromResponse = (raw: unknown): unknown[] => {
     return [];
 };
 
+const notificationRawAttrs = new Map<string, Record<string, unknown>>();
+
 /**
  * Project KERIA's loose notification response into serializable app records.
  */
@@ -108,6 +114,8 @@ export const notificationRecordsFromResponse = (
     raw: unknown,
     loadedAt: string
 ): NotificationRecord[] => {
+    notificationRawAttrs.clear();
+
     return notificationItemsFromResponse(raw).flatMap((item) => {
         if (!isRecord(item)) {
             return [];
@@ -119,6 +127,7 @@ export const notificationRecordsFromResponse = (
         }
 
         const attrs = isRecord(item.a) ? item.a : {};
+        notificationRawAttrs.set(id, attrs);
         const route = stringValue(attrs.r) ?? 'unknown';
         const dt = stringValue(item.dt);
         const read = item.r === true;
@@ -134,6 +143,9 @@ export const notificationRecordsFromResponse = (
                 status: read ? 'processed' : 'unread',
                 message: stringValue(attrs.m),
                 challengeRequest: null,
+                credentialGrant: null,
+                credentialAdmit: null,
+                delegationRequest: null,
                 updatedAt: dt ?? loadedAt,
             },
         ];
@@ -172,6 +184,138 @@ const exchangeRecipientAid = (exchange: unknown): string | null => {
 
     return stringValue(exn.rp) ?? stringValue(attrs.i);
 };
+
+const embeddedDelegationEvent = (
+    value: Record<string, unknown>
+): Record<string, unknown> | null => {
+    for (const key of ['ked', 'event', 'evt', 'icp', 'dip', 'rot', 'drt']) {
+        const candidate = value[key];
+        if (isRecord(candidate)) {
+            return candidate;
+        }
+    }
+
+    const embedded = value.e;
+    if (isRecord(embedded)) {
+        for (const key of ['ked', 'event', 'evt', 'icp', 'dip', 'rot', 'drt']) {
+            const candidate = embedded[key];
+            if (isRecord(candidate)) {
+                return candidate;
+            }
+        }
+    }
+
+    return null;
+};
+
+const delegationRequestFromPayload = ({
+    notification,
+    payload,
+    sourceAid,
+    loadedAt,
+}: {
+    notification: NotificationRecord;
+    payload: Record<string, unknown>;
+    sourceAid: string | null;
+    loadedAt: string;
+}): DelegationRequestNotification => {
+    const event = embeddedDelegationEvent(payload) ?? payload;
+    const anchor = delegationAnchorFromEvent(event);
+    const delegatorAid =
+        stringValue(payload.delpre) ??
+        stringValue(payload.delegatorAid) ??
+        stringValue(event.di);
+    const createdAt =
+        stringValue(payload.dt) ??
+        notification.dt ??
+        notification.updatedAt ??
+        loadedAt;
+
+    if (delegatorAid === null) {
+        throw new Error('Delegation request is missing the delegator AID.');
+    }
+
+    return {
+        notificationId: notification.id,
+        delegatorAid,
+        delegateAid: anchor.i,
+        delegateEventSaid: anchor.d,
+        sequence: anchor.s,
+        anchor,
+        sourceAid,
+        createdAt,
+        status: 'actionable',
+    };
+};
+
+function* hydrateDelegationRequestNotification({
+    client,
+    notification,
+    localAids,
+    loadedAt,
+}: {
+    client: SignifyClient;
+    notification: NotificationRecord;
+    localAids: ReadonlySet<string>;
+    loadedAt: string;
+}): EffectionOperation<NotificationRecord> {
+    if (notification.route !== DELEGATION_REQUEST_NOTIFICATION_ROUTE) {
+        return notification;
+    }
+
+    try {
+        const rawAttrs = notificationRawAttrs.get(notification.id);
+        const attrs = rawAttrs ?? {};
+        const request = delegationRequestFromPayload({
+            notification,
+            payload: attrs,
+            sourceAid: stringValue(attrs.src) ?? stringValue(attrs.i),
+            loadedAt,
+        });
+
+        if (localAids.size > 0 && !localAids.has(request.delegatorAid)) {
+            if (!notification.read) {
+                yield* callPromise(() =>
+                    client.notifications().mark(notification.id)
+                );
+            }
+
+            return {
+                ...notification,
+                read: true,
+                status: 'processed',
+                message:
+                    'Delegation request is not addressed to a local delegator AID.',
+                delegationRequest: {
+                    ...request,
+                    status: 'notForThisWallet',
+                },
+            };
+        }
+
+        return {
+            ...notification,
+            status: notification.read ? 'processed' : 'unread',
+            message:
+                notification.message ??
+                `Delegation request for ${request.delegatorAid}`,
+            delegationRequest: {
+                ...request,
+                status: notification.read ? 'approved' : 'actionable',
+            },
+        };
+    } catch (error) {
+        return {
+            ...notification,
+            status: 'error',
+            message:
+                error instanceof Error
+                    ? error.message
+                    : 'Unable to hydrate delegation request notification.',
+            delegationRequest: null,
+        };
+    }
+}
 
 const isOutboundOrUnrelatedChallengeRequest = ({
     contacts,
@@ -548,9 +692,7 @@ function* hydrateCredentialIpexNotification({
         return {
             ...notification,
             status:
-                credentialAdmit.status === 'received'
-                    ? 'unread'
-                    : 'processed',
+                credentialAdmit.status === 'received' ? 'unread' : 'processed',
             message:
                 credentialAdmit.status === 'received'
                     ? `Credential admit from ${credentialAdmit.holderAid}`
@@ -585,6 +727,33 @@ function* hydrateCredentialIpexNotifications({
     for (const notification of notifications) {
         hydrated.push(
             yield* hydrateCredentialIpexNotification({
+                client,
+                notification,
+                localAids,
+                loadedAt,
+            })
+        );
+    }
+
+    return hydrated;
+}
+
+function* hydrateDelegationRequestNotifications({
+    client,
+    notifications,
+    localAids,
+    loadedAt,
+}: {
+    client: SignifyClient;
+    notifications: NotificationRecord[];
+    localAids: ReadonlySet<string>;
+    loadedAt: string;
+}): EffectionOperation<NotificationRecord[]> {
+    const hydrated: NotificationRecord[] = [];
+
+    for (const notification of notifications) {
+        hydrated.push(
+            yield* hydrateDelegationRequestNotification({
                 client,
                 notification,
                 localAids,
@@ -808,9 +977,15 @@ export function* listNotificationsService({
         localAids: localAidSet,
         loadedAt,
     });
-    const hydrated = yield* hydrateChallengeRequestNotifications({
+    const delegationHydrated = yield* hydrateDelegationRequestNotifications({
         client,
         notifications: ipexHydrated,
+        localAids: localAidSet,
+        loadedAt,
+    });
+    const hydrated = yield* hydrateChallengeRequestNotifications({
+        client,
+        notifications: delegationHydrated,
         contacts,
         localAids: localAidSet,
         tombstonedExnSaids: tombstoneSet,

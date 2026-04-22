@@ -16,6 +16,7 @@ export type TestRuntimeEnv = Record<string, string | undefined>;
 export interface DelegationFixtureConfig {
     delegatorPre: string | null;
     delegatorOobi: string | null;
+    autoApprove: boolean;
 }
 
 /**
@@ -75,6 +76,8 @@ export const buildTestConfig = (runtimeEnv: TestRuntimeEnv): TestConfig => ({
         delegation: {
             delegatorPre: optionalString(runtimeEnv.VITE_DELEGATOR_PRE),
             delegatorOobi: optionalString(runtimeEnv.VITE_DELEGATOR_OOBI),
+            autoApprove:
+                runtimeEnv.VITE_TEST_AUTO_APPROVE_DELEGATIONS === 'true',
         },
         multisig: {
             memberOobis: csvFromEnv(runtimeEnv.VITE_MULTISIG_MEMBER_OOBIS),

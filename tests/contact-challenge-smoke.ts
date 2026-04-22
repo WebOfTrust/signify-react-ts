@@ -154,7 +154,7 @@ const connectBrowserAgent = async (page: Page): Promise<string> => {
         hidden: true,
         timeout: 30_000,
     });
-    await page.waitForSelector('[data-testid="known-components"]', {
+    await page.waitForSelector('[data-testid="dashboard-view"]', {
         timeout: 30_000,
     });
 

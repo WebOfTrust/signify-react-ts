@@ -45,7 +45,7 @@ export const PayloadDetails = ({
                     title={
                         detail.copyable
                             ? `Copy ${detail.label}`
-                            : detail.value
+                            : (detail.displayValue ?? detail.value)
                     }
                 >
                     <Box
@@ -107,7 +107,10 @@ export const PayloadDetails = ({
                                 minWidth: 0,
                             }}
                         >
-                            {abbreviate(detail.value, maxLength)}
+                            {abbreviate(
+                                detail.displayValue ?? detail.value,
+                                maxLength
+                            )}
                         </Typography>
                         {detail.copyable && (
                             <ContentCopyIcon

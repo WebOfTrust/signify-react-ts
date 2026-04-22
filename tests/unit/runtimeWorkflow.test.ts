@@ -2,9 +2,12 @@ import { sleep } from 'effection';
 import { describe, expect, it, vi } from 'vitest';
 import type { SignifyClient } from 'signify-ts';
 import { createAppRuntime, type AppRuntime } from '../../src/app/runtime';
+import type { IdentifierSummary } from '../../src/features/identifiers/identifierTypes';
 import { appNotificationRecorded } from '../../src/state/appNotifications.slice';
 import { storedChallengeWordsRecorded } from '../../src/state/challenges.slice';
+import { contactResolved } from '../../src/state/contacts.slice';
 import { exchangeTombstoneRecorded } from '../../src/state/exchangeTombstones.slice';
+import { identifierListLoaded } from '../../src/state/identifiers.slice';
 import { operationStarted } from '../../src/state/operations.slice';
 import {
     persistedAppStateKey,
@@ -385,6 +388,99 @@ describe('AppRuntime workflow bridge', () => {
                     value: oobi,
                 }),
             ],
+        });
+
+        await runtime.destroy();
+    });
+
+    it('shows known aliases before delegated operation AID payload values', async () => {
+        const store = createAppStore();
+        const runtime = createAppRuntime({ store, storage: null });
+
+        store.dispatch(
+            contactResolved({
+                id: 'delegator',
+                alias: 'Root Delegator',
+                aid: 'Edelegator',
+                oobi: null,
+                updatedAt: '2026-04-21T00:00:00.000Z',
+            })
+        );
+        store.dispatch(
+            identifierListLoaded({
+                identifiers: [
+                    {
+                        name: 'Leaf Delegate',
+                        prefix: 'Edelegate',
+                    },
+                ] as IdentifierSummary[],
+                loadedAt: '2026-04-21T00:00:00.000Z',
+            })
+        );
+
+        runtime.startBackgroundWorkflow(
+            function* () {
+                yield* sleep(0);
+                return {
+                    delegation: {
+                        delegatorAid: 'Edelegator',
+                        delegateAid: 'Edelegate',
+                        delegateEventSaid: 'Eevent',
+                        sequence: '0',
+                        requestedAt: '2026-04-21T00:00:01.000Z',
+                    },
+                };
+            },
+            {
+                requestId: 'delegation-success',
+                label: 'Creating delegated identifier...',
+                title: 'Create delegated identifier',
+                kind: 'createDelegatedIdentifier',
+                resourceKeys: ['delegation:delegate:Edelegate'],
+                successNotification: {
+                    title: 'Delegated identifier created',
+                    message: 'Delegation completed.',
+                },
+            }
+        );
+
+        await vi.waitFor(() => {
+            expect(
+                store.getState().operations.byId['delegation-success']
+            ).toMatchObject({
+                status: 'success',
+                payloadDetails: expect.arrayContaining([
+                    expect.objectContaining({
+                        label: 'Delegator AID',
+                        value: 'Edelegator',
+                        displayValue: 'Root Delegator (Edelegator)',
+                    }),
+                    expect.objectContaining({
+                        label: 'Delegate AID',
+                        value: 'Edelegate',
+                        displayValue: 'Leaf Delegate (Edelegate)',
+                    }),
+                ]),
+            });
+        });
+
+        const notificationId = store.getState().appNotifications.ids[0];
+        expect(notificationId).toBeDefined();
+        expect(
+            store.getState().appNotifications.byId[notificationId]
+        ).toMatchObject({
+            payloadDetails: expect.arrayContaining([
+                expect.objectContaining({
+                    label: 'Delegator AID',
+                    value: 'Edelegator',
+                    displayValue: 'Root Delegator (Edelegator)',
+                }),
+                expect.objectContaining({
+                    label: 'Delegate AID',
+                    value: 'Edelegate',
+                    displayValue: 'Leaf Delegate (Edelegate)',
+                }),
+            ]),
         });
 
         await runtime.destroy();

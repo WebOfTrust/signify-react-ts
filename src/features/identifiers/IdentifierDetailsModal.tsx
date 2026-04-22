@@ -20,7 +20,11 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RotateRightIcon from '@mui/icons-material/RotateRight';
 import type { GeneratedOobiRecord } from '../../state/contacts.slice';
-import type { IdentifierSummary } from './identifierTypes';
+import type {
+    IdentifierDelegationChainNode,
+    IdentifierDelegationChainState,
+    IdentifierSummary,
+} from './identifierTypes';
 import {
     formatIdentifierMetadata,
     identifierCurrentKey,
@@ -42,6 +46,7 @@ export interface IdentifierDetailsModalProps {
     refreshStatus: 'idle' | 'loading' | 'success' | 'error';
     refreshMessage: string | null;
     oobiState: IdentifierOobiDetailState;
+    delegationChain: IdentifierDelegationChainState;
     actionRunning: boolean;
     onClose: () => void;
     onRotate: (name: string) => void;
@@ -229,6 +234,7 @@ export const IdentifierDetailsModal = ({
     refreshStatus,
     refreshMessage,
     oobiState,
+    delegationChain,
     actionRunning,
     onClose,
     onRotate,
@@ -370,6 +376,29 @@ export const IdentifierDetailsModal = ({
                             {refreshMessage}
                         </Typography>
                     )}
+                    {delegationChain.status === 'loading' ||
+                    delegationChain.status === 'error' ||
+                    delegationChain.nodes.length > 1 ? (
+                        <Accordion disableGutters defaultExpanded>
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                <Stack
+                                    direction="row"
+                                    spacing={1}
+                                    sx={{ alignItems: 'center' }}
+                                >
+                                    <Typography>Delegation Chain</Typography>
+                                    {delegationChain.status === 'loading' && (
+                                        <CircularProgress size={16} />
+                                    )}
+                                </Stack>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                                <IdentifierDelegationChain
+                                    state={delegationChain}
+                                />
+                            </AccordionDetails>
+                        </Accordion>
+                    ) : null}
                     <Accordion disableGutters defaultExpanded>
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                             <Stack
@@ -433,6 +462,152 @@ export const IdentifierDetailsModal = ({
     );
 };
 
+const nodeSourceLabel = (
+    source: IdentifierDelegationChainNode['source']
+): string => {
+    if (source === 'local') {
+        return 'Local';
+    }
+
+    if (source === 'contact') {
+        return 'Contact';
+    }
+
+    if (source === 'keyState') {
+        return 'Key state';
+    }
+
+    return 'Unknown';
+};
+
+const IdentifierDelegationChain = ({
+    state,
+}: {
+    state: IdentifierDelegationChainState;
+}) => {
+    if (state.status === 'loading' || state.status === 'idle') {
+        return (
+            <Typography color="text.secondary">
+                Loading delegation chain...
+            </Typography>
+        );
+    }
+
+    if (state.status === 'error') {
+        return (
+            <Typography color="error">
+                Unable to load delegation chain: {state.message}
+            </Typography>
+        );
+    }
+
+    if (state.nodes.length <= 1) {
+        return (
+            <Typography color="text.secondary">
+                This identifier is not delegated.
+            </Typography>
+        );
+    }
+
+    return (
+        <Stack spacing={1}>
+            {state.nodes.map((node, index) => (
+                <Box
+                    key={`${node.aid}:${index}`}
+                    sx={{
+                        border: 1,
+                        borderColor: index === 0 ? 'primary.light' : 'divider',
+                        borderRadius: 1,
+                        px: 1.5,
+                        py: 1.25,
+                    }}
+                >
+                    <Stack spacing={1}>
+                        <Stack
+                            direction="row"
+                            spacing={1}
+                            sx={{
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                            }}
+                        >
+                            <Stack
+                                direction="row"
+                                spacing={1}
+                                sx={{ alignItems: 'center' }}
+                            >
+                                <Chip
+                                    size="small"
+                                    label={
+                                        index === 0 ? 'Delegate' : 'Delegator'
+                                    }
+                                    color={index === 0 ? 'primary' : 'default'}
+                                    variant="outlined"
+                                />
+                                <Typography variant="subtitle2">
+                                    {node.alias ?? nodeSourceLabel(node.source)}
+                                </Typography>
+                            </Stack>
+                            <Chip
+                                size="small"
+                                label={nodeSourceLabel(node.source)}
+                                variant="outlined"
+                            />
+                        </Stack>
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: 'minmax(0, 1fr) auto',
+                                gap: 1,
+                                alignItems: 'start',
+                            }}
+                        >
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    fontFamily: 'var(--app-mono-font)',
+                                    overflowWrap: 'anywhere',
+                                    minWidth: 0,
+                                }}
+                            >
+                                {node.aid}
+                            </Typography>
+                            <Tooltip title="Copy AID">
+                                <IconButton
+                                    size="small"
+                                    aria-label="Copy delegation chain AID"
+                                    onClick={() => copyValue(node.aid)}
+                                >
+                                    <ContentCopyIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        </Box>
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1}
+                            sx={{ flexWrap: 'wrap' }}
+                        >
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                            >
+                                Sequence {node.sequence ?? 'unavailable'}
+                            </Typography>
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                            >
+                                Event {node.eventSaid ?? 'unavailable'}
+                            </Typography>
+                        </Stack>
+                    </Stack>
+                </Box>
+            ))}
+        </Stack>
+    );
+};
+
 const IdentifierOobis = ({ state }: { state: IdentifierOobiDetailState }) => {
     if (state.status === 'loading' || state.status === 'idle') {
         return (
@@ -483,10 +658,15 @@ const IdentifierOobis = ({ state }: { state: IdentifierOobiDetailState }) => {
                             <Chip
                                 size="small"
                                 label={`${record.role} OOBI`}
-                                color={record.role === 'agent' ? 'primary' : 'info'}
+                                color={
+                                    record.role === 'agent' ? 'primary' : 'info'
+                                }
                                 variant="outlined"
                             />
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                            >
                                 {record.oobis.length} URL
                                 {record.oobis.length === 1 ? '' : 's'}
                             </Typography>

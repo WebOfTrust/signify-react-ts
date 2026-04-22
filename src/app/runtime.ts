@@ -6,6 +6,7 @@ import { AppEffectionScopes, type RuntimeScopeKind } from '../effects/scope';
 import { aliasForOobiResolution } from '../features/contacts/contactHelpers';
 import type {
     IdentifierCreateDraft,
+    IdentifierDelegationChainNode,
     IdentifierSummary,
 } from '../features/identifiers/identifierTypes';
 import type { ResolveContactInput } from '../services/contacts.service';
@@ -53,11 +54,18 @@ import {
     sessionDisconnected,
     sessionStateRefreshed,
 } from '../state/session.slice';
-import { appStore, type AppStore } from '../state/store';
+import { appStore, type AppStore, type RootState } from '../state/store';
+import {
+    identifierDelegatorAid,
+    isDelegatedIdentifier,
+} from '../features/identifiers/delegationHelpers';
 import {
     createIdentifierOp,
+    createIdentifierBackgroundOp,
+    getIdentifierDelegationChainOp,
     getIdentifierOp,
     listIdentifiersOp,
+    rotateIdentifierBackgroundOp,
     rotateIdentifierOp,
 } from '../workflows/identifiers.op';
 import {
@@ -92,6 +100,10 @@ import {
     dismissExchangeNotificationOp,
     type DismissExchangeNotificationInput,
 } from '../workflows/notifications.op';
+import {
+    approveDelegationRequestOp,
+    type ApproveDelegationInput,
+} from '../workflows/delegations.op';
 import {
     admitCredentialGrantOp,
     createCredentialRegistryOp,
@@ -296,8 +308,40 @@ const stringArray = (value: unknown): string[] =>
 const detailId = (label: string, index: number): string =>
     `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${index}`;
 
+const aliasForAid = (state: RootState, aid: string): string | null => {
+    const localAlias = state.identifiers.byPrefix[aid]?.name?.trim();
+    if (localAlias !== undefined && localAlias.length > 0) {
+        return localAlias === aid ? null : localAlias;
+    }
+
+    for (const contactId of state.contacts.ids) {
+        const contact = state.contacts.byId[contactId];
+        if (contact?.aid === aid) {
+            const contactAlias = contact.alias.trim();
+            return contactAlias.length > 0 && contactAlias !== aid
+                ? contactAlias
+                : null;
+        }
+    }
+
+    return null;
+};
+
+const aidDisplayValue = (
+    state: RootState | null,
+    aid: string
+): string | undefined => {
+    if (state === null) {
+        return undefined;
+    }
+
+    const alias = aliasForAid(state, aid);
+    return alias === null ? undefined : `${alias} (${aid})`;
+};
+
 const payloadDetailsFromWorkflowResult = (
-    result: unknown
+    result: unknown,
+    state: RootState | null = null
 ): PayloadDetailRecord[] => {
     if (!isRecord(result)) {
         return [];
@@ -346,6 +390,63 @@ const payloadDetailsFromWorkflowResult = (
             kind: 'aid',
             copyable: true,
         });
+    }
+
+    const delegation = isRecord(result.delegation) ? result.delegation : result;
+    if (isRecord(delegation)) {
+        const delegatorAid = stringValue(delegation.delegatorAid);
+        const delegateAid = stringValue(delegation.delegateAid);
+        const delegateEventSaid = stringValue(delegation.delegateEventSaid);
+        const sequence = stringValue(delegation.sequence);
+        const requestedAt = stringValue(delegation.requestedAt);
+
+        if (delegatorAid !== null) {
+            details.push({
+                id: detailId('delegator-aid', details.length),
+                label: 'Delegator AID',
+                value: delegatorAid,
+                displayValue: aidDisplayValue(state, delegatorAid),
+                kind: 'aid',
+                copyable: true,
+            });
+        }
+        if (delegateAid !== null) {
+            details.push({
+                id: detailId('delegate-aid', details.length),
+                label: 'Delegate AID',
+                value: delegateAid,
+                displayValue: aidDisplayValue(state, delegateAid),
+                kind: 'aid',
+                copyable: true,
+            });
+        }
+        if (delegateEventSaid !== null) {
+            details.push({
+                id: detailId('delegate-event-said', details.length),
+                label: 'Delegate Event SAID',
+                value: delegateEventSaid,
+                kind: 'text',
+                copyable: true,
+            });
+        }
+        if (sequence !== null) {
+            details.push({
+                id: detailId('delegation-sequence', details.length),
+                label: 'Delegation Sequence',
+                value: sequence,
+                kind: 'text',
+                copyable: true,
+            });
+        }
+        if (requestedAt !== null) {
+            details.push({
+                id: detailId('delegation-requested-at', details.length),
+                label: 'Request Time',
+                value: requestedAt,
+                kind: 'text',
+                copyable: true,
+            });
+        }
     }
 
     const seen = new Set<string>();
@@ -657,6 +758,20 @@ export class AppRuntime {
         });
 
     /**
+     * Resolve an identifier's delegation chain without recording history.
+     */
+    getIdentifierDelegationChain = async (
+        aid: string,
+        options: WorkflowRunOptions = {}
+    ): Promise<IdentifierDelegationChainNode[]> =>
+        this.runWorkflow(() => getIdentifierDelegationChainOp(aid), {
+            ...options,
+            label: options.label,
+            kind: options.kind ?? 'listIdentifiers',
+            track: options.track ?? false,
+        });
+
+    /**
      * Fetch an OOBI for one managed identifier role without recording an
      * operation-history item by default. Agent OOBIs still authorize the agent
      * endpoint role through the shared OOBI workflow when needed.
@@ -803,26 +918,58 @@ export class AppRuntime {
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
     ): BackgroundWorkflowStartResult => {
         const name = draft.name.trim();
-        return this.startBackgroundWorkflow(() => createIdentifierOp(draft), {
-            requestId: options.requestId,
-            label: `Creating identifier ${name}`,
-            title: `Create identifier ${name}`,
-            description:
-                'Creates a managed identifier and waits for KERIA completion.',
-            kind: 'createIdentifier',
-            resourceKeys: [`identifier:name:${name}`],
-            resultRoute: { label: 'View identifiers', path: '/identifiers' },
-            successNotification: {
-                title: `Identifier ${name} created`,
-                message: 'The identifier operation completed successfully.',
-                severity: 'success',
-            },
-            failureNotification: {
-                title: `Identifier ${name} failed`,
-                message: 'The identifier operation failed.',
-                severity: 'error',
-            },
-        });
+        const delegated = draft.delegation.mode === 'delegated';
+        const requestId = options.requestId ?? createRequestId();
+        const delegatorAid =
+            draft.delegation.mode === 'delegated'
+                ? draft.delegation.delegatorAid.trim()
+                : null;
+
+        return this.startBackgroundWorkflow(
+            () => createIdentifierBackgroundOp(draft, requestId),
+            {
+                requestId,
+                label: `Creating identifier ${name}`,
+                title: delegated
+                    ? `Create delegated identifier ${name}`
+                    : `Create identifier ${name}`,
+                description:
+                    delegated && delegatorAid !== null
+                        ? `Creates a delegated identifier and waits for manual approval from ${delegatorAid}.`
+                        : 'Creates a managed identifier and waits for KERIA completion.',
+                kind: delegated
+                    ? 'createDelegatedIdentifier'
+                    : 'createIdentifier',
+                resourceKeys: [
+                    `identifier:name:${name}`,
+                    ...(delegatorAid === null
+                        ? []
+                        : [
+                              `delegation:delegator:${delegatorAid}:name:${name}`,
+                          ]),
+                ],
+                resultRoute: {
+                    label: 'View identifiers',
+                    path: '/identifiers',
+                },
+                successNotification: {
+                    title: delegated
+                        ? `Delegated identifier ${name} created`
+                        : `Identifier ${name} created`,
+                    message: delegated
+                        ? 'The delegator approved the request and the identifier is available.'
+                        : 'The identifier operation completed successfully.',
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: delegated
+                        ? `Delegated identifier ${name} failed`
+                        : `Identifier ${name} failed`,
+                    message: 'The identifier operation failed.',
+                    severity: 'error',
+                },
+            }
+        );
     };
 
     /**
@@ -831,27 +978,66 @@ export class AppRuntime {
     startRotateIdentifier = (
         aid: string,
         options: Pick<WorkflowRunOptions, 'requestId'> = {}
-    ): BackgroundWorkflowStartResult =>
-        this.startBackgroundWorkflow(() => rotateIdentifierOp(aid), {
-            requestId: options.requestId,
-            label: `Rotating identifier ${aid}`,
-            title: `Rotate identifier ${aid}`,
-            description:
-                'Rotates a managed identifier and waits for KERIA completion.',
-            kind: 'rotateIdentifier',
-            resourceKeys: [`identifier:aid:${aid}`],
-            resultRoute: { label: 'View identifiers', path: '/identifiers' },
-            successNotification: {
-                title: 'Identifier rotation complete',
-                message: `The rotation for ${aid} completed successfully.`,
-                severity: 'success',
-            },
-            failureNotification: {
-                title: 'Identifier rotation failed',
-                message: `The rotation for ${aid} failed.`,
-                severity: 'error',
-            },
-        });
+    ): BackgroundWorkflowStartResult => {
+        const state = this.store.getState();
+        const identifier =
+            state.identifiers.byPrefix[aid] ??
+            state.identifiers.prefixes
+                .map((prefix) => state.identifiers.byPrefix[prefix])
+                .find(
+                    (candidate) =>
+                        candidate !== undefined &&
+                        (candidate.name === aid || candidate.prefix === aid)
+                ) ??
+            null;
+        const delegated = isDelegatedIdentifier(identifier);
+        const delegatorAid = identifierDelegatorAid(identifier);
+        const requestId = options.requestId ?? createRequestId();
+
+        return this.startBackgroundWorkflow(
+            () => rotateIdentifierBackgroundOp(aid, requestId),
+            {
+                requestId,
+                label: `Rotating identifier ${aid}`,
+                title: delegated
+                    ? `Rotate delegated identifier ${aid}`
+                    : `Rotate identifier ${aid}`,
+                description:
+                    delegated && delegatorAid !== null
+                        ? `Rotates a delegated identifier and waits for manual approval from ${delegatorAid}.`
+                        : 'Rotates a managed identifier and waits for KERIA completion.',
+                kind: delegated
+                    ? 'rotateDelegatedIdentifier'
+                    : 'rotateIdentifier',
+                resourceKeys: [
+                    `identifier:aid:${aid}`,
+                    ...(delegatorAid === null
+                        ? []
+                        : [`delegation:delegate:${aid}`]),
+                ],
+                resultRoute: {
+                    label: 'View identifiers',
+                    path: '/identifiers',
+                },
+                successNotification: {
+                    title: delegated
+                        ? 'Delegated rotation complete'
+                        : 'Identifier rotation complete',
+                    message: delegated
+                        ? `The delegator approved the rotation for ${aid}.`
+                        : `The rotation for ${aid} completed successfully.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: delegated
+                        ? 'Delegated rotation failed'
+                        : 'Identifier rotation failed',
+                    message: `The rotation for ${aid} failed.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
 
     /**
      * Launch OOBI generation/authorization without blocking navigation.
@@ -1106,6 +1292,40 @@ export class AppRuntime {
         });
 
     /**
+     * Launch manual delegator approval as background work.
+     */
+    startApproveDelegation = (
+        input: ApproveDelegationInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => approveDelegationRequestOp(input), {
+            requestId: options.requestId,
+            label: `Approving delegation for ${input.request.delegateAid}`,
+            title: 'Approve delegation',
+            description:
+                'Creates the delegator anchor event and refreshes protocol notifications.',
+            kind: 'approveDelegation',
+            resourceKeys: [
+                `delegation:approval:${input.notificationId}`,
+                `delegation:delegate:${input.request.delegateAid}`,
+            ],
+            resultRoute: {
+                label: 'View notifications',
+                path: '/notifications',
+            },
+            successNotification: {
+                title: 'Delegation approved',
+                message: `Approved delegation for ${input.request.delegateAid}.`,
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Delegation approval failed',
+                message: `Delegation approval for ${input.request.delegateAid} failed.`,
+                severity: 'error',
+            },
+        });
+
+    /**
      * Launch SEDI schema OOBI resolution as background work.
      */
     startResolveCredentialSchema = (
@@ -1123,7 +1343,8 @@ export class AppRuntime {
             resultRoute: { label: 'View credentials', path: '/credentials' },
             successNotification: {
                 title: 'Credential type added',
-                message: 'The SEDI credential type is available to this wallet.',
+                message:
+                    'The SEDI credential type is available to this wallet.',
                 severity: 'success',
             },
             failureNotification: {
@@ -1156,7 +1377,8 @@ export class AppRuntime {
             },
             failureNotification: {
                 title: 'Credential registry failed',
-                message: 'The issuer credential registry could not be prepared.',
+                message:
+                    'The issuer credential registry could not be prepared.',
                 severity: 'error',
             },
         });
@@ -1390,7 +1612,10 @@ export class AppRuntime {
     ): Promise<void> => {
         try {
             const result = await task;
-            const payloadDetails = payloadDetailsFromWorkflowResult(result);
+            const payloadDetails = payloadDetailsFromWorkflowResult(
+                result,
+                this.store.getState()
+            );
             if (payloadDetails.length > 0) {
                 this.store.dispatch(
                     operationPayloadDetailsRecorded({

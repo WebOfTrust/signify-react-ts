@@ -4,6 +4,7 @@ import {
     sessionConnecting,
     sessionDisconnected,
 } from './session.slice';
+import type { DelegationAnchor } from '../features/identifiers/delegationHelpers';
 
 /** Local handling status for a KERIA notification route. */
 export type NotificationStatus =
@@ -29,6 +30,13 @@ export type CredentialGrantNotificationStatus =
 /** Issuer-facing state for inbound credential admit notifications. */
 export type CredentialAdmitNotificationStatus =
     | 'received'
+    | 'notForThisWallet'
+    | 'error';
+
+/** Delegator-facing state for inbound delegated identifier requests. */
+export type DelegationRequestNotificationStatus =
+    | 'actionable'
+    | 'approved'
     | 'notForThisWallet'
     | 'error';
 
@@ -80,6 +88,23 @@ export interface CredentialAdmitNotification {
 }
 
 /**
+ * Delegation request metadata hydrated from a KERIA `/delegate/request`
+ * notification. The anchor is created from the delegate event and reused when
+ * the delegator manually approves the request.
+ */
+export interface DelegationRequestNotification {
+    notificationId: string;
+    delegatorAid: string;
+    delegateAid: string;
+    delegateEventSaid: string;
+    sequence: string;
+    anchor: DelegationAnchor;
+    sourceAid: string | null;
+    createdAt: string;
+    status: DelegationRequestNotificationStatus;
+}
+
+/**
  * Durable notification summary used by polling and future processing workflows.
  */
 export interface NotificationRecord {
@@ -93,6 +118,7 @@ export interface NotificationRecord {
     challengeRequest?: ChallengeRequestNotification | null;
     credentialGrant?: CredentialGrantNotification | null;
     credentialAdmit?: CredentialAdmitNotification | null;
+    delegationRequest?: DelegationRequestNotification | null;
     updatedAt: string;
 }
 
@@ -194,6 +220,33 @@ export const notificationsSlice = createSlice({
                 }
             }
         },
+        delegationRequestNotificationApproved(
+            state,
+            {
+                payload,
+            }: PayloadAction<{
+                id: string;
+                updatedAt: string;
+                message?: string | null;
+            }>
+        ) {
+            const notification = state.byId[payload.id];
+            if (notification !== undefined) {
+                notification.read = true;
+                notification.status = 'processed';
+                notification.updatedAt = payload.updatedAt;
+                notification.message = payload.message ?? notification.message;
+                if (
+                    notification.delegationRequest !== null &&
+                    notification.delegationRequest !== undefined
+                ) {
+                    notification.delegationRequest = {
+                        ...notification.delegationRequest,
+                        status: 'approved',
+                    };
+                }
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -209,6 +262,7 @@ export const {
     notificationRecorded,
     notificationStatusChanged,
     challengeRequestNotificationResponded,
+    delegationRequestNotificationApproved,
 } = notificationsSlice.actions;
 
 /** Reducer mounted at `state.notifications`. */

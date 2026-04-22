@@ -71,6 +71,8 @@ export interface KeriaConfig {
 export interface OperationConfig {
     /** Upper bound for a single KERIA operation wait. */
     timeoutMs: number;
+    /** Upper bound for manual delegated identifier approval waits. */
+    delegationApprovalTimeoutMs: number;
     /** Initial polling interval passed to Signify's operation waiter. */
     minSleepMs: number;
     /** Maximum polling interval passed to Signify's operation waiter. */
@@ -294,6 +296,11 @@ export const buildAppConfig = (runtimeEnv: RuntimeEnv): AppConfig => {
                 runtimeEnv.VITE_OPERATION_TIMEOUT_MS,
                 30000
             ),
+            delegationApprovalTimeoutMs: numberFromEnv(
+                'VITE_DELEGATION_APPROVAL_TIMEOUT_MS',
+                runtimeEnv.VITE_DELEGATION_APPROVAL_TIMEOUT_MS,
+                300000
+            ),
             minSleepMs: numberFromEnv(
                 'VITE_OPERATION_MIN_SLEEP_MS',
                 runtimeEnv.VITE_OPERATION_MIN_SLEEP_MS,
@@ -357,7 +364,9 @@ export const buildAppConfig = (runtimeEnv: RuntimeEnv): AppConfig => {
                     optionalString(
                         runtimeEnv.VITE_SEDI_VOTER_ID_SCHEMA_OOBI_URL
                     ) ??
-                    optionalString(runtimeEnv.VITE_CREDENTIAL_SCHEMA_OOBI_URL) ??
+                    optionalString(
+                        runtimeEnv.VITE_CREDENTIAL_SCHEMA_OOBI_URL
+                    ) ??
                     `${DEFAULT_SCHEMA_SERVER_URL}/oobi/${DEFAULT_SEDI_VOTER_ID_SCHEMA_SAID}`,
             },
         },

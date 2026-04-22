@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, Button, Fab, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useFetcher, useLoaderData } from 'react-router-dom';
@@ -23,12 +23,14 @@ import {
     idleIdentifierAction,
     type IdentifierActionState,
     type IdentifierCreateDraft,
+    type IdentifierDelegationChainState,
     type IdentifierSummary,
 } from './identifierTypes';
 import type { GeneratedOobiRecord } from '../../state/contacts.slice';
 import { useAppDispatch, useAppSelector } from '../../state/hooks';
 import {
     selectActiveOperations,
+    selectContacts,
     selectIdentifiers,
 } from '../../state/selectors';
 import { walletAidSelected } from '../../state/walletSelection.slice';
@@ -36,6 +38,7 @@ import {
     identifierAvailableOobiRoles,
     type OobiGenerationRole,
 } from '../contacts/contactHelpers';
+import { identifierDelegatorOptions } from './identifierHelpers';
 
 /**
  * Connected identifiers feature route.
@@ -66,11 +69,18 @@ export const IdentifiersView = () => {
         message: null,
         records: [],
     });
+    const [delegationChain, setDelegationChain] =
+        useState<IdentifierDelegationChainState>({
+            status: 'idle',
+            message: null,
+            nodes: [],
+        });
     const [agentOobiCopyStatus, setAgentOobiCopyStatus] = useState<
         Record<string, IdentifierOobiCopyStatus>
     >({});
     const actionRunning = fetcher.state !== 'idle';
     const liveIdentifiers = useAppSelector(selectIdentifiers);
+    const contacts = useAppSelector(selectContacts);
     const activeOperations = useAppSelector(selectActiveOperations);
     const activeResourceKeys = new Set(
         activeOperations.flatMap((operation) => operation.resourceKeys)
@@ -87,6 +97,10 @@ export const IdentifiersView = () => {
         loaderData.status === 'blocked' ? [] : loaderData.identifiers;
     const identifiers =
         liveIdentifiers.length > 0 ? liveIdentifiers : loaderIdentifiers;
+    const delegatorOptions = useMemo(
+        () => identifierDelegatorOptions(identifiers, contacts),
+        [contacts, identifiers]
+    );
     const selectedIdentifier =
         selectedIdentifierName === null
             ? null
@@ -115,6 +129,21 @@ export const IdentifiersView = () => {
                 }
 
                 setDetailRefresh({ status: 'success', message: null });
+
+                const chain = await runtime.getIdentifierDelegationChain(
+                    refreshed.name,
+                    {
+                        signal: controller.signal,
+                        track: false,
+                    }
+                );
+                if (!controller.signal.aborted) {
+                    setDelegationChain({
+                        status: 'success',
+                        message: null,
+                        nodes: chain,
+                    });
+                }
 
                 const roles = identifierAvailableOobiRoles(refreshed);
                 const records = await runtime.listIdentifierOobis(
@@ -148,6 +177,11 @@ export const IdentifiersView = () => {
                     status: 'error',
                     message,
                     records: [],
+                });
+                setDelegationChain({
+                    status: 'error',
+                    message,
+                    nodes: [],
                 });
             }
         })();
@@ -228,6 +262,11 @@ export const IdentifiersView = () => {
     const handleSelectIdentifier = (identifier: IdentifierSummary) => {
         setDetailRefresh({ status: 'loading', message: null });
         setDetailOobis({ status: 'loading', message: null, records: [] });
+        setDelegationChain({
+            status: 'loading',
+            message: null,
+            nodes: [],
+        });
         setSelectedIdentifierName(identifier.name);
         dispatch(walletAidSelected({ aid: identifier.prefix }));
     };
@@ -392,6 +431,7 @@ export const IdentifiersView = () => {
                 refreshStatus={detailRefresh.status}
                 refreshMessage={detailRefresh.message}
                 oobiState={detailOobis}
+                delegationChain={delegationChain}
                 actionRunning={
                     selectedIdentifierName === null
                         ? false
@@ -405,6 +445,11 @@ export const IdentifiersView = () => {
                         message: null,
                         records: [],
                     });
+                    setDelegationChain({
+                        status: 'idle',
+                        message: null,
+                        nodes: [],
+                    });
                 }}
                 onRotate={handleRotate}
             />
@@ -412,6 +457,7 @@ export const IdentifiersView = () => {
                 <IdentifierCreateDialog
                     open={createDialogOpen}
                     actionRunning={actionRunning}
+                    delegatorOptions={delegatorOptions}
                     onClose={() => {
                         setCreateOpen(false);
                         setActiveCreateRequestId(null);
