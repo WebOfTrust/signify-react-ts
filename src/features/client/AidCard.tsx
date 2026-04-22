@@ -1,5 +1,6 @@
-import { Card, CardContent, Divider, Grid, Typography } from '@mui/material';
+import { Stack } from '@mui/material';
 import type { KeyState } from 'signify-ts';
+import { ConsolePanel, TelemetryRow } from '../../app/Console';
 import { keyStateFieldDescriptions } from './keyStateFieldDescriptions';
 
 /**
@@ -17,32 +18,18 @@ export interface AidCardProps {
  * to the raw key. State extraction belongs in `ClientView`.
  */
 export const AidCard = ({ data, text }: AidCardProps) => (
-    <Card sx={{ width: '100%', height: '100%' }}>
-        <CardContent>
-            <Typography variant="h6" component="div" gutterBottom>
-                {text}
-            </Typography>
-            <Divider />
-            <Grid container spacing={2}>
-                {Object.entries(data).map(([key, value]) =>
-                    typeof value === 'string' ? (
-                        <Grid size={12} key={key}>
-                            <Typography
-                                variant="subtitle1"
-                                gutterBottom
-                                align="left"
-                                sx={{ overflowWrap: 'anywhere' }}
-                            >
-                                <strong>
-                                    {keyStateFieldDescriptions[key]?.title ??
-                                        key}
-                                </strong>{' '}
-                                {value}
-                            </Typography>
-                        </Grid>
-                    ) : null
-                )}
-            </Grid>
-        </CardContent>
-    </Card>
+    <ConsolePanel title={text} eyebrow="Key state" sx={{ height: '100%' }}>
+        <Stack spacing={0.25}>
+            {Object.entries(data).map(([key, value]) =>
+                typeof value === 'string' ? (
+                    <TelemetryRow
+                        key={key}
+                        label={keyStateFieldDescriptions[key]?.title ?? key}
+                        value={value}
+                        mono
+                    />
+                ) : null
+            )}
+        </Stack>
+    </ConsolePanel>
 );

@@ -1,8 +1,10 @@
 import { CssBaseline } from '@mui/material';
+import { ThemeProvider } from '@mui/material/styles';
 import { Provider } from 'react-redux';
 import { RouterProvider } from 'react-router-dom';
 import { createAppRouter } from './app/router';
 import { createAppRuntime } from './app/runtime';
+import { appTheme } from './app/theme';
 import { appStore } from './state/store';
 
 const appRuntime = createAppRuntime({ store: appStore });
@@ -27,8 +29,10 @@ if (import.meta.hot) {
 function App() {
     return (
         <Provider store={appStore}>
-            <CssBaseline />
-            <RouterProvider router={appRouter} />
+            <ThemeProvider theme={appTheme}>
+                <CssBaseline />
+                <RouterProvider router={appRouter} />
+            </ThemeProvider>
         </Provider>
     );
 }

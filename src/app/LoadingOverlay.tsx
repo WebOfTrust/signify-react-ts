@@ -26,8 +26,8 @@ export const LoadingOverlay = ({
             data-pending-source={source ?? undefined}
             sx={(theme) => ({
                 zIndex: theme.zIndex.modal + 2,
-                color: 'common.white',
-                bgcolor: 'rgba(0, 0, 0, 0.48)',
+                color: 'text.primary',
+                bgcolor: 'rgba(0, 0, 0, 0.72)',
                 px: 2,
             })}
         >
@@ -42,17 +42,17 @@ export const LoadingOverlay = ({
                     px: 3,
                     py: 2.5,
                     borderRadius: 1,
+                    border: 1,
+                    borderColor: 'primary.main',
                     bgcolor: 'background.paper',
                     color: 'text.primary',
-                    boxShadow: 6,
+                    boxShadow:
+                        '0 20px 56px rgba(0, 0, 0, 0.54), 0 0 28px rgba(39, 215, 255, 0.12)',
                     textAlign: 'center',
                 }}
             >
-                <CircularProgress aria-hidden="true" />
-                <Typography
-                    variant="body1"
-                    sx={{ overflowWrap: 'anywhere' }}
-                >
+                <CircularProgress aria-hidden="true" color="primary" />
+                <Typography variant="body1" sx={{ overflowWrap: 'anywhere' }}>
                     {label}
                 </Typography>
             </Box>

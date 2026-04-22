@@ -1,5 +1,6 @@
 import { Box, Typography } from '@mui/material';
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom';
+import { ConsolePanel, StatusPill } from './Console';
 import { toError } from '../signify/client';
 
 export interface RouteErrorBoundaryProps {
@@ -29,11 +30,16 @@ export const RouteErrorBoundary = ({ title }: RouteErrorBoundaryProps) => {
     const error = useRouteError();
 
     return (
-        <Box sx={{ p: 3 }}>
-            <Typography variant="h6" color="error">
-                {title}
-            </Typography>
-            <Typography color="error">{routeErrorMessage(error)}</Typography>
+        <Box sx={{ maxWidth: 820 }}>
+            <ConsolePanel
+                title={title}
+                eyebrow="Route failure"
+                actions={<StatusPill label="error" tone="error" />}
+            >
+                <Typography color="error">
+                    {routeErrorMessage(error)}
+                </Typography>
+            </ConsolePanel>
         </Box>
     );
 };

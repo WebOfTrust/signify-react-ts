@@ -1,6 +1,5 @@
 import {
     Box,
-    Chip,
     List,
     ListItemButton,
     ListItemText,
@@ -8,21 +7,41 @@ import {
     Typography,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
+import { EmptyState, PageHeader, StatusPill } from '../../app/Console';
 import { useAppSelector } from '../../state/hooks';
 import { selectOperationRecords } from '../../state/selectors';
+
+const operationTone = (status: string) => {
+    if (status === 'error') {
+        return 'error' as const;
+    }
+
+    if (status === 'success') {
+        return 'success' as const;
+    }
+
+    if (status === 'running') {
+        return 'warning' as const;
+    }
+
+    return 'neutral' as const;
+};
 
 export const OperationsView = () => {
     const operations = [...useAppSelector(selectOperationRecords)].reverse();
 
     return (
-        <Box sx={{ display: 'grid', gap: 2 }}>
-            <Typography variant="h5" component="h1">
-                Operations
-            </Typography>
+        <Box sx={{ display: 'grid', gap: 2.5 }}>
+            <PageHeader
+                eyebrow="Activity"
+                title="Operations"
+                summary="Foreground and background KERIA work launched from this browser session."
+            />
             {operations.length === 0 ? (
-                <Typography color="text.secondary">
-                    No operations have run in this browser session.
-                </Typography>
+                <EmptyState
+                    title="No operation records"
+                    message="Identifier, credential, schema, and contact workflows will appear here once launched."
+                />
             ) : (
                 <List disablePadding>
                     {operations.map((operation) => (
@@ -36,6 +55,11 @@ export const OperationsView = () => {
                                 borderRadius: 1,
                                 mb: 1,
                                 alignItems: 'flex-start',
+                                bgcolor: 'background.paper',
+                                '&:hover': {
+                                    borderColor: 'primary.main',
+                                    bgcolor: 'action.hover',
+                                },
                             }}
                         >
                             <ListItemText
@@ -51,17 +75,11 @@ export const OperationsView = () => {
                                         <Typography component="span">
                                             {operation.title}
                                         </Typography>
-                                        <Chip
-                                            size="small"
+                                        <StatusPill
                                             label={operation.status}
-                                            color={
-                                                operation.status === 'error'
-                                                    ? 'error'
-                                                    : operation.status ===
-                                                        'success'
-                                                      ? 'success'
-                                                      : 'default'
-                                            }
+                                            tone={operationTone(
+                                                operation.status
+                                            )}
                                         />
                                     </Stack>
                                 }
