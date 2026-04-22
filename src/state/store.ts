@@ -3,6 +3,7 @@ import { appNotificationsReducer } from './appNotifications.slice';
 import { challengesReducer } from './challenges.slice';
 import { contactsReducer } from './contacts.slice';
 import { credentialsReducer } from './credentials.slice';
+import { exchangeTombstonesReducer } from './exchangeTombstones.slice';
 import { identifiersReducer } from './identifiers.slice';
 import { notificationsReducer } from './notifications.slice';
 import { operationsReducer } from './operations.slice';
@@ -22,6 +23,7 @@ export const createAppStore = () =>
             appNotifications: appNotificationsReducer,
             contacts: contactsReducer,
             challenges: challengesReducer,
+            exchangeTombstones: exchangeTombstonesReducer,
             credentials: credentialsReducer,
             identifiers: identifiersReducer,
             notifications: notificationsReducer,

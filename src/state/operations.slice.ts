@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import type { PayloadDetailRecord } from './payloadDetails';
 
 /**
  * Maximum retained non-running workflow records.
@@ -21,6 +22,14 @@ export type OperationKind =
     | 'listIdentifiers'
     | 'createIdentifier'
     | 'rotateIdentifier'
+    | 'generateOobi'
+    | 'generateChallenge'
+    | 'sendChallengeRequest'
+    | 'respondChallenge'
+    | 'verifyChallenge'
+    | 'deleteContact'
+    | 'updateContact'
+    | 'syncInventory'
     | 'resolveContact'
     | 'resolveSchema'
     | 'createRegistry'
@@ -52,6 +61,7 @@ export interface OperationRecord {
     operationRoute: string;
     resultRoute: OperationRouteLink | null;
     notificationId: string | null;
+    payloadDetails: PayloadDetailRecord[];
     keriaOperationName: string | null;
     startedAt: string;
     finishedAt: string | null;
@@ -77,7 +87,8 @@ const initialState: OperationsState = {
  */
 const now = (): string => new Date().toISOString();
 
-const operationRoute = (requestId: string): string => `/operations/${requestId}`;
+const operationRoute = (requestId: string): string =>
+    `/operations/${requestId}`;
 
 /**
  * Trim completed/canceled/failed operation history without dropping active work.
@@ -127,7 +138,10 @@ const upsertOperation = (
     state: OperationsState,
     record: OperationRecord
 ): void => {
-    state.byId[record.requestId] = record;
+    state.byId[record.requestId] = {
+        ...record,
+        payloadDetails: record.payloadDetails ?? [],
+    };
     state.order = state.order.filter(
         (requestId) => requestId !== record.requestId
     );
@@ -158,6 +172,7 @@ export const operationsSlice = createSlice({
                     operationRoute: string;
                     resultRoute: OperationRouteLink | null;
                     notificationId: string | null;
+                    payloadDetails: PayloadDetailRecord[];
                     keriaOperationName: string | null;
                     startedAt: string;
                 }>
@@ -174,6 +189,7 @@ export const operationsSlice = createSlice({
                     operationRoute: payload.operationRoute,
                     resultRoute: payload.resultRoute,
                     notificationId: payload.notificationId,
+                    payloadDetails: payload.payloadDetails,
                     keriaOperationName: payload.keriaOperationName,
                     startedAt: payload.startedAt,
                     finishedAt: null,
@@ -192,6 +208,7 @@ export const operationsSlice = createSlice({
                 operationRoute?: string;
                 resultRoute?: OperationRouteLink | null;
                 notificationId?: string | null;
+                payloadDetails?: PayloadDetailRecord[];
                 keriaOperationName?: string | null;
                 startedAt?: string;
             }) {
@@ -208,6 +225,7 @@ export const operationsSlice = createSlice({
                             operationRoute(payload.requestId),
                         resultRoute: payload.resultRoute ?? null,
                         notificationId: payload.notificationId ?? null,
+                        payloadDetails: [...(payload.payloadDetails ?? [])],
                         keriaOperationName: payload.keriaOperationName ?? null,
                         startedAt: payload.startedAt ?? now(),
                     },
@@ -248,6 +266,20 @@ export const operationsSlice = createSlice({
                 if (payload.notificationId !== undefined) {
                     record.notificationId = payload.notificationId;
                 }
+            }
+        },
+        operationPayloadDetailsRecorded(
+            state,
+            {
+                payload,
+            }: PayloadAction<{
+                requestId: string;
+                payloadDetails: PayloadDetailRecord[];
+            }>
+        ) {
+            const record = state.byId[payload.requestId];
+            if (record !== undefined) {
+                record.payloadDetails = payload.payloadDetails;
             }
         },
         operationSucceeded: {
@@ -384,13 +416,17 @@ export const operationsSlice = createSlice({
                     record.status === 'running'
                         ? {
                               ...record,
+                              payloadDetails: record.payloadDetails ?? [],
                               status: 'interrupted' as const,
                               phase: 'interrupted',
                               finishedAt: payload.interruptedAt,
                               canceledReason:
                                   'Browser refresh stopped the local operation watcher.',
                           }
-                        : record;
+                        : {
+                              ...record,
+                              payloadDetails: record.payloadDetails ?? [],
+                          };
                 upsertOperation(state, normalized);
             }
         },
@@ -404,6 +440,7 @@ export const {
     operationFailed,
     operationCanceled,
     operationPhaseChanged,
+    operationPayloadDetailsRecorded,
     operationResultLinked,
     cancelRunningOperations,
     operationsRehydrated,

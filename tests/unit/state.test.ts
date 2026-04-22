@@ -14,6 +14,16 @@ import {
     selectUnreadAppNotifications,
     selectLatestActiveOperationLabel,
     selectUnreadNotifications,
+    selectContacts,
+    selectContactById,
+    selectKnownComponents,
+    selectChallenges,
+    selectChallengesForContact,
+    selectDashboardCounts,
+    selectActionableChallengeRequestNotifications,
+    selectChallengeRequestNotificationById,
+    selectKeriaNotifications,
+    selectStoredChallengeWordsForContact,
 } from '../../src/state/selectors';
 import {
     sessionConnected,
@@ -22,9 +32,26 @@ import {
 } from '../../src/state/session.slice';
 import { notificationRecorded } from '../../src/state/notifications.slice';
 import {
+    challengeRecorded,
+    challengesLoaded,
+    storedChallengeWordsCleared,
+    storedChallengeWordsFailed,
+    storedChallengeWordsRecorded,
+} from '../../src/state/challenges.slice';
+import { exchangeTombstoneRecorded } from '../../src/state/exchangeTombstones.slice';
+import {
+    contactInventoryLoaded,
+    generatedOobiRecorded,
+} from '../../src/state/contacts.slice';
+import { identifierListLoaded } from '../../src/state/identifiers.slice';
+import {
     allAppNotificationsRead,
     appNotificationRecorded,
 } from '../../src/state/appNotifications.slice';
+import { credentialRecorded } from '../../src/state/credentials.slice';
+import { registryRecorded } from '../../src/state/registry.slice';
+import { roleRecorded } from '../../src/state/roles.slice';
+import { schemaRecorded } from '../../src/state/schema.slice';
 
 describe('RTK state foundation', () => {
     it('records session connection facts without live capabilities', () => {
@@ -147,7 +174,10 @@ describe('RTK state foundation', () => {
         store.dispatch(
             notificationRecorded({
                 id: 'n-1',
+                dt: '2026-04-21T00:00:00.000Z',
+                read: false,
                 route: '/exn/ipex/grant',
+                anchorSaid: null,
                 status: 'unread',
                 message: null,
                 updatedAt: '2026-04-21T00:00:00.000Z',
@@ -158,6 +188,392 @@ describe('RTK state foundation', () => {
         expect(JSON.parse(JSON.stringify(store.getState()))).toMatchObject(
             store.getState()
         );
+    });
+
+    it('filters locally tombstoned EXN notifications from selectors', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            notificationRecorded({
+                id: 'challenge-request:Eexn',
+                dt: '2026-04-21T00:00:00.000Z',
+                read: false,
+                route: '/challenge/request',
+                anchorSaid: 'Eexn',
+                status: 'unread',
+                message: 'Challenge request from Wan',
+                updatedAt: '2026-04-21T00:00:00.000Z',
+                challengeRequest: {
+                    notificationId: 'challenge-request:Eexn',
+                    exnSaid: 'Eexn',
+                    senderAid: 'Econtact',
+                    senderAlias: 'Wan',
+                    recipientAid: 'Ealice',
+                    challengeId: 'challenge-1',
+                    wordsHash: 'hash-one',
+                    strength: 128,
+                    createdAt: '2026-04-21T00:00:00.000Z',
+                    status: 'actionable',
+                },
+            })
+        );
+
+        expect(selectKeriaNotifications(store.getState())).toHaveLength(1);
+        expect(
+            selectActionableChallengeRequestNotifications(store.getState())
+        ).toHaveLength(1);
+        expect(
+            selectChallengeRequestNotificationById('challenge-request:Eexn')(
+                store.getState()
+            )
+        ).not.toBeNull();
+
+        store.dispatch(
+            exchangeTombstoneRecorded({
+                exnSaid: 'Eexn',
+                route: '/challenge/request',
+                notificationId: 'challenge-request:Eexn',
+                reason: 'userDismissed',
+                createdAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+
+        expect(selectUnreadNotifications(store.getState())).toHaveLength(0);
+        expect(selectKeriaNotifications(store.getState())).toHaveLength(0);
+        expect(
+            selectActionableChallengeRequestNotifications(store.getState())
+        ).toHaveLength(0);
+        expect(
+            selectChallengeRequestNotificationById('challenge-request:Eexn')(
+                store.getState()
+            )
+        ).toBeNull();
+    });
+
+    it('tracks contact inventory, generated OOBIs, components, and challenges', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            contactInventoryLoaded({
+                loadedAt: '2026-04-21T00:00:00.000Z',
+                contacts: [
+                    {
+                        id: 'Econtact',
+                        alias: 'Wan',
+                        aid: 'Econtact',
+                        oobi: 'http://127.0.0.1:5642/oobi/Econtact/controller?tag=witness',
+                        endpoints: [
+                            {
+                                role: 'agent',
+                                eid: 'Eagent',
+                                scheme: 'http',
+                                url: 'http://127.0.0.1:3902',
+                            },
+                        ],
+                        wellKnowns: [],
+                        componentTags: ['witness'],
+                        challengeCount: 1,
+                        authenticatedChallengeCount: 1,
+                        resolutionStatus: 'resolved',
+                        error: null,
+                        updatedAt: '2026-04-21T00:00:00.000Z',
+                    },
+                ],
+            })
+        );
+        store.dispatch(
+            generatedOobiRecorded({
+                id: 'alice:agent',
+                identifier: 'alice',
+                role: 'agent',
+                oobis: ['http://127.0.0.1:3902/oobi/Ealice/agent'],
+                generatedAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+        store.dispatch(
+            challengesLoaded({
+                loadedAt: '2026-04-21T00:00:02.000Z',
+                challenges: [
+                    {
+                        id: 'challenge-1',
+                        direction: 'received',
+                        role: 'Wan',
+                        counterpartyAid: 'Econtact',
+                        words: ['one', 'two'],
+                        authenticated: true,
+                        status: 'verified',
+                        result: 'Ssaid',
+                        updatedAt: '2026-04-21T00:00:02.000Z',
+                    },
+                ],
+            })
+        );
+
+        expect(selectContacts(store.getState())).toHaveLength(1);
+        expect(selectContactById('Econtact')(store.getState())?.alias).toBe(
+            'Wan'
+        );
+        expect(
+            selectKnownComponents(store.getState()).map((item) => item.role)
+        ).toEqual(['agent', 'witness']);
+        expect(selectChallenges(store.getState())).toHaveLength(1);
+        expect(
+            selectChallengesForContact('Econtact')(store.getState())
+        ).toEqual([expect.objectContaining({ id: 'challenge-1' })]);
+        expect(selectDashboardCounts(store.getState())).toMatchObject({
+            contacts: 1,
+            knownComponents: 2,
+            challenges: 1,
+        });
+        expect(store.getState().contacts.generatedOobiIds).toEqual([
+            'alice:agent',
+        ]);
+    });
+
+    it('preserves workflow challenge records across inventory refreshes', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            challengeRecorded({
+                id: 'workflow-challenge-1',
+                source: 'workflow',
+                direction: 'issued',
+                role: 'challenger',
+                counterpartyAid: 'Econtact',
+                counterpartyAlias: 'Wan',
+                localIdentifier: 'alice',
+                localAid: 'Ealice',
+                words: Array.from({ length: 12 }, (_, index) => `word${index}`),
+                wordsHash: 'hash-one',
+                responseSaid: null,
+                authenticated: false,
+                status: 'pending',
+                result: null,
+                error: null,
+                generatedAt: '2026-04-21T00:00:01.000Z',
+                sentAt: null,
+                verifiedAt: null,
+                updatedAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+        store.dispatch(
+            challengesLoaded({
+                loadedAt: '2026-04-21T00:00:02.000Z',
+                challenges: [],
+            })
+        );
+
+        expect(selectChallenges(store.getState())).toEqual([
+            expect.objectContaining({ id: 'workflow-challenge-1' }),
+        ]);
+
+        store.dispatch(
+            challengesLoaded({
+                loadedAt: '2026-04-21T00:00:03.000Z',
+                challenges: [
+                    {
+                        id: 'Econtact:Eresponse',
+                        source: 'keria',
+                        direction: 'received',
+                        role: 'Wan',
+                        counterpartyAid: 'Econtact',
+                        words: Array.from(
+                            { length: 12 },
+                            (_, index) => `word${index}`
+                        ),
+                        wordsHash: 'hash-one',
+                        responseSaid: 'Eresponse',
+                        authenticated: true,
+                        status: 'verified',
+                        result: 'Eresponse',
+                        error: null,
+                        verifiedAt: '2026-04-21T00:00:03.000Z',
+                        updatedAt: '2026-04-21T00:00:03.000Z',
+                    },
+                ],
+            })
+        );
+
+        expect(selectChallenges(store.getState())).toEqual([
+            expect.objectContaining({
+                id: 'Econtact:Eresponse',
+                status: 'verified',
+            }),
+        ]);
+    });
+
+    it('tracks saved challenge words for failed verification recovery', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            storedChallengeWordsRecorded({
+                challengeId: 'challenge-1',
+                counterpartyAid: 'Econtact',
+                counterpartyAlias: 'Wan',
+                localIdentifier: 'alice',
+                localAid: 'Ealice',
+                words: Array.from({ length: 12 }, (_, index) => `word${index}`),
+                wordsHash: 'hash-one',
+                strength: 128,
+                generatedAt: '2026-04-21T00:00:00.000Z',
+                updatedAt: '2026-04-21T00:00:00.000Z',
+                status: 'pending',
+            })
+        );
+
+        expect(
+            selectStoredChallengeWordsForContact('Econtact')(store.getState())
+        ).toEqual([expect.objectContaining({ status: 'pending' })]);
+
+        store.dispatch(
+            storedChallengeWordsFailed({
+                challengeId: 'challenge-1',
+                updatedAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+
+        expect(
+            selectStoredChallengeWordsForContact('Econtact')(store.getState())
+        ).toEqual([
+            expect.objectContaining({
+                status: 'failed',
+                updatedAt: '2026-04-21T00:00:01.000Z',
+            }),
+        ]);
+
+        store.dispatch(
+            storedChallengeWordsCleared({ challengeId: 'challenge-1' })
+        );
+
+        expect(
+            selectStoredChallengeWordsForContact('Econtact')(store.getState())
+        ).toEqual([]);
+    });
+
+    it('clears session-scoped inventory when a new connection starts', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            contactInventoryLoaded({
+                loadedAt: '2026-04-21T00:00:00.000Z',
+                contacts: [
+                    {
+                        id: 'Econtact',
+                        alias: 'Layla',
+                        aid: 'Econtact',
+                        oobi: null,
+                        endpoints: [],
+                        wellKnowns: [],
+                        componentTags: [],
+                        challengeCount: 0,
+                        authenticatedChallengeCount: 0,
+                        resolutionStatus: 'resolved',
+                        error: null,
+                        updatedAt: '2026-04-21T00:00:00.000Z',
+                    },
+                ],
+            })
+        );
+        store.dispatch(
+            generatedOobiRecorded({
+                id: 'alice:agent',
+                identifier: 'alice',
+                role: 'agent',
+                oobis: ['http://127.0.0.1:3902/oobi/Ealice/agent'],
+                generatedAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+        store.dispatch(
+            identifierListLoaded({
+                loadedAt: '2026-04-21T00:00:01.000Z',
+                identifiers: [
+                    {
+                        name: 'alice',
+                        prefix: 'Ealice',
+                    } as never,
+                ],
+            })
+        );
+        store.dispatch(
+            notificationRecorded({
+                id: 'n-1',
+                dt: '2026-04-21T00:00:00.000Z',
+                read: false,
+                route: '/exn',
+                anchorSaid: null,
+                status: 'unread',
+                message: null,
+                updatedAt: '2026-04-21T00:00:00.000Z',
+            })
+        );
+        store.dispatch(
+            challengesLoaded({
+                loadedAt: '2026-04-21T00:00:02.000Z',
+                challenges: [
+                    {
+                        id: 'challenge-1',
+                        direction: 'received',
+                        role: 'Layla',
+                        counterpartyAid: 'Econtact',
+                        words: ['one', 'two'],
+                        authenticated: false,
+                        status: 'responded',
+                        result: null,
+                        updatedAt: '2026-04-21T00:00:02.000Z',
+                    },
+                ],
+            })
+        );
+        store.dispatch(
+            roleRecorded({
+                role: 'issuer',
+                alias: 'Alice',
+                aid: 'Ealice',
+                registryId: 'registry-1',
+                updatedAt: '2026-04-21T00:00:03.000Z',
+            })
+        );
+        store.dispatch(
+            schemaRecorded({
+                said: 'schema-1',
+                oobi: 'http://127.0.0.1:3902/oobi/schema-1',
+                status: 'resolved',
+                error: null,
+                updatedAt: '2026-04-21T00:00:04.000Z',
+            })
+        );
+        store.dispatch(
+            registryRecorded({
+                id: 'registry-1',
+                issuerAid: 'Ealice',
+                status: 'ready',
+                error: null,
+                updatedAt: '2026-04-21T00:00:05.000Z',
+            })
+        );
+        store.dispatch(
+            credentialRecorded({
+                said: 'credential-1',
+                schemaSaid: 'schema-1',
+                issuerAid: 'Ealice',
+                holderAid: 'Eholder',
+                status: 'issued',
+                updatedAt: '2026-04-21T00:00:06.000Z',
+            })
+        );
+
+        store.dispatch(sessionConnecting());
+
+        expect(selectContacts(store.getState())).toHaveLength(0);
+        expect(selectChallenges(store.getState())).toHaveLength(0);
+        expect(selectUnreadNotifications(store.getState())).toHaveLength(0);
+        expect(store.getState().contacts.generatedOobiIds).toEqual([]);
+        expect(store.getState().identifiers.prefixes).toEqual([]);
+        expect(store.getState().roles.byRole.issuer.aid).toBeNull();
+        expect(store.getState().roles.byRole.issuer.registryId).toBeNull();
+        expect(store.getState().schema.saids).toEqual([]);
+        expect(store.getState().registry.ids).toEqual([]);
+        expect(store.getState().credentials.saids).toEqual([]);
     });
 
     it('tracks unread app notifications separately from KERIA notifications', () => {
@@ -180,6 +596,7 @@ describe('RTK state foundation', () => {
                         path: '/operations/op-1',
                     },
                 ],
+                payloadDetails: [],
             })
         );
 
@@ -201,6 +618,7 @@ describe('RTK state foundation', () => {
                 readAt: null,
                 operationId: null,
                 links: [],
+                payloadDetails: [],
             })
         );
         store.dispatch(
@@ -214,6 +632,7 @@ describe('RTK state foundation', () => {
                 readAt: null,
                 operationId: null,
                 links: [],
+                payloadDetails: [],
             })
         );
 
@@ -230,7 +649,9 @@ describe('RTK state foundation', () => {
         );
 
         expect(selectUnreadAppNotifications(store.getState())).toHaveLength(0);
-        expect(store.getState().appNotifications.byId['app-n-new']).toMatchObject({
+        expect(
+            store.getState().appNotifications.byId['app-n-new']
+        ).toMatchObject({
             status: 'read',
             readAt: '2026-04-21T00:00:02.000Z',
         });
@@ -255,6 +676,7 @@ describe('RTK state foundation', () => {
                         operationRoute: '/operations/op-running',
                         resultRoute: null,
                         notificationId: null,
+                        payloadDetails: [],
                         keriaOperationName: null,
                         startedAt: '2026-04-21T00:00:00.000Z',
                         finishedAt: null,

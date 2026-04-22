@@ -1,4 +1,9 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import {
+    sessionConnectionFailed,
+    sessionConnecting,
+    sessionDisconnected,
+} from './session.slice';
 
 /** Lifecycle of a credential registry known to the local issuer role. */
 export type RegistryStatus = 'unknown' | 'creating' | 'ready' | 'error';
@@ -22,10 +27,12 @@ export interface RegistryState {
     ids: string[];
 }
 
-const initialState: RegistryState = {
+const createInitialState = (): RegistryState => ({
     byId: {},
     ids: [],
-};
+});
+
+const initialState: RegistryState = createInitialState();
 
 /**
  * Redux slice for credential registry creation/discovery state.
@@ -40,6 +47,12 @@ export const registrySlice = createSlice({
                 state.ids.push(payload.id);
             }
         },
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(sessionConnecting, createInitialState)
+            .addCase(sessionConnectionFailed, createInitialState)
+            .addCase(sessionDisconnected, createInitialState);
     },
 });
 

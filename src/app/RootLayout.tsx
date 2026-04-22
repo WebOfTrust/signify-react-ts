@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Box } from '@mui/material';
 import { Outlet, useFetchers, useNavigation } from 'react-router-dom';
 import type { AppRuntime } from './runtime';
-import { useAppSession } from './runtimeHooks';
+import { useAppRuntime, useAppSession } from './runtimeHooks';
 import { AppRuntimeProvider } from './runtimeContext';
 import { ConnectDialog } from './ConnectDialog';
 import { derivePendingState } from './pendingState';
@@ -12,7 +12,9 @@ import { TopBar } from './TopBar';
 import { useAppSelector } from '../state/hooks';
 import {
     selectActiveOperations,
+    selectActionableChallengeRequestNotifications,
     selectAppNotifications,
+    selectIdentifiers,
     selectUnreadAppNotifications,
 } from '../state/selectors';
 
@@ -34,10 +36,15 @@ const RootLayoutContent = () => {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const navigation = useNavigation();
     const fetchers = useFetchers();
+    const runtime = useAppRuntime();
     const { connection } = useAppSession();
     const activeOperations = useAppSelector(selectActiveOperations);
     const appNotifications = useAppSelector(selectAppNotifications);
     const unreadAppNotifications = useAppSelector(selectUnreadAppNotifications);
+    const challengeRequests = useAppSelector(
+        selectActionableChallengeRequestNotifications
+    );
+    const identifiers = useAppSelector(selectIdentifiers);
     const connectDialogOpen = connectOpen && connection.status !== 'connected';
     const pending = derivePendingState({
         navigation,
@@ -57,15 +64,26 @@ const RootLayoutContent = () => {
                 isConnected={connection.status === 'connected'}
                 activeOperations={activeOperations}
                 recentNotifications={appNotifications}
-                unreadNotificationCount={unreadAppNotifications.length}
+                challengeRequests={challengeRequests}
+                identifiers={identifiers}
+                unreadNotificationCount={
+                    unreadAppNotifications.length + challengeRequests.length
+                }
                 onMenuClick={() => setDrawerOpen(true)}
                 onConnectClick={() => setConnectOpen(true)}
             />
             <NavigationDrawer
                 open={drawerOpen}
                 onClose={() => setDrawerOpen(false)}
+                onClearLocalState={() => {
+                    runtime.clearAllLocalState();
+                }}
             />
-            <DesktopNavigationRail />
+            <DesktopNavigationRail
+                onClearLocalState={() => {
+                    runtime.clearAllLocalState();
+                }}
+            />
             <ConnectDialog
                 open={connectDialogOpen}
                 connection={connection}

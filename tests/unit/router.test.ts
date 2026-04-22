@@ -4,12 +4,28 @@ import { DEFAULT_APP_PATH } from '../../src/app/routeData';
 import type { AppRuntime } from '../../src/app/runtime';
 
 describe('data-router route metadata', () => {
-    it('keeps identifiers as the default route', () => {
-        expect(DEFAULT_APP_PATH).toBe('/identifiers');
+    it('keeps dashboard as the default route', () => {
+        expect(DEFAULT_APP_PATH).toBe('/dashboard');
     });
 
     it('derives drawer navigation from route handles', () => {
         expect(APP_NAV_ITEMS).toEqual([
+            {
+                routeId: 'dashboard',
+                label: 'Dashboard',
+                gate: 'client',
+                nav: true,
+                testId: 'nav-dashboard',
+                path: '/dashboard',
+            },
+            {
+                routeId: 'contacts',
+                label: 'Contacts',
+                gate: 'client',
+                nav: true,
+                testId: 'nav-contacts',
+                path: '/contacts',
+            },
             {
                 routeId: 'identifiers',
                 label: 'Identifiers',
@@ -73,25 +89,46 @@ describe('data-router route metadata', () => {
             }))
         ).toEqual([
             {
-                id: 'identifiers',
+                id: 'dashboard',
                 handle: routeHandles[0],
             },
             {
-                id: 'credentials',
+                id: 'contacts',
                 handle: routeHandles[1],
             },
             {
-                id: 'client',
+                id: 'identifiers',
                 handle: routeHandles[2],
             },
             {
-                id: 'operations',
+                id: 'credentials',
                 handle: routeHandles[3],
             },
             {
-                id: 'appNotifications',
+                id: 'client',
                 handle: routeHandles[4],
             },
+            {
+                id: 'operations',
+                handle: routeHandles[5],
+            },
+            {
+                id: 'appNotifications',
+                handle: routeHandles[6],
+            },
         ]);
+    });
+
+    it('adds a non-navigation contact detail route under contacts', () => {
+        const rootRoute = createAppRoutes({} as AppRuntime)[0];
+        const contactDetail = rootRoute.children?.find(
+            (route) => route.id === 'contactDetail'
+        );
+
+        expect(contactDetail).toMatchObject({
+            id: 'contactDetail',
+            path: 'contacts/:contactId',
+        });
+        expect(contactDetail?.handle).toBeUndefined();
     });
 });

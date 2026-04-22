@@ -66,6 +66,8 @@ export interface OperationConfig {
     minSleepMs: number;
     /** Maximum polling interval passed to Signify's operation waiter. */
     maxSleepMs: number;
+    /** Session inventory polling interval for dashboard/contact facts. */
+    liveRefreshMs: number;
 }
 
 export interface WitnessConfig {
@@ -277,6 +279,11 @@ export const buildAppConfig = (runtimeEnv: RuntimeEnv): AppConfig => {
                 'VITE_OPERATION_MAX_SLEEP_MS',
                 runtimeEnv.VITE_OPERATION_MAX_SLEEP_MS,
                 5000
+            ),
+            liveRefreshMs: numberFromEnv(
+                'VITE_LIVE_REFRESH_MS',
+                runtimeEnv.VITE_LIVE_REFRESH_MS,
+                3000
             ),
         },
         witnesses: {

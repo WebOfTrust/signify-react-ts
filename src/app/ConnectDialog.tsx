@@ -8,6 +8,7 @@ import {
     DialogContent,
     DialogTitle,
     IconButton,
+    InputAdornment,
     Stack,
     TextField,
     Tooltip,
@@ -15,6 +16,8 @@ import {
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useFetcher } from 'react-router-dom';
 import { appConfig, type ConnectionOption } from '../config';
 import { monoValueSx } from './consoleStyles';
@@ -54,6 +57,7 @@ export const ConnectDialog = ({
         useState<ConnectionOption>(appConfig.connectionOptions[0]);
     const [draftPasscode, setDraftPasscode] = useState<string | null>(null);
     const [copiedPasscode, setCopiedPasscode] = useState(false);
+    const [passcodeVisible, setPasscodeVisible] = useState(false);
     const isSubmitting =
         connection.status === 'connecting' || connectFetcher.state !== 'idle';
     const isGenerating = passcodeFetcher.state !== 'idle';
@@ -187,7 +191,7 @@ export const ConnectDialog = ({
                         <TextField
                             id="outlined-password-input"
                             label="Passcode"
-                            type="text"
+                            type={passcodeVisible ? 'text' : 'password'}
                             autoComplete="current-password"
                             variant="outlined"
                             value={passcode}
@@ -209,6 +213,42 @@ export const ConnectDialog = ({
                                         ...monoValueSx,
                                         fontSize: { xs: '1rem', sm: '1.12rem' },
                                     },
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <Tooltip
+                                                title={
+                                                    passcodeVisible
+                                                        ? 'Hide passcode'
+                                                        : 'Show passcode'
+                                                }
+                                            >
+                                                <IconButton
+                                                    aria-label={
+                                                        passcodeVisible
+                                                            ? 'Hide passcode'
+                                                            : 'Show passcode'
+                                                    }
+                                                    edge="end"
+                                                    onClick={() => {
+                                                        setPasscodeVisible(
+                                                            (visible) =>
+                                                                !visible
+                                                        );
+                                                    }}
+                                                    onMouseDown={(event) => {
+                                                        event.preventDefault();
+                                                    }}
+                                                    data-testid="toggle-passcode-visibility"
+                                                >
+                                                    {passcodeVisible ? (
+                                                        <VisibilityOffIcon />
+                                                    ) : (
+                                                        <VisibilityIcon />
+                                                    )}
+                                                </IconButton>
+                                            </Tooltip>
+                                        </InputAdornment>
+                                    ),
                                 },
                                 inputLabel: {
                                     shrink: true,

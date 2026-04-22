@@ -3,10 +3,13 @@ import type { SignifyClient } from 'signify-ts';
 import { appConfig, type AppConfig } from '../config';
 import { toErrorText } from '../effects/promise';
 import { AppEffectionScopes, type RuntimeScopeKind } from '../effects/scope';
+import { aliasForOobiResolution } from '../features/contacts/contactHelpers';
 import type {
     IdentifierCreateDraft,
     IdentifierSummary,
 } from '../features/identifiers/identifierTypes';
+import type { ResolveContactInput } from '../services/contacts.service';
+import type { GeneratedOobiRecord } from '../state/contacts.slice';
 import {
     toError,
     type ConnectedSignifyClient,
@@ -15,28 +18,41 @@ import {
     type SignifyStateSummary,
 } from '../signify/client';
 import {
+    appNotificationsRehydrated,
     appNotificationRecorded,
     type AppNotificationLink,
     type AppNotificationRecord,
     type AppNotificationSeverity,
 } from '../state/appNotifications.slice';
+import { storedChallengeWordsRehydrated } from '../state/challenges.slice';
+import { exchangeTombstonesRehydrated } from '../state/exchangeTombstones.slice';
 import {
     cancelRunningOperations,
     type OperationKind,
     type OperationRouteLink,
     operationCanceled,
     operationFailed,
+    operationPayloadDetailsRecorded,
+    operationsRehydrated,
     operationResultLinked,
     operationStarted,
     operationSucceeded,
 } from '../state/operations.slice';
+import type { PayloadDetailRecord } from '../state/payloadDetails';
 import {
+    clearAllPersistedAppStates,
     flushPersistedAppState,
     installAppStatePersistence,
     rehydratePersistedAppState,
     type AppStateStorage,
 } from '../state/persistence';
-import { sessionDisconnected } from '../state/session.slice';
+import {
+    sessionConnected,
+    sessionConnectionFailed,
+    sessionConnecting,
+    sessionDisconnected,
+    sessionStateRefreshed,
+} from '../state/session.slice';
 import { appStore, type AppStore } from '../state/store';
 import {
     createIdentifierOp,
@@ -45,10 +61,37 @@ import {
     rotateIdentifierOp,
 } from '../workflows/identifiers.op';
 import {
+    deleteContactOp,
+    generateOobiOp,
+    liveSessionInventoryOp,
+    resolveContactOobiOp,
+    syncSessionInventoryOp,
+    updateContactAliasOp,
+    type GenerateOobiInput,
+    type SessionInventorySnapshot,
+    type UpdateContactAliasInput,
+} from '../workflows/contacts.op';
+import {
+    challengeResultRoute,
+    generateContactChallengeOp,
+    respondToContactChallengeOp,
+    sendChallengeRequestOp,
+    verifyContactChallengeOp,
+    type GeneratedContactChallengeResult,
+    type GenerateContactChallengeInput,
+    type RespondToContactChallengeInput,
+    type SendChallengeRequestInput,
+    type VerifyContactChallengeInput,
+} from '../workflows/challenges.op';
+import {
     bootOrConnectOp,
     getSignifyStateOp,
     randomPasscodeOp,
 } from '../workflows/signify.op';
+import {
+    dismissExchangeNotificationOp,
+    type DismissExchangeNotificationInput,
+} from '../workflows/notifications.op';
 
 /**
  * Complete connection-state model for the app runtime.
@@ -205,6 +248,87 @@ const operationRoute = (requestId: string): string =>
 const notificationId = (requestId: string): string =>
     `notification-${requestId}-${Date.now()}`;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
+const stringValue = (value: unknown): string | null =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+
+const stringArray = (value: unknown): string[] =>
+    Array.isArray(value)
+        ? value.flatMap((item) => {
+              const text = stringValue(item);
+              return text === null ? [] : [text];
+          })
+        : [];
+
+const detailId = (label: string, index: number): string =>
+    `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${index}`;
+
+const payloadDetailsFromWorkflowResult = (
+    result: unknown
+): PayloadDetailRecord[] => {
+    if (!isRecord(result)) {
+        return [];
+    }
+
+    const details: PayloadDetailRecord[] = [];
+    const generatedOobis = stringArray(result.oobis);
+    generatedOobis.forEach((oobi, index) => {
+        details.push({
+            id: detailId('generated-oobi', index),
+            label: generatedOobis.length === 1 ? 'OOBI' : `OOBI ${index + 1}`,
+            value: oobi,
+            kind: 'oobi',
+            copyable: true,
+        });
+    });
+
+    const sourceOobi = stringValue(result.sourceOobi);
+    if (sourceOobi !== null) {
+        details.push({
+            id: detailId('source-oobi', details.length),
+            label: 'OOBI',
+            value: sourceOobi,
+            kind: 'oobi',
+            copyable: true,
+        });
+    }
+
+    const resolutionOobi = stringValue(result.resolutionOobi);
+    if (resolutionOobi !== null && resolutionOobi !== sourceOobi) {
+        details.push({
+            id: detailId('resolution-oobi', details.length),
+            label: 'Resolved URL',
+            value: resolutionOobi,
+            kind: 'oobi',
+            copyable: true,
+        });
+    }
+
+    const resolvedAid = stringValue(result.resolvedAid);
+    if (resolvedAid !== null) {
+        details.push({
+            id: detailId('resolved-aid', details.length),
+            label: 'AID',
+            value: resolvedAid,
+            kind: 'aid',
+            copyable: true,
+        });
+    }
+
+    const seen = new Set<string>();
+    return details.filter((detail) => {
+        const key = `${detail.label}:${detail.value}`;
+        if (seen.has(key)) {
+            return false;
+        }
+
+        seen.add(key);
+        return true;
+    });
+};
+
 /**
  * Data-router-safe Signify session and command boundary.
  *
@@ -221,6 +345,8 @@ export class AppRuntime {
     private readonly scopes: AppEffectionScopes;
 
     private readonly activeTasks = new Map<string, Task<unknown>>();
+
+    private liveSyncTask: Task<void> | null = null;
 
     private readonly storage: AppStateStorage | null | undefined;
 
@@ -312,6 +438,7 @@ export class AppRuntime {
         config: SignifyClientConfig,
         options: WorkflowRunOptions = {}
     ): Promise<ConnectedSignifyClient | null> => {
+        this.store.dispatch(sessionConnecting());
         this.setConnection({
             status: 'connecting',
             client: null,
@@ -339,9 +466,19 @@ export class AppRuntime {
                 error: null,
                 booted: connected.booted,
             });
+            this.store.dispatch(
+                sessionConnected({
+                    booted: connected.booted,
+                    controllerAid: connected.state.controllerPre,
+                    agentAid: connected.state.agentPre,
+                    connectedAt: new Date().toISOString(),
+                })
+            );
+            this.startLiveSync();
             return connected;
         } catch (error) {
             const normalized = toError(error);
+            this.store.dispatch(sessionConnectionFailed(normalized.message));
             this.setConnection({
                 status: 'error',
                 client: null,
@@ -362,6 +499,7 @@ export class AppRuntime {
                 reason: 'Session disconnected.',
             })
         );
+        void this.stopLiveSync();
         this.flushPersistence();
         void this.scopes.haltSession();
         this.store.dispatch(sessionDisconnected());
@@ -405,7 +543,48 @@ export class AppRuntime {
             ...connection,
             state,
         });
+        this.store.dispatch(
+            sessionStateRefreshed({
+                controllerAid: state.controllerPre,
+                agentAid: state.agentPre,
+            })
+        );
         return state;
+    };
+
+    /**
+     * Clear all browser-persisted app state buckets and the current in-memory
+     * projections that are backed by those buckets.
+     */
+    clearAllLocalState = (): number => {
+        const previousControllerAid = this.currentControllerAid;
+        this.currentControllerAid = null;
+        try {
+            this.store.dispatch(
+                operationsRehydrated({
+                    records: [],
+                    interruptedAt: new Date().toISOString(),
+                })
+            );
+            this.store.dispatch(
+                appNotificationsRehydrated({
+                    records: [],
+                })
+            );
+            this.store.dispatch(
+                exchangeTombstonesRehydrated({
+                    records: [],
+                })
+            );
+            this.store.dispatch(
+                storedChallengeWordsRehydrated({
+                    records: [],
+                })
+            );
+            return clearAllPersistedAppStates(this.storage);
+        } finally {
+            this.currentControllerAid = previousControllerAid;
+        }
     };
 
     /**
@@ -436,6 +615,47 @@ export class AppRuntime {
         });
 
     /**
+     * Fetch an OOBI for one managed identifier role without recording an
+     * operation-history item by default. Agent OOBIs still authorize the agent
+     * endpoint role through the shared OOBI workflow when needed.
+     */
+    getIdentifierOobi = async (
+        input: GenerateOobiInput,
+        options: WorkflowRunOptions = {}
+    ): Promise<GeneratedOobiRecord> =>
+        this.runWorkflow(() => generateOobiOp(input), {
+            ...options,
+            label: options.label,
+            kind: options.kind ?? 'generateOobi',
+            track: options.track ?? false,
+        });
+
+    /**
+     * Fetch all requested OOBI roles for one managed identifier.
+     */
+    listIdentifierOobis = async (
+        identifier: string,
+        roles: readonly GenerateOobiInput['role'][],
+        options: WorkflowRunOptions = {}
+    ): Promise<GeneratedOobiRecord[]> => {
+        const records: GeneratedOobiRecord[] = [];
+        for (const role of roles) {
+            records.push(
+                await this.getIdentifierOobi(
+                    { identifier, role },
+                    {
+                        ...options,
+                        label: options.label,
+                        track: options.track ?? false,
+                    }
+                )
+            );
+        }
+
+        return records;
+    };
+
+    /**
      * Create an identifier, wait for the resulting KERIA operation, then return
      * a freshly loaded identifier list for router revalidation callers.
      */
@@ -464,6 +684,19 @@ export class AppRuntime {
             kind: options.kind ?? 'rotateIdentifier',
         });
     };
+
+    /**
+     * Refresh live dashboard/contact facts without recording operation history.
+     */
+    syncSessionInventory = async (
+        options: WorkflowRunOptions = {}
+    ): Promise<SessionInventorySnapshot> =>
+        this.runWorkflow(() => syncSessionInventoryOp(), {
+            ...options,
+            label: options.label,
+            kind: options.kind ?? 'syncInventory',
+            track: options.track ?? false,
+        });
 
     startCreateIdentifier = (
         draft: IdentifierCreateDraft,
@@ -515,6 +748,231 @@ export class AppRuntime {
                 message: `The rotation for ${aid} failed.`,
                 severity: 'error',
             },
+        });
+
+    startGenerateOobi = (
+        input: GenerateOobiInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const identifier = input.identifier.trim();
+        return this.startBackgroundWorkflow(
+            () => generateOobiOp({ identifier, role: input.role }),
+            {
+                requestId: options.requestId,
+                label: `Generating ${input.role} OOBI for ${identifier}`,
+                title: `Generate ${input.role} OOBI`,
+                description:
+                    input.role === 'agent'
+                        ? 'Authorizes the agent endpoint role if needed, then fetches an identifier OOBI.'
+                        : 'Fetches witnessed identifier OOBIs from KERIA.',
+                kind: 'generateOobi',
+                resourceKeys: [`oobi:${identifier}:${input.role}`],
+                resultRoute: { label: 'View contacts', path: '/contacts' },
+                successNotification: {
+                    title: 'OOBI generated',
+                    message: `Generated a ${input.role} OOBI for ${identifier}.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'OOBI generation failed',
+                    message: `The ${input.role} OOBI generation for ${identifier} failed.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startResolveContact = (
+        input: ResolveContactInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const oobi = input.oobi.trim();
+        const alias = aliasForOobiResolution(oobi, input.alias);
+        const resourceKeys = [`contact:oobi:${oobi}`];
+        if (alias !== null) {
+            resourceKeys.push(`contact:alias:${alias}`);
+        }
+
+        return this.startBackgroundWorkflow(
+            () => resolveContactOobiOp({ oobi, alias }),
+            {
+                requestId: options.requestId,
+                label:
+                    alias === null
+                        ? 'Resolving contact OOBI'
+                        : `Resolving contact ${alias}`,
+                title: 'Resolve contact OOBI',
+                description:
+                    'Submits an OOBI to KERIA and refreshes contact inventory after the operation completes.',
+                kind: 'resolveContact',
+                resourceKeys,
+                resultRoute: { label: 'View contacts', path: '/contacts' },
+                successNotification: {
+                    title: 'Contact resolved',
+                    message:
+                        alias === null
+                            ? 'The contact OOBI resolved successfully.'
+                            : `${alias} resolved successfully.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Contact resolution failed',
+                    message: 'The OOBI resolution failed.',
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startDeleteContact = (
+        contactId: string,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => deleteContactOp(contactId), {
+            requestId: options.requestId,
+            label: `Deleting contact ${contactId}`,
+            title: 'Delete contact',
+            description: 'Deletes a KERIA contact and refreshes inventory.',
+            kind: 'deleteContact',
+            resourceKeys: [`contact:${contactId}`],
+            resultRoute: { label: 'View contacts', path: '/contacts' },
+            successNotification: {
+                title: 'Contact deleted',
+                message: `${contactId} was deleted.`,
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Contact deletion failed',
+                message: `${contactId} could not be deleted.`,
+                severity: 'error',
+            },
+        });
+
+    startUpdateContactAlias = (
+        input: UpdateContactAliasInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => updateContactAliasOp(input), {
+            requestId: options.requestId,
+            label: `Updating contact ${input.contactId}`,
+            title: 'Update contact alias',
+            description: 'Updates local KERIA contact metadata.',
+            kind: 'updateContact',
+            resourceKeys: [`contact:${input.contactId}`],
+            resultRoute: { label: 'View contacts', path: '/contacts' },
+            successNotification: {
+                title: 'Contact updated',
+                message: `${input.contactId} was updated.`,
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Contact update failed',
+                message: `${input.contactId} could not be updated.`,
+                severity: 'error',
+            },
+        });
+
+    generateContactChallenge = async (
+        input: GenerateContactChallengeInput,
+        options: Pick<WorkflowRunOptions, 'requestId' | 'signal'> = {}
+    ): Promise<GeneratedContactChallengeResult> =>
+        this.runWorkflow(() => generateContactChallengeOp(input), {
+            ...options,
+            kind: 'generateChallenge',
+            track: false,
+        });
+
+    startRespondToChallenge = (
+        input: RespondToContactChallengeInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => respondToContactChallengeOp(input), {
+            requestId: options.requestId,
+            label: `Sending challenge response to ${input.counterpartyAid}`,
+            title: 'Send challenge response',
+            description:
+                'Signs the challenge words with the selected identifier and sends the response to the contact.',
+            kind: 'respondChallenge',
+            resourceKeys: [
+                `challenge:respond:${input.counterpartyAid}:${input.localIdentifier}:${input.challengeId ?? 'current'}`,
+            ],
+            resultRoute: challengeResultRoute(input.counterpartyAid),
+            successNotification: {
+                title: 'Challenge response sent',
+                message: 'The signed challenge response was sent.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Challenge response failed',
+                message: 'The challenge response could not be sent.',
+                severity: 'error',
+            },
+        });
+
+    startSendChallengeRequest = (
+        input: SendChallengeRequestInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => sendChallengeRequestOp(input), {
+            requestId: options.requestId,
+            label: `Sending challenge request to ${input.counterpartyAid}`,
+            title: 'Send challenge request',
+            description:
+                'Sends a challenge request notification without embedding the challenge words.',
+            kind: 'sendChallengeRequest',
+            resourceKeys: [
+                `challenge:request:${input.counterpartyAid}:${input.localIdentifier}:${input.challengeId}`,
+            ],
+            resultRoute: challengeResultRoute(input.counterpartyAid),
+            successNotification: {
+                title: 'Challenge request sent',
+                message:
+                    'The contact was notified that a challenge response is requested.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Challenge request failed',
+                message:
+                    'The challenge words remain available, but the notification could not be sent.',
+                severity: 'error',
+            },
+        });
+
+    startVerifyContactChallenge = (
+        input: VerifyContactChallengeInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => verifyContactChallengeOp(input), {
+            requestId: options.requestId,
+            label: `Waiting for challenge response from ${input.counterpartyAid}`,
+            title: 'Verify challenge response',
+            description:
+                'Waits for a matching challenge response, accepts the response SAID, and refreshes contact inventory.',
+            kind: 'verifyChallenge',
+            resourceKeys: [
+                `challenge:verify:${input.counterpartyAid}:${input.challengeId}`,
+            ],
+            resultRoute: challengeResultRoute(input.counterpartyAid),
+            successNotification: {
+                title: 'Challenge verified',
+                message: 'The contact challenge response was accepted.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Challenge verification failed',
+                message: 'The challenge response was not verified.',
+                severity: 'error',
+            },
+        });
+
+    dismissExchangeNotification = async (
+        input: DismissExchangeNotificationInput,
+        options: Pick<WorkflowRunOptions, 'requestId' | 'signal'> = {}
+    ): Promise<void> =>
+        this.runWorkflow(() => dismissExchangeNotificationOp(input), {
+            ...options,
+            kind: 'workflow',
+            track: false,
         });
 
     /**
@@ -656,9 +1114,24 @@ export class AppRuntime {
         options: BackgroundWorkflowRunOptions
     ): Promise<void> => {
         try {
-            await task;
+            const result = await task;
+            const payloadDetails = payloadDetailsFromWorkflowResult(result);
+            if (payloadDetails.length > 0) {
+                this.store.dispatch(
+                    operationPayloadDetailsRecorded({
+                        requestId,
+                        payloadDetails,
+                    })
+                );
+            }
             this.store.dispatch(operationSucceeded({ requestId }));
-            this.recordCompletionNotification(requestId, options, 'success');
+            this.recordCompletionNotification(
+                requestId,
+                options,
+                'success',
+                undefined,
+                payloadDetails
+            );
         } catch (error) {
             if (isHaltedOrAborted(error)) {
                 this.store.dispatch(
@@ -696,7 +1169,8 @@ export class AppRuntime {
         requestId: string,
         options: BackgroundWorkflowRunOptions,
         outcome: 'success' | 'error',
-        error?: string
+        error?: string,
+        payloadDetails: PayloadDetailRecord[] = []
     ): void => {
         const template =
             outcome === 'success'
@@ -737,6 +1211,7 @@ export class AppRuntime {
             readAt: null,
             operationId: requestId,
             links,
+            payloadDetails,
         };
 
         this.store.dispatch(appNotificationRecorded(notification));
@@ -793,6 +1268,7 @@ export class AppRuntime {
         );
         this.flushPersistence();
 
+        await this.stopLiveSync();
         for (const task of this.activeTasks.values()) {
             await task.halt();
         }
@@ -832,6 +1308,52 @@ export class AppRuntime {
         for (const listener of this.listeners) {
             listener();
         }
+    };
+
+    private startLiveSync = (): void => {
+        if (this.liveSyncTask !== null) {
+            void this.liveSyncTask.halt();
+        }
+
+        const task = this.scopes.run(() => liveSessionInventoryOp(), 'session');
+        this.liveSyncTask = task;
+
+        void (async () => {
+            try {
+                await task;
+            } catch (error) {
+                if (!isHaltedOrAborted(error)) {
+                    this.store.dispatch(
+                        appNotificationRecorded({
+                            id: `live-sync-failed-${Date.now()}`,
+                            severity: 'warning',
+                            status: 'unread',
+                            title: 'Live inventory sync stopped',
+                            message: toErrorText(error),
+                            createdAt: new Date().toISOString(),
+                            readAt: null,
+                            operationId: null,
+                            links: [],
+                            payloadDetails: [],
+                        })
+                    );
+                }
+            } finally {
+                if (this.liveSyncTask === task) {
+                    this.liveSyncTask = null;
+                }
+            }
+        })();
+    };
+
+    private stopLiveSync = async (): Promise<void> => {
+        const task = this.liveSyncTask;
+        if (task === null) {
+            return;
+        }
+
+        this.liveSyncTask = null;
+        await task.halt();
     };
 
     private setPersistenceController = (controllerAid: string | null): void => {

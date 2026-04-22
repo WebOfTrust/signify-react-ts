@@ -1,5 +1,10 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { IdentifierSummary } from '../features/identifiers/identifierTypes';
+import {
+    sessionConnectionFailed,
+    sessionConnecting,
+    sessionDisconnected,
+} from './session.slice';
 
 /**
  * Identifier inventory state normalized by AID prefix.
@@ -11,12 +16,14 @@ export interface IdentifiersState {
     lastMutation: string | null;
 }
 
-const initialState: IdentifiersState = {
+const createInitialState = (): IdentifiersState => ({
     byPrefix: {},
     prefixes: [],
     loadedAt: null,
     lastMutation: null,
-};
+});
+
+const initialState: IdentifiersState = createInitialState();
 
 /**
  * Replace identifier inventory after a list/create/rotate operation.
@@ -92,6 +99,12 @@ export const identifiersSlice = createSlice({
             replaceIdentifiers(state, payload.identifiers, payload.updatedAt);
             state.lastMutation = `rotated:${payload.aid}`;
         },
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(sessionConnecting, createInitialState)
+            .addCase(sessionConnectionFailed, createInitialState)
+            .addCase(sessionDisconnected, createInitialState);
     },
 });
 

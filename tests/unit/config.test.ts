@@ -21,6 +21,7 @@ describe('buildAppConfig', () => {
             timeoutMs: 30000,
             minSleepMs: 1000,
             maxSleepMs: 5000,
+            liveRefreshMs: 3000,
         });
         expect(config.witnesses.aids).toHaveLength(3);
         expect(config.witnesses.toad).toBe(2);
@@ -52,6 +53,7 @@ describe('buildAppConfig', () => {
             VITE_OPERATION_TIMEOUT_MS: '45000',
             VITE_OPERATION_MIN_SLEEP_MS: '250',
             VITE_OPERATION_MAX_SLEEP_MS: '2000',
+            VITE_LIVE_REFRESH_MS: '750',
             VITE_WITNESS_AIDS: 'aid-one, aid-two , aid-three',
             VITE_WITNESS_TOAD: '3',
             VITE_ISSUER_ALIAS: 'demo-issuer',
@@ -84,6 +86,7 @@ describe('buildAppConfig', () => {
         expect(config.operations.timeoutMs).toBe(45000);
         expect(config.operations.minSleepMs).toBe(250);
         expect(config.operations.maxSleepMs).toBe(2000);
+        expect(config.operations.liveRefreshMs).toBe(750);
         expect(config.witnesses).toEqual({
             aids: ['aid-one', 'aid-two', 'aid-three'],
             toad: 3,

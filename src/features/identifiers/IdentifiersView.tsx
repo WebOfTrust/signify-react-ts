@@ -10,19 +10,30 @@ import type {
     IdentifiersLoaderData,
 } from '../../app/routeData';
 import { IdentifierCreateDialog } from './IdentifierCreateDialog';
-import { IdentifierDetailsModal } from './IdentifierDetailsModal';
-import { IdentifierTable } from './IdentifierTable';
+import {
+    IdentifierDetailsModal,
+    type IdentifierOobiDetailState,
+} from './IdentifierDetailsModal';
+import {
+    IdentifierTable,
+    type IdentifierOobiCopyStatus,
+} from './IdentifierTable';
 import {
     idleIdentifierAction,
     type IdentifierActionState,
     type IdentifierCreateDraft,
     type IdentifierSummary,
 } from './identifierTypes';
+import type { GeneratedOobiRecord } from '../../state/contacts.slice';
 import { useAppSelector } from '../../state/hooks';
 import {
     selectActiveOperations,
     selectIdentifiers,
 } from '../../state/selectors';
+import {
+    identifierAvailableOobiRoles,
+    type OobiGenerationRole,
+} from '../contacts/contactHelpers';
 
 /**
  * Connected identifiers feature route.
@@ -47,6 +58,14 @@ export const IdentifiersView = () => {
         status: 'idle' | 'loading' | 'success' | 'error';
         message: string | null;
     }>({ status: 'idle', message: null });
+    const [detailOobis, setDetailOobis] = useState<IdentifierOobiDetailState>({
+        status: 'idle',
+        message: null,
+        records: [],
+    });
+    const [agentOobiCopyStatus, setAgentOobiCopyStatus] = useState<
+        Record<string, IdentifierOobiCopyStatus>
+    >({});
     const actionRunning = fetcher.state !== 'idle';
     const liveIdentifiers = useAppSelector(selectIdentifiers);
     const activeOperations = useAppSelector(selectActiveOperations);
@@ -79,27 +98,56 @@ export const IdentifiersView = () => {
 
         const controller = new AbortController();
 
-        void runtime
-            .getIdentifier(selectedIdentifierName, {
-                signal: controller.signal,
-                track: false,
-            })
-            .then(() => {
-                if (!controller.signal.aborted) {
-                    setDetailRefresh({ status: 'success', message: null });
-                }
-            })
-            .catch((error: unknown) => {
+        void (async () => {
+            try {
+                const refreshed = await runtime.getIdentifier(
+                    selectedIdentifierName,
+                    {
+                        signal: controller.signal,
+                        track: false,
+                    }
+                );
                 if (controller.signal.aborted) {
                     return;
                 }
 
-                setDetailRefresh({
+                setDetailRefresh({ status: 'success', message: null });
+
+                const roles = identifierAvailableOobiRoles(refreshed);
+                const records = await runtime.listIdentifierOobis(
+                    refreshed.name,
+                    roles,
+                    {
+                        signal: controller.signal,
+                        track: false,
+                    }
+                );
+                if (!controller.signal.aborted) {
+                    setDetailOobis({
+                        status: 'success',
+                        message: null,
+                        records,
+                    });
+                }
+            } catch (error: unknown) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                const message =
+                    error instanceof Error ? error.message : String(error);
+                setDetailRefresh((current) =>
+                    current.status === 'loading'
+                        ? { status: 'error', message }
+                        : current
+                );
+                setDetailOobis({
                     status: 'error',
-                    message:
-                        error instanceof Error ? error.message : String(error),
+                    message,
+                    records: [],
                 });
-            });
+            }
+        })();
 
         return () => {
             controller.abort();
@@ -176,7 +224,68 @@ export const IdentifiersView = () => {
     };
     const handleSelectIdentifier = (identifier: IdentifierSummary) => {
         setDetailRefresh({ status: 'loading', message: null });
+        setDetailOobis({ status: 'loading', message: null, records: [] });
         setSelectedIdentifierName(identifier.name);
+    };
+
+    const copyGeneratedOobi = async (
+        identifier: IdentifierSummary,
+        role: OobiGenerationRole
+    ): Promise<GeneratedOobiRecord> => {
+        const record = await runtime.getIdentifierOobi(
+            {
+                identifier: identifier.name,
+                role,
+            },
+            { track: false }
+        );
+        const firstOobi = record.oobis[0];
+        if (firstOobi === undefined) {
+            throw new Error(`No ${role} OOBI returned for ${identifier.name}.`);
+        }
+
+        await globalThis.navigator.clipboard?.writeText(firstOobi);
+        return record;
+    };
+
+    const handleCopyAgentOobi = (identifier: IdentifierSummary) => {
+        setAgentOobiCopyStatus((current) => ({
+            ...current,
+            [identifier.name]: { status: 'loading', message: null },
+        }));
+
+        void copyGeneratedOobi(identifier, 'agent')
+            .then(() => {
+                setAgentOobiCopyStatus((current) => ({
+                    ...current,
+                    [identifier.name]: { status: 'success', message: null },
+                }));
+                globalThis.setTimeout(() => {
+                    setAgentOobiCopyStatus((current) =>
+                        current[identifier.name]?.status === 'success'
+                            ? {
+                                  ...current,
+                                  [identifier.name]: {
+                                      status: 'idle',
+                                      message: null,
+                                  },
+                              }
+                            : current
+                    );
+                }, 1800);
+            })
+            .catch((error: unknown) => {
+                setAgentOobiCopyStatus((current) => ({
+                    ...current,
+                    [identifier.name]: {
+                        status: 'error',
+                        message:
+                            error instanceof Error
+                                ? error.message
+                                : String(error),
+                    },
+                }));
+            });
     };
 
     return (
@@ -265,6 +374,8 @@ export const IdentifiersView = () => {
                 isRotateDisabled={(identifier) =>
                     isRotateDisabled(identifier.name)
                 }
+                onCopyAgentOobi={handleCopyAgentOobi}
+                agentOobiCopyStatus={agentOobiCopyStatus}
             />
             <IdentifierDetailsModal
                 open={
@@ -274,6 +385,7 @@ export const IdentifiersView = () => {
                 identifier={selectedIdentifier}
                 refreshStatus={detailRefresh.status}
                 refreshMessage={detailRefresh.message}
+                oobiState={detailOobis}
                 actionRunning={
                     selectedIdentifierName === null
                         ? false
@@ -282,6 +394,11 @@ export const IdentifiersView = () => {
                 onClose={() => {
                     setSelectedIdentifierName(null);
                     setDetailRefresh({ status: 'idle', message: null });
+                    setDetailOobis({
+                        status: 'idle',
+                        message: null,
+                        records: [],
+                    });
                 }}
                 onRotate={handleRotate}
             />

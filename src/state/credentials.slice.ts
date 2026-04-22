@@ -1,4 +1,9 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import {
+    sessionConnectionFailed,
+    sessionConnecting,
+    sessionDisconnected,
+} from './session.slice';
 
 /** Local status of a credential as it moves through issuer/holder/verifier flows. */
 export type CredentialStatus =
@@ -29,10 +34,12 @@ export interface CredentialsState {
     saids: string[];
 }
 
-const initialState: CredentialsState = {
+const createInitialState = (): CredentialsState => ({
     bySaid: {},
     saids: [],
-};
+});
+
+const initialState: CredentialsState = createInitialState();
 
 /**
  * Redux slice for credential inventory and lifecycle status.
@@ -50,6 +57,12 @@ export const credentialsSlice = createSlice({
                 state.saids.push(payload.said);
             }
         },
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(sessionConnecting, createInitialState)
+            .addCase(sessionConnectionFailed, createInitialState)
+            .addCase(sessionDisconnected, createInitialState);
     },
 });
 

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Box, Button, Stack, Typography } from '@mui/material';
 import type { ButtonProps, SxProps, Theme } from '@mui/material';
-import { monoValueSx } from './consoleStyles';
+import { Link as RouterLink } from 'react-router-dom';
+import { clickablePanelSx, monoValueSx } from './consoleStyles';
 
 export interface PageHeaderProps {
     eyebrow?: string;
@@ -61,6 +62,8 @@ export interface ConsolePanelProps {
     eyebrow?: string;
     actions?: ReactNode;
     sx?: SxProps<Theme>;
+    to?: string;
+    testId?: string;
 }
 
 export const ConsolePanel = ({
@@ -69,8 +72,13 @@ export const ConsolePanel = ({
     eyebrow,
     actions,
     sx,
+    to,
+    testId,
 }: ConsolePanelProps) => (
     <Box
+        component={to === undefined ? 'section' : RouterLink}
+        to={to}
+        data-testid={testId}
         sx={[
             {
                 position: 'relative',
@@ -88,6 +96,7 @@ export const ConsolePanel = ({
                     borderTop: '1px solid rgba(118, 232, 255, 0.16)',
                 },
             },
+            ...(to === undefined ? [] : [clickablePanelSx]),
             ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
         ]}
     >

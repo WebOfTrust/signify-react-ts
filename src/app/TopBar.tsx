@@ -5,25 +5,34 @@ import {
     Box,
     Button,
     CircularProgress,
+    Divider,
     IconButton,
     List,
     ListItemButton,
     ListItemText,
     Popover,
+    Stack,
     Toolbar,
     Tooltip,
     Typography,
 } from '@mui/material';
 import CircleIcon from '@mui/icons-material/Circle';
+import DeleteIcon from '@mui/icons-material/Delete';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useFetcher } from 'react-router-dom';
 import { StatusPill } from './Console';
+import { PayloadDetails } from './PayloadDetails';
 import { formatOperationWindow, formatTimestamp } from './timeFormat';
+import type { ContactActionData } from './routeData';
 import type { AppNotificationRecord } from '../state/appNotifications.slice';
+import type { ChallengeRequestNotification } from '../state/notifications.slice';
 import type { OperationRecord } from '../state/operations.slice';
+import type { IdentifierSummary } from '../features/identifiers/identifierTypes';
 import { allAppNotificationsRead } from '../state/appNotifications.slice';
 import { useAppDispatch } from '../state/hooks';
+import { ChallengeRequestResponseForm } from '../features/notifications/ChallengeRequestResponseForm';
+import { abbreviateMiddle } from '../features/contacts/contactHelpers';
 
 const APP_NOTIFICATION_READ_DELAY_MS = 1250;
 
@@ -37,7 +46,11 @@ export interface TopBarProps {
     activeOperations: readonly OperationRecord[];
     /** Recent app notifications for the bell popover. */
     recentNotifications: readonly AppNotificationRecord[];
-    /** Number of unread app notifications. */
+    /** Actionable challenge requests discovered from KERIA notifications. */
+    challengeRequests: readonly ChallengeRequestNotification[];
+    /** Local identifiers available for responding to challenge requests. */
+    identifiers: readonly IdentifierSummary[];
+    /** Number of unread app notifications plus actionable challenge requests. */
     unreadNotificationCount: number;
     /** Open the route navigation drawer. */
     onMenuClick: () => void;
@@ -56,6 +69,8 @@ export const TopBar = ({
     isConnected,
     activeOperations,
     recentNotifications,
+    challengeRequests,
+    identifiers,
     unreadNotificationCount,
     onMenuClick,
     onConnectClick,
@@ -64,12 +79,17 @@ export const TopBar = ({
         useState<HTMLElement | null>(null);
     const [notificationsAnchor, setNotificationsAnchor] =
         useState<HTMLElement | null>(null);
+    const dismissFetcher = useFetcher<ContactActionData>();
     const dispatch = useAppDispatch();
     const operationsOpen = operationsAnchor !== null;
     const notificationsOpen = notificationsAnchor !== null;
     const visibleNotifications = useMemo(
         () => recentNotifications.slice(0, 5),
         [recentNotifications]
+    );
+    const visibleChallengeRequests = useMemo(
+        () => challengeRequests.slice(0, 3),
+        [challengeRequests]
     );
 
     useEffect(() => {
@@ -92,6 +112,19 @@ export const TopBar = ({
 
     const openNotifications = (event: MouseEvent<HTMLElement>) => {
         setNotificationsAnchor(event.currentTarget);
+    };
+
+    const dismissChallengeRequest = (request: ChallengeRequestNotification) => {
+        const formData = new FormData();
+        formData.set('intent', 'dismissExchangeNotification');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('notificationId', request.notificationId);
+        formData.set('exnSaid', request.exnSaid);
+        formData.set('route', '/challenge/request');
+        dismissFetcher.submit(formData, {
+            method: 'post',
+            action: '/notifications',
+        });
     };
 
     return (
@@ -283,64 +316,205 @@ export const TopBar = ({
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
             >
                 <List sx={{ width: 360, maxWidth: '90vw', p: 1 }}>
-                    {recentNotifications.length === 0 ? (
+                    {recentNotifications.length === 0 &&
+                    visibleChallengeRequests.length === 0 ? (
                         <ListItemText
                             sx={{ px: 2, py: 1 }}
                             primary="No notifications"
                         />
                     ) : (
-                        visibleNotifications.map((notification) => (
-                            <ListItemButton
-                                key={notification.id}
-                                component={RouterLink}
-                                to={
-                                    notification.links[0]?.path ??
-                                    '/notifications'
-                                }
-                                onClick={() => setNotificationsAnchor(null)}
-                                sx={{
-                                    bgcolor:
-                                        notification.status === 'unread'
-                                            ? 'action.selected'
-                                            : 'action.hover',
-                                    color: 'text.primary',
-                                    border: 1,
-                                    borderColor:
-                                        notification.status === 'unread'
-                                            ? 'primary.main'
-                                            : 'divider',
-                                    borderRadius: 1,
-                                    mb: 0.75,
-                                }}
-                            >
-                                <ListItemText
-                                    primary={notification.title}
-                                    secondary={
-                                        <Box>
-                                            {formatTimestamp(
-                                                notification.createdAt
-                                            ) !== null && (
+                        <>
+                            {visibleChallengeRequests.map((request) => (
+                                <Box
+                                    key={request.notificationId}
+                                    data-testid="challenge-notification-card"
+                                    sx={{
+                                        border: 1,
+                                        borderColor: 'primary.main',
+                                        borderRadius: 1,
+                                        bgcolor: 'action.selected',
+                                        p: 1.25,
+                                        mb: 0.75,
+                                    }}
+                                >
+                                    <Stack spacing={1}>
+                                        <Stack
+                                            direction="row"
+                                            spacing={1}
+                                            sx={{
+                                                alignItems: 'flex-start',
+                                                justifyContent: 'space-between',
+                                                gap: 1,
+                                            }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    minWidth: 0,
+                                                    flex: '1 1 auto',
+                                                }}
+                                            >
                                                 <Typography
+                                                    variant="subtitle2"
+                                                    noWrap
+                                                >
+                                                    Challenge request
+                                                </Typography>
+                                                <Typography
+                                                    component="div"
                                                     variant="caption"
                                                     color="text.secondary"
+                                                    noWrap
+                                                    data-testid="challenge-notification-from"
+                                                    sx={{
+                                                        display: 'block',
+                                                        minWidth: 0,
+                                                    }}
                                                 >
-                                                    Created{' '}
-                                                    {formatTimestamp(
-                                                        notification.createdAt
+                                                    From {request.senderAlias} (
+                                                    {abbreviateMiddle(
+                                                        request.senderAid,
+                                                        28
                                                     )}
+                                                    )
                                                 </Typography>
-                                            )}
-                                            <Typography
-                                                variant="body2"
-                                                color="text.secondary"
+                                                {formatTimestamp(
+                                                    request.createdAt
+                                                ) !== null && (
+                                                    <Typography
+                                                        component="div"
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        noWrap
+                                                        sx={{
+                                                            display: 'block',
+                                                            mt: 0.25,
+                                                        }}
+                                                    >
+                                                        {formatTimestamp(
+                                                            request.createdAt
+                                                        )}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                            <Stack
+                                                direction="row"
+                                                spacing={0.5}
+                                                sx={{
+                                                    alignItems: 'center',
+                                                    flex: '0 0 auto',
+                                                }}
                                             >
-                                                {notification.message}
-                                            </Typography>
-                                        </Box>
+                                                <Button
+                                                    component={RouterLink}
+                                                    to={`/notifications/${encodeURIComponent(
+                                                        request.notificationId
+                                                    )}`}
+                                                    size="small"
+                                                    data-testid="challenge-notification-detail-link"
+                                                    onClick={() =>
+                                                        setNotificationsAnchor(
+                                                            null
+                                                        )
+                                                    }
+                                                >
+                                                    Open
+                                                </Button>
+                                                <Tooltip title="Dismiss challenge request">
+                                                    <span>
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            aria-label="dismiss challenge request"
+                                                            data-testid="challenge-notification-dismiss"
+                                                            disabled={
+                                                                dismissFetcher.state !==
+                                                                'idle'
+                                                            }
+                                                            onClick={() =>
+                                                                dismissChallengeRequest(
+                                                                    request
+                                                                )
+                                                            }
+                                                        >
+                                                            <DeleteIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </span>
+                                                </Tooltip>
+                                            </Stack>
+                                        </Stack>
+                                        <ChallengeRequestResponseForm
+                                            request={request}
+                                            identifiers={identifiers}
+                                            action="/notifications"
+                                            dense
+                                        />
+                                    </Stack>
+                                </Box>
+                            ))}
+                            {visibleChallengeRequests.length > 0 &&
+                                visibleNotifications.length > 0 && (
+                                    <Divider sx={{ my: 0.75 }} />
+                                )}
+                            {visibleNotifications.map((notification) => (
+                                <ListItemButton
+                                    key={notification.id}
+                                    data-testid="notification-quick-item"
+                                    component={RouterLink}
+                                    to={
+                                        notification.links[0]?.path ??
+                                        '/notifications'
                                     }
-                                />
-                            </ListItemButton>
-                        ))
+                                    onClick={() => setNotificationsAnchor(null)}
+                                    sx={{
+                                        bgcolor:
+                                            notification.status === 'unread'
+                                                ? 'action.selected'
+                                                : 'action.hover',
+                                        color: 'text.primary',
+                                        border: 1,
+                                        borderColor:
+                                            notification.status === 'unread'
+                                                ? 'primary.main'
+                                                : 'divider',
+                                        borderRadius: 1,
+                                        mb: 0.75,
+                                    }}
+                                >
+                                    <ListItemText
+                                        primary={notification.title}
+                                        secondary={
+                                            <Box>
+                                                {formatTimestamp(
+                                                    notification.createdAt
+                                                ) !== null && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                    >
+                                                        Created{' '}
+                                                        {formatTimestamp(
+                                                            notification.createdAt
+                                                        )}
+                                                    </Typography>
+                                                )}
+                                                <Typography
+                                                    variant="body2"
+                                                    color="text.secondary"
+                                                >
+                                                    {notification.message}
+                                                </Typography>
+                                                <PayloadDetails
+                                                    details={
+                                                        notification.payloadDetails
+                                                    }
+                                                    dense
+                                                />
+                                            </Box>
+                                        }
+                                    />
+                                </ListItemButton>
+                            ))}
+                        </>
                     )}
                     <ListItemButton
                         component={RouterLink}

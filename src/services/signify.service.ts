@@ -73,11 +73,17 @@ export function* waitOperationService({
     operation,
     label,
     logger,
+    timeoutMs,
+    minSleepMs,
+    maxSleepMs,
 }: {
     client: SignifyClient;
     operation: KeriaOperation;
     label: string;
     logger?: OperationLogger;
+    timeoutMs?: number;
+    minSleepMs?: number;
+    maxSleepMs?: number;
 }): EffectionOperation<CompletedOperation> {
     const signal = yield* effectionAbortSignal();
     return yield* callPromise(() =>
@@ -85,6 +91,9 @@ export function* waitOperationService({
             label,
             signal,
             logger,
+            timeoutMs,
+            minSleepMs,
+            maxSleepMs,
         })
     );
 }

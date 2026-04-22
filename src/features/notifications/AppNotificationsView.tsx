@@ -4,18 +4,22 @@ import {
     Link,
     List,
     ListItem,
+    ListItemButton,
     ListItemText,
     Stack,
     Typography,
 } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useLoaderData } from 'react-router-dom';
 import {
     ConsolePanel,
     EmptyState,
     PageHeader,
     StatusPill,
 } from '../../app/Console';
+import { PayloadDetails } from '../../app/PayloadDetails';
 import { formatTimestamp } from '../../app/timeFormat';
+import { ConnectionRequired } from '../../app/ConnectionRequired';
+import type { NotificationsLoaderData } from '../../app/routeData';
 import { useAppDispatch, useAppSelector } from '../../state/hooks';
 import { allAppNotificationsRead } from '../../state/appNotifications.slice';
 import {
@@ -26,6 +30,7 @@ import {
 const APP_NOTIFICATION_READ_DELAY_MS = 1250;
 
 export const AppNotificationsView = () => {
+    const loaderData = useLoaderData() as NotificationsLoaderData;
     const dispatch = useAppDispatch();
     const notifications = useAppSelector(selectAppNotifications);
     const keriaNotifications = useAppSelector(selectKeriaNotifications);
@@ -47,13 +52,34 @@ export const AppNotificationsView = () => {
         };
     }, [dispatch, unreadCount]);
 
+    if (loaderData.status === 'blocked') {
+        return <ConnectionRequired />;
+    }
+
     return (
         <Box sx={{ display: 'grid', gap: 2.5 }}>
             <PageHeader
                 eyebrow="Activity"
                 title="Notifications"
-                summary="User-facing results emitted by completed background workflows."
+                summary="App operation notices and KERIA protocol inbox items for the connected session."
             />
+            {loaderData.status === 'error' && (
+                <Box
+                    sx={{
+                        border: 1,
+                        borderColor: 'warning.main',
+                        borderRadius: 1,
+                        bgcolor: 'rgba(255, 196, 87, 0.08)',
+                        px: 2,
+                        py: 1.25,
+                    }}
+                >
+                    <StatusPill label="warning" tone="warning" />{' '}
+                    <Typography component="span">
+                        {loaderData.message}
+                    </Typography>
+                </Box>
+            )}
             {notifications.length === 0 ? (
                 <EmptyState
                     title="No notifications"
@@ -126,6 +152,11 @@ export const AppNotificationsView = () => {
                                         >
                                             {notification.message}
                                         </Typography>
+                                        <PayloadDetails
+                                            details={
+                                                notification.payloadDetails
+                                            }
+                                        />
                                         <Stack
                                             direction="row"
                                             spacing={1.5}
@@ -148,15 +179,21 @@ export const AppNotificationsView = () => {
                     ))}
                 </List>
             )}
-            {keriaNotifications.length > 0 && (
-                <ConsolePanel
-                    title="KERIA notification inventory"
-                    eyebrow="KERIA"
-                >
+            <ConsolePanel title="KERIA notification inventory" eyebrow="KERIA">
+                {keriaNotifications.length === 0 ? (
+                    <EmptyState
+                        title="No KERIA notifications"
+                        message="Protocol inbox items appear here after live session sync."
+                    />
+                ) : (
                     <List disablePadding>
                         {keriaNotifications.map((notification) => (
-                            <ListItem
+                            <ListItemButton
                                 key={notification.id}
+                                component={RouterLink}
+                                to={`/notifications/${encodeURIComponent(
+                                    notification.id
+                                )}`}
                                 sx={{
                                     border: 1,
                                     borderColor: 'divider',
@@ -219,14 +256,30 @@ export const AppNotificationsView = () => {
                                                     {notification.message}
                                                 </Typography>
                                             )}
+                                            {notification.challengeRequest !==
+                                                null &&
+                                                notification.challengeRequest !==
+                                                    undefined && (
+                                                    <Typography
+                                                        variant="body2"
+                                                        color="text.secondary"
+                                                    >
+                                                        From{' '}
+                                                        {
+                                                            notification
+                                                                .challengeRequest
+                                                                .senderAlias
+                                                        }
+                                                    </Typography>
+                                                )}
                                         </Stack>
                                     }
                                 />
-                            </ListItem>
+                            </ListItemButton>
                         ))}
                     </List>
-                </ConsolePanel>
-            )}
+                )}
+            </ConsolePanel>
         </Box>
     );
 };

@@ -5,10 +5,14 @@ import type {
 } from '../../src/features/identifiers/identifierTypes';
 import { defaultIdentifierCreateDraft } from '../../src/features/identifiers/identifierHelpers';
 import {
+    contactsAction,
     identifiersAction,
     loadClient,
+    loadContacts,
     loadCredentials,
+    loadDashboard,
     loadIdentifiers,
+    notificationsAction,
     rootAction,
     type RouteDataRuntime,
 } from '../../src/app/routeData';
@@ -49,12 +53,13 @@ const makeRuntime = (
 ): RouteDataRuntime => ({
     getClient: vi.fn(() => ({ url: 'http://keria.example' })),
     getState: vi.fn(() => summary),
-    connect: vi.fn(async () => ({ state: summary } as ConnectedSignifyClient)),
+    connect: vi.fn(async () => ({ state: summary }) as ConnectedSignifyClient),
     generatePasscode: vi.fn(async () => '0123456789abcdefghijk'),
     refreshState: vi.fn(async () => summary),
     listIdentifiers: vi.fn(async () => [
         { name: 'alice', prefix: 'Ealice' } as IdentifierSummary,
     ]),
+    syncSessionInventory: vi.fn(async () => ({})),
     createIdentifier: vi.fn(async () => []),
     rotateIdentifier: vi.fn(async () => []),
     startCreateIdentifier: vi.fn(() => ({
@@ -67,11 +72,58 @@ const makeRuntime = (
         requestId: 'rotate-request-1',
         operationRoute: '/operations/rotate-request-1',
     })),
+    startGenerateOobi: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'oobi-request-1',
+        operationRoute: '/operations/oobi-request-1',
+    })),
+    startResolveContact: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'resolve-request-1',
+        operationRoute: '/operations/resolve-request-1',
+    })),
+    startDeleteContact: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'delete-contact-request-1',
+        operationRoute: '/operations/delete-contact-request-1',
+    })),
+    startUpdateContactAlias: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'update-contact-request-1',
+        operationRoute: '/operations/update-contact-request-1',
+    })),
+    generateContactChallenge: vi.fn(async () => ({
+        challengeId: 'challenge-1',
+        counterpartyAid: 'Econtact',
+        counterpartyAlias: 'Wan',
+        localIdentifier: 'alice',
+        localAid: 'Ealice',
+        words: Array.from({ length: 12 }, (_, index) => `word${index}`),
+        wordsHash: 'hash-one',
+        strength: 128,
+        generatedAt: '2026-04-21T00:00:00.000Z',
+    })),
+    startRespondToChallenge: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'respond-challenge-request-1',
+        operationRoute: '/operations/respond-challenge-request-1',
+    })),
+    startSendChallengeRequest: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'send-challenge-request-1',
+        operationRoute: '/operations/send-challenge-request-1',
+    })),
+    startVerifyContactChallenge: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'verify-challenge-request-1',
+        operationRoute: '/operations/verify-challenge-request-1',
+    })),
+    dismissExchangeNotification: vi.fn(async () => undefined),
     ...overrides,
 });
 
 describe('route loaders', () => {
-    it('blocks identifiers, credentials, and client routes while disconnected', async () => {
+    it('blocks connected routes while disconnected', async () => {
         const runtime = makeRuntime({
             getClient: vi.fn(() => null),
             getState: vi.fn(() => null),
@@ -79,6 +131,12 @@ describe('route loaders', () => {
         });
 
         await expect(loadIdentifiers(runtime)).resolves.toEqual({
+            status: 'blocked',
+        });
+        await expect(loadDashboard(runtime)).resolves.toEqual({
+            status: 'blocked',
+        });
+        await expect(loadContacts(runtime)).resolves.toEqual({
             status: 'blocked',
         });
         expect(loadCredentials(runtime)).toEqual({ status: 'blocked' });
@@ -124,10 +182,23 @@ describe('route loaders', () => {
         });
         expect(runtime.refreshState).toHaveBeenCalledOnce();
     });
+
+    it('loads dashboard and contact inventory through the runtime boundary', async () => {
+        const runtime = makeRuntime();
+
+        await expect(loadDashboard(runtime)).resolves.toEqual({
+            status: 'ready',
+        });
+        await expect(loadContacts(runtime)).resolves.toEqual({
+            status: 'ready',
+        });
+        expect(runtime.listIdentifiers).toHaveBeenCalledTimes(2);
+        expect(runtime.syncSessionInventory).toHaveBeenCalledTimes(2);
+    });
 });
 
 describe('route actions', () => {
-    it('connects through the root action and redirects to identifiers', async () => {
+    it('connects through the root action and redirects to dashboard', async () => {
         const runtime = makeRuntime();
         const response = await rootAction(
             runtime,
@@ -142,7 +213,7 @@ describe('route actions', () => {
         expect(response).toBeInstanceOf(Response);
         expect((response as Response).status).toBe(302);
         expect((response as Response).headers.get('Location')).toBe(
-            '/identifiers'
+            '/dashboard'
         );
         expect(runtime.connect).toHaveBeenCalledWith(
             expect.objectContaining<Partial<SignifyClientConfig>>({
@@ -292,5 +363,257 @@ describe('route actions', () => {
             ok: false,
             message: 'Connect to KERIA before changing identifiers.',
         });
+    });
+
+    it('starts contact OOBI resolution through the contacts action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            contactsAction(
+                runtime,
+                makeRequest('/contacts', {
+                    intent: 'resolve',
+                    requestId: 'resolve-request-1',
+                    oobi: 'http://127.0.0.1:3902/oobi/Ealice/agent?name=alice',
+                    alias: '',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'resolve',
+            ok: true,
+            message: 'Resolving contact OOBI',
+            requestId: 'resolve-request-1',
+            operationRoute: '/operations/resolve-request-1',
+        });
+        expect(runtime.startResolveContact).toHaveBeenCalledWith(
+            {
+                oobi: 'http://127.0.0.1:3902/oobi/Ealice/agent?name=alice',
+                alias: null,
+            },
+            expect.objectContaining({ requestId: 'resolve-request-1' })
+        );
+    });
+
+    it('starts local OOBI generation through the contacts action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            contactsAction(
+                runtime,
+                makeRequest('/contacts', {
+                    intent: 'generateOobi',
+                    requestId: 'oobi-request-1',
+                    identifier: 'alice',
+                    role: 'agent',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'generateOobi',
+            ok: true,
+            message: 'Generating agent OOBI for alice',
+            requestId: 'oobi-request-1',
+            operationRoute: '/operations/oobi-request-1',
+        });
+        expect(runtime.startGenerateOobi).toHaveBeenCalledWith(
+            { identifier: 'alice', role: 'agent' },
+            expect.objectContaining({ requestId: 'oobi-request-1' })
+        );
+    });
+
+    it('generates contact challenges and starts verification', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            contactsAction(
+                runtime,
+                makeRequest('/contacts/Econtact', {
+                    intent: 'generateChallenge',
+                    requestId: 'verify-challenge-request-1',
+                    contactId: 'Econtact',
+                    contactAlias: 'Wan',
+                    localIdentifier: 'alice',
+                    localAid: 'Ealice',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'generateChallenge',
+            ok: true,
+            message:
+                'Generated challenge, sent request, and started verification',
+            requestId: 'verify-challenge-request-1',
+            operationRoute: '/operations/verify-challenge-request-1',
+            challenge: expect.objectContaining({
+                challengeId: 'challenge-1',
+                words: expect.arrayContaining(['word0']),
+            }),
+        });
+        expect(runtime.generateContactChallenge).toHaveBeenCalledWith(
+            {
+                counterpartyAid: 'Econtact',
+                counterpartyAlias: 'Wan',
+                localIdentifier: 'alice',
+                localAid: 'Ealice',
+            },
+            expect.objectContaining({ signal: expect.any(AbortSignal) })
+        );
+        expect(runtime.startSendChallengeRequest).toHaveBeenCalledWith(
+            expect.objectContaining({
+                challengeId: 'challenge-1',
+                counterpartyAid: 'Econtact',
+                localIdentifier: 'alice',
+                wordsHash: 'hash-one',
+                strength: 128,
+            }),
+            expect.objectContaining({
+                requestId: 'verify-challenge-request-1:challenge-request',
+            })
+        );
+        expect(runtime.startVerifyContactChallenge).toHaveBeenCalledWith(
+            expect.objectContaining({
+                challengeId: 'challenge-1',
+                counterpartyAid: 'Econtact',
+                words: expect.arrayContaining(['word0']),
+            }),
+            expect.objectContaining({ requestId: 'verify-challenge-request-1' })
+        );
+    });
+
+    it('starts challenge responses through the contacts action', async () => {
+        const runtime = makeRuntime();
+        const words = Array.from({ length: 12 }, (_, index) => `word${index}`);
+
+        await expect(
+            contactsAction(
+                runtime,
+                makeRequest('/contacts/Econtact', {
+                    intent: 'respondChallenge',
+                    requestId: 'respond-challenge-request-1',
+                    contactId: 'Econtact',
+                    contactAlias: 'Wan',
+                    localIdentifier: 'alice',
+                    localAid: 'Ealice',
+                    words: words.join(' '),
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'respondChallenge',
+            ok: true,
+            message: 'Sending challenge response to Econtact',
+            requestId: 'respond-challenge-request-1',
+            operationRoute: '/operations/respond-challenge-request-1',
+        });
+        expect(runtime.startRespondToChallenge).toHaveBeenCalledWith(
+            {
+                challengeId: 'respond-challenge-request-1',
+                notificationId: undefined,
+                wordsHash: null,
+                counterpartyAid: 'Econtact',
+                counterpartyAlias: 'Wan',
+                localIdentifier: 'alice',
+                localAid: 'Ealice',
+                words,
+            },
+            expect.objectContaining({
+                requestId: 'respond-challenge-request-1',
+            })
+        );
+    });
+
+    it('passes challenge notification metadata through responses', async () => {
+        const runtime = makeRuntime();
+        const words = Array.from({ length: 12 }, (_, index) => `word${index}`);
+
+        await expect(
+            contactsAction(
+                runtime,
+                makeRequest('/notifications/note-1', {
+                    intent: 'respondChallenge',
+                    requestId: 'respond-challenge-request-3',
+                    notificationId: 'note-1',
+                    challengeId: 'challenge-1',
+                    wordsHash: 'hash-one',
+                    contactId: 'Econtact',
+                    contactAlias: 'Wan',
+                    localIdentifier: 'alice',
+                    localAid: 'Ealice',
+                    words: words.join(' '),
+                })
+            )
+        ).resolves.toMatchObject({
+            intent: 'respondChallenge',
+            ok: true,
+        });
+        expect(runtime.startRespondToChallenge).toHaveBeenCalledWith(
+            {
+                challengeId: 'challenge-1',
+                notificationId: 'note-1',
+                wordsHash: 'hash-one',
+                counterpartyAid: 'Econtact',
+                counterpartyAlias: 'Wan',
+                localIdentifier: 'alice',
+                localAid: 'Ealice',
+                words,
+            },
+            expect.objectContaining({
+                requestId: 'respond-challenge-request-3',
+            })
+        );
+    });
+
+    it('dismisses exchange notifications through the notifications action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            notificationsAction(
+                runtime,
+                makeRequest('/notifications', {
+                    intent: 'dismissExchangeNotification',
+                    requestId: 'dismiss-request-1',
+                    notificationId: 'challenge-request:Eexn',
+                    exnSaid: 'Eexn',
+                    route: '/challenge/request',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'dismissExchangeNotification',
+            ok: true,
+            message: 'Exchange notification dismissed.',
+            requestId: 'dismiss-request-1',
+            operationRoute: '/notifications',
+        });
+        expect(runtime.dismissExchangeNotification).toHaveBeenCalledWith(
+            {
+                notificationId: 'challenge-request:Eexn',
+                exnSaid: 'Eexn',
+                route: '/challenge/request',
+            },
+            expect.objectContaining({
+                requestId: 'dismiss-request-1',
+                signal: expect.any(AbortSignal),
+            })
+        );
+    });
+
+    it('rejects malformed challenge word submissions', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            contactsAction(
+                runtime,
+                makeRequest('/contacts/Econtact', {
+                    intent: 'respondChallenge',
+                    requestId: 'respond-challenge-request-2',
+                    contactId: 'Econtact',
+                    localIdentifier: 'alice',
+                    words: 'one two',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'respondChallenge',
+            ok: false,
+            message: 'Challenge must contain 12 or 24 words.',
+            requestId: 'respond-challenge-request-2',
+        });
+        expect(runtime.startRespondToChallenge).not.toHaveBeenCalled();
     });
 });

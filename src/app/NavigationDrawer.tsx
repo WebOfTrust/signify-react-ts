@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import {
     Box,
+    Divider,
     Drawer,
     List,
     ListItemButton,
@@ -11,9 +12,11 @@ import {
 } from '@mui/material';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import TerminalIcon from '@mui/icons-material/Terminal';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { APP_NAV_ITEMS } from './router';
 import type { AppRouteId } from './router';
@@ -26,6 +29,13 @@ export interface NavigationDrawerProps {
     open: boolean;
     /** Close the drawer after backdrop, keyboard, or item selection events. */
     onClose: () => void;
+    /** Clear all persisted local app state for every controller bucket. */
+    onClearLocalState: () => void;
+}
+
+export interface DesktopNavigationRailProps {
+    /** Clear all persisted local app state for every controller bucket. */
+    onClearLocalState: () => void;
 }
 
 const routeIcon = (routeId: AppRouteId) => {
@@ -67,6 +77,57 @@ const navButtonSx = (active: boolean) => ({
     },
 });
 
+const LOCAL_STATE_CLEAR_CONFIRMATION =
+    'Clear all saved local app state for every identifier? This removes operation history, app notifications, dismissed exchange records, and saved challenge words stored in this browser.';
+
+const ClearLocalStateIcon = () => (
+    <ListItemIcon
+        sx={{
+            minWidth: 38,
+            color: 'error.main',
+            position: 'relative',
+        }}
+    >
+        <DeleteForeverIcon />
+        <WarningAmberIcon
+            sx={{
+                position: 'absolute',
+                left: 18,
+                top: 14,
+                fontSize: 15,
+                color: 'warning.main',
+            }}
+        />
+    </ListItemIcon>
+);
+
+const clearLocalStateButtonSx = {
+    ...navButtonSx(false),
+    color: 'error.main',
+    borderColor: 'transparent',
+    '&:hover': {
+        borderColor: 'error.main',
+        bgcolor: 'rgba(255, 75, 90, 0.08)',
+        color: 'error.main',
+    },
+    '.MuiListItemIcon-root': {
+        minWidth: 38,
+    },
+};
+
+const confirmAndClearLocalState = (
+    onClearLocalState: () => void,
+    onClose?: () => void
+) => {
+    const confirmed = globalThis.confirm(LOCAL_STATE_CLEAR_CONFIRMATION);
+    if (!confirmed) {
+        return;
+    }
+
+    onClearLocalState();
+    onClose?.();
+};
+
 /**
  * Drawer generated from data-router route handles.
  *
@@ -74,7 +135,11 @@ const navButtonSx = (active: boolean) => ({
  * drawer item should mean updating the route descriptor, not hardcoding a
  * second navigation list here.
  */
-export const NavigationDrawer = ({ open, onClose }: NavigationDrawerProps) => {
+export const NavigationDrawer = ({
+    open,
+    onClose,
+    onClearLocalState,
+}: NavigationDrawerProps) => {
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -99,7 +164,15 @@ export const NavigationDrawer = ({ open, onClose }: NavigationDrawerProps) => {
                 },
             }}
         >
-            <div role="presentation" onKeyDown={handleKeyDown}>
+            <Box
+                role="presentation"
+                onKeyDown={handleKeyDown}
+                sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                }}
+            >
                 <List>
                     {APP_NAV_ITEMS.map((view) => (
                         <ListItemButton
@@ -120,12 +193,29 @@ export const NavigationDrawer = ({ open, onClose }: NavigationDrawerProps) => {
                         </ListItemButton>
                     ))}
                 </List>
-            </div>
+                <Box sx={{ flexGrow: 1 }} />
+                <Divider sx={{ mx: 1, my: 0.75 }} />
+                <ListItemButton
+                    onClick={() =>
+                        confirmAndClearLocalState(onClearLocalState, onClose)
+                    }
+                    data-testid="clear-local-state"
+                    sx={clearLocalStateButtonSx}
+                >
+                    <ClearLocalStateIcon />
+                    <ListItemText
+                        primary="Clear local state"
+                        secondary="All identifier buckets"
+                    />
+                </ListItemButton>
+            </Box>
         </Drawer>
     );
 };
 
-export const DesktopNavigationRail = () => {
+export const DesktopNavigationRail = ({
+    onClearLocalState,
+}: DesktopNavigationRailProps) => {
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -187,6 +277,31 @@ export const DesktopNavigationRail = () => {
                     </Tooltip>
                 );
             })}
+            <Box sx={{ flexGrow: 1 }} />
+            <Divider sx={{ my: 0.75 }} />
+            <Tooltip title="Clear all saved local app state" placement="right">
+                <ListItemButton
+                    onClick={() => confirmAndClearLocalState(onClearLocalState)}
+                    data-testid="rail-clear-local-state"
+                    sx={{
+                        ...clearLocalStateButtonSx,
+                        mx: 0,
+                        minHeight: 48,
+                    }}
+                >
+                    <ClearLocalStateIcon />
+                    <ListItemText
+                        primary={
+                            <Typography
+                                component="span"
+                                sx={{ fontWeight: 600 }}
+                            >
+                                Clear local state
+                            </Typography>
+                        }
+                    />
+                </ListItemButton>
+            </Tooltip>
         </Box>
     );
 };
