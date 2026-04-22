@@ -10,6 +10,7 @@ import { CredentialsView } from '../features/credentials/CredentialsView';
 import { DashboardView } from '../features/dashboard/DashboardView';
 import { IdentifiersView } from '../features/identifiers/IdentifiersView';
 import { AppNotificationsView } from '../features/notifications/AppNotificationsView';
+import { NotificationDetailView } from '../features/notifications/NotificationDetailView';
 import { OperationDetailView } from '../features/operations/OperationDetailView';
 import { OperationsView } from '../features/operations/OperationsView';
 import type { AppRuntime } from './runtime';
@@ -22,6 +23,8 @@ import {
     loadClient,
     loadCredentials,
     loadIdentifiers,
+    loadNotifications,
+    notificationsAction,
     rootAction,
 } from './routeData';
 import { RootLayout } from './RootLayout';
@@ -260,7 +263,9 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
                 handle: APP_FEATURE_ROUTES[4].handle,
                 loader: ({ request }) => loadClient(runtime, request),
                 element: <ClientView />,
-                errorElement: <RouteErrorBoundary title="Client route failed" />,
+                errorElement: (
+                    <RouteErrorBoundary title="Client route failed" />
+                ),
             },
             {
                 id: 'operations',
@@ -283,9 +288,21 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
                 id: 'appNotifications',
                 path: 'notifications',
                 handle: APP_FEATURE_ROUTES[6].handle,
+                loader: ({ request }) => loadNotifications(runtime, request),
+                action: ({ request }) => notificationsAction(runtime, request),
                 element: <AppNotificationsView />,
                 errorElement: (
                     <RouteErrorBoundary title="Notifications route failed" />
+                ),
+            },
+            {
+                id: 'notificationDetail',
+                path: 'notifications/:notificationId',
+                loader: ({ request }) => loadNotifications(runtime, request),
+                action: ({ request }) => notificationsAction(runtime, request),
+                element: <NotificationDetailView />,
+                errorElement: (
+                    <RouteErrorBoundary title="Notification route failed" />
                 ),
             },
             {

@@ -9,6 +9,17 @@ import type {
     OobiRole,
     ResolveContactInput,
 } from '../services/contacts.service';
+import {
+    parseChallengeWords,
+    validateChallengeWords,
+} from '../features/contacts/challengeWords';
+import type {
+    GeneratedContactChallengeResult,
+    GenerateContactChallengeInput,
+    RespondToContactChallengeInput,
+    SendChallengeRequestInput,
+    VerifyContactChallengeInput,
+} from '../workflows/challenges.op';
 import type {
     ConnectedSignifyClient,
     SignifyClientConfig,
@@ -56,6 +67,14 @@ export type ContactsLoaderData =
     | BlockedRouteData;
 
 /**
+ * Loader data for `/notifications` and notification detail routes.
+ */
+export type NotificationsLoaderData =
+    | { status: 'ready'; identifiers: IdentifierSummary[] }
+    | { status: 'error'; identifiers: IdentifierSummary[]; message: string }
+    | BlockedRouteData;
+
+/**
  * Loader data for the client summary route.
  */
 export type ClientLoaderData =
@@ -68,9 +87,7 @@ export type ClientLoaderData =
  * This intentionally stays tiny until the real credential workflow lands; the
  * useful contract today is the connected-route gate.
  */
-export type CredentialsLoaderData =
-    | { status: 'ready' }
-    | BlockedRouteData;
+export type CredentialsLoaderData = { status: 'ready' } | BlockedRouteData;
 
 /**
  * Typed action result for root-level shell actions.
@@ -108,16 +125,33 @@ export type IdentifierActionData =
  */
 export type ContactActionData =
     | {
-          intent: 'resolve' | 'generateOobi' | 'delete' | 'updateAlias';
+          intent:
+              | 'resolve'
+              | 'generateOobi'
+              | 'respondChallenge'
+              | 'verifyChallenge'
+              | 'delete'
+              | 'updateAlias';
           ok: true;
           message: string;
           requestId: string;
           operationRoute: string;
       }
     | {
+          intent: 'generateChallenge';
+          ok: true;
+          message: string;
+          requestId: string;
+          operationRoute: string;
+          challenge: GeneratedContactChallengeResult;
+      }
+    | {
           intent:
               | 'resolve'
               | 'generateOobi'
+              | 'generateChallenge'
+              | 'respondChallenge'
+              | 'verifyChallenge'
               | 'delete'
               | 'updateAlias'
               | 'unsupported';
@@ -155,9 +189,13 @@ export interface RouteDataRuntime {
     /** Generate a Signify passcode after Signify WASM readiness completes. */
     generatePasscode(options?: { signal?: AbortSignal }): Promise<string>;
     /** Refresh the normalized Signify state through the connected client. */
-    refreshState(options?: { signal?: AbortSignal }): Promise<SignifyStateSummary | null>;
+    refreshState(options?: {
+        signal?: AbortSignal;
+    }): Promise<SignifyStateSummary | null>;
     /** Load and normalize identifiers through the connected client. */
-    listIdentifiers(options?: { signal?: AbortSignal }): Promise<IdentifierSummary[]>;
+    listIdentifiers(options?: {
+        signal?: AbortSignal;
+    }): Promise<IdentifierSummary[]>;
     /** Load live contact, challenge, and protocol notification facts. */
     syncSessionInventory(options?: { signal?: AbortSignal }): Promise<unknown>;
     /** Create an identifier and wait for its KERIA operation to complete. */
@@ -200,6 +238,26 @@ export interface RouteDataRuntime {
         input: { contactId: string; alias: string },
         options?: { requestId?: string }
     ): BackgroundWorkflowStartResult;
+    /** Generate challenge words and record them in session state. */
+    generateContactChallenge(
+        input: GenerateContactChallengeInput,
+        options?: { signal?: AbortSignal; requestId?: string }
+    ): Promise<GeneratedContactChallengeResult>;
+    /** Start challenge response sending in the background. */
+    startRespondToChallenge(
+        input: RespondToContactChallengeInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start challenge request notification sending in the background. */
+    startSendChallengeRequest(
+        input: SendChallengeRequestInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start challenger-side verification in the background. */
+    startVerifyContactChallenge(
+        input: VerifyContactChallengeInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
 }
 
 /**
@@ -236,6 +294,18 @@ const parseIdentifierCreateDraft = (
 
 const parseOobiRole = (value: string): OobiRole | null =>
     value === 'agent' || value === 'witness' ? value : null;
+
+const contactIntentFromString = (
+    value: string
+): Exclude<ContactActionData['intent'], 'unsupported'> =>
+    value === 'generateOobi' ||
+    value === 'generateChallenge' ||
+    value === 'respondChallenge' ||
+    value === 'verifyChallenge' ||
+    value === 'delete' ||
+    value === 'updateAlias'
+        ? value
+        : 'resolve';
 
 /**
  * Loader for `/dashboard`.
@@ -283,6 +353,32 @@ export const loadContacts = async (
         return {
             status: 'error',
             message: `Unable to refresh contact inventory: ${toRouteError(error).message}`,
+        };
+    }
+};
+
+/**
+ * Loader for `/notifications`.
+ */
+export const loadNotifications = async (
+    runtime: RouteDataRuntime,
+    request?: Request
+): Promise<NotificationsLoaderData> => {
+    if (runtime.getClient() === null) {
+        return { status: 'blocked' };
+    }
+
+    try {
+        const [identifiers] = await Promise.all([
+            runtime.listIdentifiers({ signal: request?.signal }),
+            runtime.syncSessionInventory({ signal: request?.signal }),
+        ]);
+        return { status: 'ready', identifiers };
+    } catch (error) {
+        return {
+            status: 'error',
+            identifiers: [],
+            message: `Unable to refresh notifications: ${toRouteError(error).message}`,
         };
     }
 };
@@ -339,7 +435,9 @@ export const loadClient = async (
     const summary =
         (await runtime.refreshState({ signal: request?.signal })) ??
         runtime.getState();
-    return summary === null ? { status: 'blocked' } : { status: 'ready', summary };
+    return summary === null
+        ? { status: 'blocked' }
+        : { status: 'ready', summary };
 };
 
 /**
@@ -533,12 +631,7 @@ export const contactsAction = async (
 
     if (runtime.getClient() === null) {
         return {
-            intent:
-                intent === 'generateOobi' ||
-                intent === 'delete' ||
-                intent === 'updateAlias'
-                    ? intent
-                    : 'resolve',
+            intent: contactIntentFromString(intent),
             ok: false,
             message: 'Connect to KERIA before changing contacts.',
             requestId,
@@ -619,6 +712,223 @@ export const contactsAction = async (
             };
         }
 
+        if (intent === 'generateChallenge') {
+            const contactId = formString(formData, 'contactId').trim();
+            const contactAlias = formString(formData, 'contactAlias').trim();
+            const localIdentifier = formString(
+                formData,
+                'localIdentifier'
+            ).trim();
+            const localAid = formString(formData, 'localAid').trim();
+            if (contactId.length === 0 || localIdentifier.length === 0) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Contact id and local identifier are required.',
+                    requestId,
+                };
+            }
+
+            const generated = await runtime.generateContactChallenge(
+                {
+                    counterpartyAid: contactId,
+                    counterpartyAlias:
+                        contactAlias.length > 0 ? contactAlias : null,
+                    localIdentifier,
+                    localAid: localAid.length > 0 ? localAid : null,
+                },
+                { signal: request.signal }
+            );
+            runtime.startSendChallengeRequest(
+                {
+                    challengeId: generated.challengeId,
+                    counterpartyAid: generated.counterpartyAid,
+                    counterpartyAlias: generated.counterpartyAlias,
+                    localIdentifier: generated.localIdentifier,
+                    localAid: generated.localAid,
+                    wordsHash: generated.wordsHash,
+                    strength: generated.strength,
+                },
+                {
+                    requestId: requestId
+                        ? `${requestId}:challenge-request`
+                        : undefined,
+                }
+            );
+            const started = runtime.startVerifyContactChallenge(
+                {
+                    challengeId: generated.challengeId,
+                    counterpartyAid: generated.counterpartyAid,
+                    counterpartyAlias: generated.counterpartyAlias,
+                    localIdentifier: generated.localIdentifier,
+                    localAid: generated.localAid,
+                    words: generated.words,
+                    wordsHash: generated.wordsHash,
+                    generatedAt: generated.generatedAt,
+                },
+                { requestId: requestId || undefined }
+            );
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message:
+                    'Generated challenge, sent request, and started verification',
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+                challenge: generated,
+            };
+        }
+
+        if (intent === 'respondChallenge') {
+            const notificationId = formString(
+                formData,
+                'notificationId'
+            ).trim();
+            const challengeId = formString(formData, 'challengeId').trim();
+            const wordsHash = formString(formData, 'wordsHash').trim();
+            const contactId = formString(formData, 'contactId').trim();
+            const contactAlias = formString(formData, 'contactAlias').trim();
+            const localIdentifier = formString(
+                formData,
+                'localIdentifier'
+            ).trim();
+            const localAid = formString(formData, 'localAid').trim();
+            const words = parseChallengeWords(formString(formData, 'words'));
+            const wordError = validateChallengeWords(words);
+            if (contactId.length === 0 || localIdentifier.length === 0) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Contact id and local identifier are required.',
+                    requestId,
+                };
+            }
+
+            if (wordError !== null) {
+                return {
+                    intent,
+                    ok: false,
+                    message: wordError,
+                    requestId,
+                };
+            }
+
+            const started = runtime.startRespondToChallenge(
+                {
+                    challengeId:
+                        challengeId.length > 0
+                            ? challengeId
+                            : requestId || undefined,
+                    notificationId:
+                        notificationId.length > 0 ? notificationId : undefined,
+                    wordsHash: wordsHash.length > 0 ? wordsHash : null,
+                    counterpartyAid: contactId,
+                    counterpartyAlias:
+                        contactAlias.length > 0 ? contactAlias : null,
+                    localIdentifier,
+                    localAid: localAid.length > 0 ? localAid : null,
+                    words,
+                },
+                { requestId: requestId || undefined }
+            );
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Sending challenge response to ${contactId}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
+        if (intent === 'verifyChallenge') {
+            const challengeId = formString(formData, 'challengeId').trim();
+            const contactId = formString(formData, 'contactId').trim();
+            const contactAlias = formString(formData, 'contactAlias').trim();
+            const localIdentifier = formString(
+                formData,
+                'localIdentifier'
+            ).trim();
+            const localAid = formString(formData, 'localAid').trim();
+            const words = parseChallengeWords(formString(formData, 'words'));
+            const wordsHash = formString(formData, 'wordsHash').trim();
+            const generatedAt = formString(formData, 'generatedAt').trim();
+            const wordError = validateChallengeWords(words);
+            if (
+                challengeId.length === 0 ||
+                contactId.length === 0 ||
+                localIdentifier.length === 0
+            ) {
+                return {
+                    intent,
+                    ok: false,
+                    message:
+                        'Challenge id, contact id, and local identifier are required.',
+                    requestId,
+                };
+            }
+
+            if (wordError !== null) {
+                return {
+                    intent,
+                    ok: false,
+                    message: wordError,
+                    requestId,
+                };
+            }
+
+            const started = runtime.startVerifyContactChallenge(
+                {
+                    challengeId,
+                    counterpartyAid: contactId,
+                    counterpartyAlias:
+                        contactAlias.length > 0 ? contactAlias : null,
+                    localIdentifier,
+                    localAid: localAid.length > 0 ? localAid : null,
+                    words,
+                    wordsHash: wordsHash.length > 0 ? wordsHash : null,
+                    generatedAt: generatedAt.length > 0 ? generatedAt : null,
+                },
+                { requestId: requestId || undefined }
+            );
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Waiting for challenge response from ${contactId}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
         if (intent === 'delete') {
             const contactId = formString(formData, 'contactId').trim();
             if (contactId.length === 0) {
@@ -688,12 +998,7 @@ export const contactsAction = async (
         }
     } catch (error) {
         return {
-            intent:
-                intent === 'generateOobi' ||
-                intent === 'delete' ||
-                intent === 'updateAlias'
-                    ? intent
-                    : 'resolve',
+            intent: contactIntentFromString(intent),
             ok: false,
             message: toRouteError(error).message,
             requestId,
@@ -707,3 +1012,11 @@ export const contactsAction = async (
         requestId,
     };
 };
+
+/**
+ * Notification actions share the contact challenge response path.
+ */
+export const notificationsAction = async (
+    runtime: RouteDataRuntime,
+    request: Request
+): Promise<ContactActionData> => contactsAction(runtime, request);

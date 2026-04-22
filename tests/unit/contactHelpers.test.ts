@@ -279,13 +279,18 @@ describe('contact helpers', () => {
         ).toEqual([
             {
                 id: 'Econtact:Ssaid',
+                source: 'keria',
                 direction: 'received',
                 role: 'Alice',
                 counterpartyAid: 'Econtact',
                 words: ['one', 'two'],
+                wordsHash: '42c28241',
+                responseSaid: 'Ssaid',
                 authenticated: true,
                 status: 'verified',
                 result: 'Ssaid',
+                error: null,
+                verifiedAt: '2026-04-21T00:00:00.000Z',
                 updatedAt: '2026-04-21T00:00:00.000Z',
             },
         ]);

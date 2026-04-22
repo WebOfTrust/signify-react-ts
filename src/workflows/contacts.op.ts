@@ -16,7 +16,10 @@ import {
     type ResolveContactInput,
     type ResolveContactResult,
 } from '../services/contacts.service';
-import { listNotificationsService } from '../services/notifications.service';
+import {
+    listNotificationsService,
+    type NotificationInventorySnapshot,
+} from '../services/notifications.service';
 import { appNotificationRecorded } from '../state/appNotifications.slice';
 import { challengesLoaded } from '../state/challenges.slice';
 import {
@@ -28,7 +31,8 @@ import {
     type GeneratedOobiRecord,
 } from '../state/contacts.slice';
 import { notificationInventoryLoaded } from '../state/notifications.slice';
-import type { AppDispatch } from '../state/store';
+import type { AppDispatch, AppStore } from '../state/store';
+import type { ChallengeRecord } from '../state/challenges.slice';
 
 export interface GenerateOobiInput {
     identifier: string;
@@ -44,7 +48,7 @@ export interface SessionInventorySnapshot extends ContactInventorySnapshot {
     notificationsLoadedAt: string;
 }
 
-const publishContactInventory = (
+export const publishContactInventory = (
     dispatch: AppDispatch,
     inventory: ContactInventorySnapshot
 ): void => {
@@ -62,6 +66,103 @@ const publishContactInventory = (
     );
 };
 
+export const publishNotificationInventory = (
+    store: Pick<AppStore, 'dispatch' | 'getState'>,
+    inventory: NotificationInventorySnapshot
+): void => {
+    store.dispatch(
+        notificationInventoryLoaded({
+            notifications: inventory.notifications,
+            loadedAt: inventory.loadedAt,
+        })
+    );
+
+    for (const unknownSender of inventory.unknownChallengeSenders) {
+        const id = `challenge-sender-unknown:${unknownSender.notificationId}`;
+        if (store.getState().appNotifications.byId[id] !== undefined) {
+            continue;
+        }
+
+        store.dispatch(
+            appNotificationRecorded({
+                id,
+                severity: 'warning',
+                status: 'unread',
+                title: 'Challenge request sender unknown',
+                message:
+                    'A challenge request came from an AID that is not in contacts. The KERIA notification was marked read.',
+                createdAt: unknownSender.createdAt,
+                readAt: null,
+                operationId: null,
+                links: [
+                    {
+                        rel: 'result',
+                        label: 'View notifications',
+                        path: '/notifications',
+                    },
+                ],
+                payloadDetails: [
+                    {
+                        id: 'sender-aid',
+                        label: 'Sender AID',
+                        value: unknownSender.senderAid,
+                        kind: 'aid',
+                        copyable: true,
+                    },
+                    {
+                        id: 'exchange-said',
+                        label: 'EXN SAID',
+                        value: unknownSender.exnSaid,
+                        kind: 'text',
+                        copyable: true,
+                    },
+                ],
+            })
+        );
+    }
+};
+
+export const localIdentifierAids = (
+    store: Pick<AppStore, 'getState'>
+): string[] => {
+    const { identifiers } = store.getState();
+    const aids = identifiers.prefixes.flatMap((prefix) => {
+        const identifier = identifiers.byPrefix[prefix];
+        const aid = identifier?.prefix ?? prefix;
+        return aid.trim().length > 0 ? [aid] : [];
+    });
+
+    return [...new Set(aids)];
+};
+
+const respondedChallengeKeys = (
+    store: Pick<AppStore, 'getState'>,
+    inventory: ContactInventorySnapshot
+): {
+    ids: string[];
+    wordsHashes: string[];
+} => {
+    const allChallenges = [
+        ...Object.values(store.getState().challenges.byId),
+        ...inventory.challenges,
+    ].filter(
+        (challenge): challenge is ChallengeRecord => challenge !== undefined
+    );
+    const responded = allChallenges.filter(
+        (challenge) =>
+            challenge.status === 'responded' || challenge.status === 'verified'
+    );
+
+    return {
+        ids: responded.map((challenge) => challenge.id),
+        wordsHashes: responded.flatMap((challenge) =>
+            challenge.wordsHash === undefined || challenge.wordsHash === null
+                ? []
+                : [challenge.wordsHash]
+        ),
+    };
+};
+
 /**
  * Load session-scoped contact, challenge, and KERIA notification facts.
  */
@@ -69,15 +170,17 @@ export function* syncSessionInventoryOp(): EffectionOperation<SessionInventorySn
     const services = yield* AppServicesContext.expect();
     const client = services.runtime.requireConnectedClient();
     const contactInventory = yield* listContactsService({ client });
-    const notificationInventory = yield* listNotificationsService({ client });
+    const responded = respondedChallengeKeys(services.store, contactInventory);
+    const notificationInventory = yield* listNotificationsService({
+        client,
+        contacts: contactInventory.contacts,
+        localAids: localIdentifierAids(services.store),
+        respondedChallengeIds: responded.ids,
+        respondedWordsHashes: responded.wordsHashes,
+    });
 
     publishContactInventory(services.store.dispatch, contactInventory);
-    services.store.dispatch(
-        notificationInventoryLoaded({
-            notifications: notificationInventory.notifications,
-            loadedAt: notificationInventory.loadedAt,
-        })
-    );
+    publishNotificationInventory(services.store, notificationInventory);
 
     return {
         ...contactInventory,
@@ -120,7 +223,12 @@ export function* liveSessionInventoryOp(): EffectionOperation<void> {
             }
         }
 
-        yield* sleep(Math.max(250, services.config.operations.liveRefreshMs));
+        yield* sleep(
+            Math.max(
+                3000,
+                Math.min(5000, services.config.operations.liveRefreshMs)
+            )
+        );
     }
 }
 

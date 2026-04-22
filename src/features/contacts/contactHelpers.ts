@@ -7,6 +7,7 @@ import type {
 } from '../../state/contacts.slice';
 import type { ChallengeRecord } from '../../state/challenges.slice';
 import type { IdentifierSummary } from '../identifiers/identifierTypes';
+import { challengeWordsFingerprint } from './challengeWords';
 
 export const CONTACT_ENDPOINT_ROLES = [
     'agent',
@@ -68,7 +69,9 @@ const roleLabels: Record<ContactEndpointRole, string> = {
     mailbox: 'Mailbox',
 };
 
-const normalizeEndpointRole = (role: string | null): ContactEndpointRole | null =>
+const normalizeEndpointRole = (
+    role: string | null
+): ContactEndpointRole | null =>
     role !== null && CONTACT_ENDPOINT_ROLE_SET.has(role)
         ? (role as ContactEndpointRole)
         : null;
@@ -241,7 +244,9 @@ export const pendingContactIdForOobi = (
 /**
  * Extract likely component tags from KERIA OOBI URLs.
  */
-export const componentTagsFromOobi = (oobi: string | null | undefined): string[] => {
+export const componentTagsFromOobi = (
+    oobi: string | null | undefined
+): string[] => {
     if (oobi === null || oobi === undefined || oobi.trim().length === 0) {
         return [];
     }
@@ -549,16 +554,22 @@ export const challengeRecordsFromKeriaContacts = (
         (contact.challenges ?? []).map((challenge, index) => {
             const said = stringValue(challenge.said);
             const authenticated = challenge.authenticated === true;
+            const updated = stringValue(challenge.dt) ?? updatedAt;
             return {
                 id: `${contact.id}:${said ?? index.toString()}`,
+                source: 'keria',
                 direction: 'received',
                 role: stringValue(contact.alias) ?? contact.id,
                 counterpartyAid: contact.id,
                 words: challenge.words,
+                wordsHash: challengeWordsFingerprint(challenge.words),
+                responseSaid: said,
                 authenticated,
                 status: authenticated ? 'verified' : 'responded',
                 result: said,
-                updatedAt: stringValue(challenge.dt) ?? updatedAt,
+                error: null,
+                verifiedAt: authenticated ? updated : null,
+                updatedAt: updated,
             };
         })
     );

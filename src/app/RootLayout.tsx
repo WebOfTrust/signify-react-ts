@@ -12,7 +12,9 @@ import { TopBar } from './TopBar';
 import { useAppSelector } from '../state/hooks';
 import {
     selectActiveOperations,
+    selectActionableChallengeRequestNotifications,
     selectAppNotifications,
+    selectIdentifiers,
     selectUnreadAppNotifications,
 } from '../state/selectors';
 
@@ -38,6 +40,10 @@ const RootLayoutContent = () => {
     const activeOperations = useAppSelector(selectActiveOperations);
     const appNotifications = useAppSelector(selectAppNotifications);
     const unreadAppNotifications = useAppSelector(selectUnreadAppNotifications);
+    const challengeRequests = useAppSelector(
+        selectActionableChallengeRequestNotifications
+    );
+    const identifiers = useAppSelector(selectIdentifiers);
     const connectDialogOpen = connectOpen && connection.status !== 'connected';
     const pending = derivePendingState({
         navigation,
@@ -57,7 +63,11 @@ const RootLayoutContent = () => {
                 isConnected={connection.status === 'connected'}
                 activeOperations={activeOperations}
                 recentNotifications={appNotifications}
-                unreadNotificationCount={unreadAppNotifications.length}
+                challengeRequests={challengeRequests}
+                identifiers={identifiers}
+                unreadNotificationCount={
+                    unreadAppNotifications.length + challengeRequests.length
+                }
                 onMenuClick={() => setDrawerOpen(true)}
                 onConnectClick={() => setConnectOpen(true)}
             />

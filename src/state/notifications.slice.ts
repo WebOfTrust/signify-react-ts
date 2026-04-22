@@ -6,7 +6,37 @@ import {
 } from './session.slice';
 
 /** Local handling status for a KERIA notification route. */
-export type NotificationStatus = 'unread' | 'processing' | 'processed' | 'error';
+export type NotificationStatus =
+    | 'unread'
+    | 'processing'
+    | 'processed'
+    | 'error';
+
+/** Responder-facing state for challenge request notifications. */
+export type ChallengeRequestNotificationStatus =
+    | 'actionable'
+    | 'senderUnknown'
+    | 'responded'
+    | 'error';
+
+/**
+ * Actionable challenge request metadata hydrated from a KERIA notification EXN.
+ *
+ * Raw challenge words never belong here. The responder supplies words
+ * out-of-band when sending the response.
+ */
+export interface ChallengeRequestNotification {
+    notificationId: string;
+    exnSaid: string;
+    senderAid: string;
+    senderAlias: string;
+    recipientAid: string | null;
+    challengeId: string;
+    wordsHash: string;
+    strength: number;
+    createdAt: string;
+    status: ChallengeRequestNotificationStatus;
+}
 
 /**
  * Durable notification summary used by polling and future processing workflows.
@@ -19,6 +49,7 @@ export interface NotificationRecord {
     anchorSaid: string | null;
     status: NotificationStatus;
     message: string | null;
+    challengeRequest?: ChallengeRequestNotification | null;
     updatedAt: string;
 }
 
@@ -93,6 +124,33 @@ export const notificationsSlice = createSlice({
                 notification.message = payload.message ?? notification.message;
             }
         },
+        challengeRequestNotificationResponded(
+            state,
+            {
+                payload,
+            }: PayloadAction<{
+                id: string;
+                updatedAt: string;
+                message?: string | null;
+            }>
+        ) {
+            const notification = state.byId[payload.id];
+            if (notification !== undefined) {
+                notification.read = true;
+                notification.status = 'processed';
+                notification.updatedAt = payload.updatedAt;
+                notification.message = payload.message ?? notification.message;
+                if (
+                    notification.challengeRequest !== null &&
+                    notification.challengeRequest !== undefined
+                ) {
+                    notification.challengeRequest = {
+                        ...notification.challengeRequest,
+                        status: 'responded',
+                    };
+                }
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -107,8 +165,8 @@ export const {
     notificationInventoryLoaded,
     notificationRecorded,
     notificationStatusChanged,
-} =
-    notificationsSlice.actions;
+    challengeRequestNotificationResponded,
+} = notificationsSlice.actions;
 
 /** Reducer mounted at `state.notifications`. */
 export const notificationsReducer = notificationsSlice.reducer;

@@ -27,7 +27,10 @@ import {
     sessionDisconnected,
 } from '../../src/state/session.slice';
 import { notificationRecorded } from '../../src/state/notifications.slice';
-import { challengesLoaded } from '../../src/state/challenges.slice';
+import {
+    challengeRecorded,
+    challengesLoaded,
+} from '../../src/state/challenges.slice';
 import {
     contactInventoryLoaded,
     generatedOobiRecorded,
@@ -238,20 +241,93 @@ describe('RTK state foundation', () => {
         expect(selectContactById('Econtact')(store.getState())?.alias).toBe(
             'Wan'
         );
-        expect(selectKnownComponents(store.getState()).map((item) => item.role)).toEqual([
-            'agent',
-            'witness',
-        ]);
+        expect(
+            selectKnownComponents(store.getState()).map((item) => item.role)
+        ).toEqual(['agent', 'witness']);
         expect(selectChallenges(store.getState())).toHaveLength(1);
-        expect(selectChallengesForContact('Econtact')(store.getState())).toEqual([
-            expect.objectContaining({ id: 'challenge-1' }),
-        ]);
+        expect(
+            selectChallengesForContact('Econtact')(store.getState())
+        ).toEqual([expect.objectContaining({ id: 'challenge-1' })]);
         expect(selectDashboardCounts(store.getState())).toMatchObject({
             contacts: 1,
             knownComponents: 2,
             challenges: 1,
         });
-        expect(store.getState().contacts.generatedOobiIds).toEqual(['alice:agent']);
+        expect(store.getState().contacts.generatedOobiIds).toEqual([
+            'alice:agent',
+        ]);
+    });
+
+    it('preserves workflow challenge records across inventory refreshes', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            challengeRecorded({
+                id: 'workflow-challenge-1',
+                source: 'workflow',
+                direction: 'issued',
+                role: 'challenger',
+                counterpartyAid: 'Econtact',
+                counterpartyAlias: 'Wan',
+                localIdentifier: 'alice',
+                localAid: 'Ealice',
+                words: Array.from({ length: 12 }, (_, index) => `word${index}`),
+                wordsHash: 'hash-one',
+                responseSaid: null,
+                authenticated: false,
+                status: 'pending',
+                result: null,
+                error: null,
+                generatedAt: '2026-04-21T00:00:01.000Z',
+                sentAt: null,
+                verifiedAt: null,
+                updatedAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+        store.dispatch(
+            challengesLoaded({
+                loadedAt: '2026-04-21T00:00:02.000Z',
+                challenges: [],
+            })
+        );
+
+        expect(selectChallenges(store.getState())).toEqual([
+            expect.objectContaining({ id: 'workflow-challenge-1' }),
+        ]);
+
+        store.dispatch(
+            challengesLoaded({
+                loadedAt: '2026-04-21T00:00:03.000Z',
+                challenges: [
+                    {
+                        id: 'Econtact:Eresponse',
+                        source: 'keria',
+                        direction: 'received',
+                        role: 'Wan',
+                        counterpartyAid: 'Econtact',
+                        words: Array.from(
+                            { length: 12 },
+                            (_, index) => `word${index}`
+                        ),
+                        wordsHash: 'hash-one',
+                        responseSaid: 'Eresponse',
+                        authenticated: true,
+                        status: 'verified',
+                        result: 'Eresponse',
+                        error: null,
+                        verifiedAt: '2026-04-21T00:00:03.000Z',
+                        updatedAt: '2026-04-21T00:00:03.000Z',
+                    },
+                ],
+            })
+        );
+
+        expect(selectChallenges(store.getState())).toEqual([
+            expect.objectContaining({
+                id: 'Econtact:Eresponse',
+                status: 'verified',
+            }),
+        ]);
     });
 
     it('clears session-scoped inventory when a new connection starts', () => {
@@ -411,7 +487,9 @@ describe('RTK state foundation', () => {
         );
 
         expect(selectUnreadAppNotifications(store.getState())).toHaveLength(0);
-        expect(store.getState().appNotifications.byId['app-n-new']).toMatchObject({
+        expect(
+            store.getState().appNotifications.byId['app-n-new']
+        ).toMatchObject({
             status: 'read',
             readAt: '2026-04-21T00:00:02.000Z',
         });

@@ -1,7 +1,10 @@
 import type { RootState } from './store';
 import type { OperationRecord } from './operations.slice';
 import type { AppNotificationRecord } from './appNotifications.slice';
-import type { NotificationRecord } from './notifications.slice';
+import type {
+    ChallengeRequestNotification,
+    NotificationRecord,
+} from './notifications.slice';
 import type { ContactRecord } from './contacts.slice';
 import type { ChallengeRecord } from './challenges.slice';
 import {
@@ -70,6 +73,11 @@ const byNewestKeriaNotificationTimestamp = (
     right: NotificationRecord
 ): number => right.updatedAt.localeCompare(left.updatedAt);
 
+const byNewestChallengeRequestTimestamp = (
+    left: ChallengeRequestNotification,
+    right: ChallengeRequestNotification
+): number => right.createdAt.localeCompare(left.createdAt);
+
 const byNewestOperationTimestamp = (
     left: OperationRecord,
     right: OperationRecord
@@ -80,10 +88,8 @@ const byNewestChallengeTimestamp = (
     right: ChallengeRecord
 ): number => right.updatedAt.localeCompare(left.updatedAt);
 
-const byUpdatedContact = (
-    left: ContactRecord,
-    right: ContactRecord
-): number => (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '');
+const byUpdatedContact = (left: ContactRecord, right: ContactRecord): number =>
+    (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '');
 
 /** Select user-facing app notification records in descending timestamp order. */
 export const selectAppNotifications = (state: RootState) =>
@@ -127,7 +133,9 @@ export const selectGeneratedOobis = (state: RootState) =>
     state.contacts.generatedOobiIds
         .map((id) => state.contacts.generatedOobis[id])
         .filter((record) => record !== undefined)
-        .sort((left, right) => right.generatedAt.localeCompare(left.generatedAt));
+        .sort((left, right) =>
+            right.generatedAt.localeCompare(left.generatedAt)
+        );
 
 /** Build an OOBI lookup for contacts that were created from an OOBI. */
 export const selectContactsByOobi = (state: RootState) => {
@@ -160,6 +168,37 @@ export const selectKeriaNotifications = (state: RootState) =>
                 notification !== undefined
         )
         .sort(byNewestKeriaNotificationTimestamp);
+
+/** Select one KERIA notification by id. */
+export const selectKeriaNotificationById =
+    (id: string) =>
+    (state: RootState): NotificationRecord | null =>
+        state.notifications.byId[id] ?? null;
+
+/** Select hydrated challenge request notifications newest first. */
+export const selectChallengeRequestNotifications = (state: RootState) =>
+    selectKeriaNotifications(state)
+        .flatMap((notification) =>
+            notification.challengeRequest === null ||
+            notification.challengeRequest === undefined
+                ? []
+                : [notification.challengeRequest]
+        )
+        .sort(byNewestChallengeRequestTimestamp);
+
+/** Select challenge requests that still need responder action. */
+export const selectActionableChallengeRequestNotifications = (
+    state: RootState
+) =>
+    selectChallengeRequestNotifications(state).filter(
+        (notification) => notification.status === 'actionable'
+    );
+
+/** Select one hydrated challenge request notification by KERIA notification id. */
+export const selectChallengeRequestNotificationById =
+    (notificationId: string) =>
+    (state: RootState): ChallengeRequestNotification | null =>
+        state.notifications.byId[notificationId]?.challengeRequest ?? null;
 
 /** Select challenge-response records newest first. */
 export const selectChallenges = (state: RootState) =>
@@ -197,10 +236,12 @@ export const selectKnownComponentsByRole = (state: RootState) => {
 };
 
 /** Select recent operations for compact dashboard panels. */
-export const selectRecentOperations = (limit = 5) => (state: RootState) =>
-    [...selectOperationRecords(state)]
-        .sort(byNewestOperationTimestamp)
-        .slice(0, limit);
+export const selectRecentOperations =
+    (limit = 5) =>
+    (state: RootState) =>
+        [...selectOperationRecords(state)]
+            .sort(byNewestOperationTimestamp)
+            .slice(0, limit);
 
 /** Select recent protocol notifications for dashboard panels. */
 export const selectRecentKeriaNotifications =

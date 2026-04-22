@@ -3,7 +3,11 @@ import {
     Box,
     Button,
     Divider,
+    FormControl,
     IconButton,
+    InputLabel,
+    MenuItem,
+    Select,
     Stack,
     TextField,
     Tooltip,
@@ -13,6 +17,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
+import SendIcon from '@mui/icons-material/Send';
 import ShieldIcon from '@mui/icons-material/Shield';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import {
@@ -42,6 +47,7 @@ import { useAppSelector } from '../../state/hooks';
 import {
     selectChallengesForContact,
     selectContactById,
+    selectIdentifiers,
 } from '../../state/selectors';
 import {
     contactChallengeStatus,
@@ -49,6 +55,7 @@ import {
     contactOobiRoleSummary,
 } from './contactHelpers';
 import type { ContactOobiGroup } from './contactHelpers';
+import { parseChallengeWords, validateChallengeWords } from './challengeWords';
 
 const timestampText = (value: string | null): string =>
     value === null ? 'Not available' : (formatTimestamp(value) ?? value);
@@ -73,13 +80,31 @@ export const ContactDetailView = () => {
     const { contactId = '' } = useParams();
     const navigate = useNavigate();
     const fetcher = useFetcher<ContactActionData>();
+    const challengeFetcher = useFetcher<ContactActionData>();
+    const responseFetcher = useFetcher<ContactActionData>();
     const contact = useAppSelector(selectContactById(contactId));
     const challenges = useAppSelector(selectChallengesForContact(contactId));
+    const identifiers = useAppSelector(selectIdentifiers);
     const [aliasDraft, setAliasDraft] = useState({
         contactId,
         value: contact?.alias ?? '',
     });
+    const [selectedIdentifier, setSelectedIdentifier] = useState('');
+    const [responseWordsDraft, setResponseWordsDraft] = useState('');
     const actionRunning = fetcher.state !== 'idle';
+    const challengeRunning = challengeFetcher.state !== 'idle';
+    const responseRunning = responseFetcher.state !== 'idle';
+    const activeIdentifier = selectedIdentifier || identifiers[0]?.name || '';
+    const activeIdentifierSummary =
+        identifiers.find(
+            (identifier) => identifier.name === activeIdentifier
+        ) ?? null;
+    const responseWords = parseChallengeWords(responseWordsDraft);
+    const responseWordsError =
+        responseWordsDraft.trim().length === 0
+            ? null
+            : validateChallengeWords(responseWords);
+    const responseWordsInvalid = validateChallengeWords(responseWords) !== null;
 
     useEffect(() => {
         if (fetcher.data?.ok === true && fetcher.data.intent === 'delete') {
@@ -116,9 +141,43 @@ export const ContactDetailView = () => {
         fetcher.submit(formData, { method: 'post' });
     };
 
+    const submitGenerateChallenge = () => {
+        if (contact === null || activeIdentifierSummary === null) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('intent', 'generateChallenge');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('contactId', contact.aid ?? contact.id);
+        formData.set('contactAlias', contact.alias);
+        formData.set('localIdentifier', activeIdentifierSummary.name);
+        formData.set('localAid', activeIdentifierSummary.prefix);
+        challengeFetcher.submit(formData, { method: 'post' });
+    };
+
+    const submitRespondChallenge = () => {
+        if (contact === null || activeIdentifierSummary === null) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('intent', 'respondChallenge');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('contactId', contact.aid ?? contact.id);
+        formData.set('contactAlias', contact.alias);
+        formData.set('localIdentifier', activeIdentifierSummary.name);
+        formData.set('localAid', activeIdentifierSummary.prefix);
+        formData.set('words', responseWordsDraft);
+        responseFetcher.submit(formData, { method: 'post' });
+    };
+
     if (contact === null) {
         return (
-            <Box sx={{ display: 'grid', gap: 2.5 }} data-testid="contact-detail">
+            <Box
+                sx={{ display: 'grid', gap: 2.5 }}
+                data-testid="contact-detail"
+            >
                 <PageHeader
                     eyebrow="Contact"
                     title="Contact not found"
@@ -143,7 +202,8 @@ export const ContactDetailView = () => {
     const roleSummary = contactOobiRoleSummary(contact);
     const oobiGroups = contactOobiGroups(contact);
     const challengeStatus = contactChallengeStatus(contact);
-    const Shield = challengeStatus.status === 'verified' ? ShieldIcon : ShieldOutlinedIcon;
+    const Shield =
+        challengeStatus.status === 'verified' ? ShieldIcon : ShieldOutlinedIcon;
     const shieldColor =
         challengeStatus.status === 'verified'
             ? 'success.main'
@@ -153,6 +213,26 @@ export const ContactDetailView = () => {
     const aid = contact.aid ?? contact.id;
     const draftAlias =
         aliasDraft.contactId === contact.id ? aliasDraft.value : contact.alias;
+    const generatedChallengeCandidate =
+        challengeFetcher.data?.ok === true &&
+        challengeFetcher.data.intent === 'generateChallenge'
+            ? challengeFetcher.data.challenge
+            : null;
+    const generatedChallengeVerified =
+        generatedChallengeCandidate !== null &&
+        challenges.some(
+            (challenge) =>
+                (challenge.id === generatedChallengeCandidate.challengeId ||
+                    challenge.wordsHash ===
+                        generatedChallengeCandidate.wordsHash) &&
+                (challenge.authenticated || challenge.status === 'verified')
+        );
+    const generatedChallenge = generatedChallengeVerified
+        ? null
+        : generatedChallengeCandidate;
+    const generatedChallengePhrase =
+        generatedChallenge === null ? null : generatedChallenge.words.join(' ');
+    const canUseChallenge = activeIdentifierSummary !== null && aid.length > 0;
 
     return (
         <Box sx={{ display: 'grid', gap: 2.5 }} data-testid="contact-detail">
@@ -182,28 +262,17 @@ export const ContactDetailView = () => {
                     }}
                 >
                     <StatusPill label="warning" tone="warning" />{' '}
-                    <Typography component="span">{loaderData.message}</Typography>
+                    <Typography component="span">
+                        {loaderData.message}
+                    </Typography>
                 </Box>
             )}
-            {fetcher.data !== undefined && (
-                <Box
-                    sx={{
-                        border: 1,
-                        borderColor: fetcher.data.ok ? 'divider' : 'error.main',
-                        borderRadius: 1,
-                        bgcolor: fetcher.data.ok
-                            ? 'rgba(39, 215, 255, 0.06)'
-                            : 'rgba(255, 61, 79, 0.08)',
-                        px: 2,
-                        py: 1.25,
-                    }}
-                >
-                    <StatusPill
-                        label={fetcher.data.ok ? 'accepted' : 'error'}
-                        tone={fetcher.data.ok ? 'success' : 'error'}
-                    />{' '}
-                    <Typography component="span">{fetcher.data.message}</Typography>
-                </Box>
+            {fetcher.data !== undefined && <ActionNotice data={fetcher.data} />}
+            {challengeFetcher.data !== undefined && (
+                <ActionNotice data={challengeFetcher.data} />
+            )}
+            {responseFetcher.data !== undefined && (
+                <ActionNotice data={responseFetcher.data} />
             )}
             <ConsolePanel
                 title="Contact details"
@@ -303,6 +372,169 @@ export const ContactDetailView = () => {
                     )}
                 </Stack>
             </ConsolePanel>
+            <ConsolePanel
+                title="Challenge and response"
+                eyebrow="Trust"
+                actions={
+                    <Tooltip title={challengeStatus.tooltip}>
+                        <Box
+                            sx={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 0.75,
+                            }}
+                        >
+                            <Shield
+                                aria-label={challengeStatus.label}
+                                sx={{ color: shieldColor }}
+                            />
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                            >
+                                {challengeStatus.label}
+                            </Typography>
+                        </Box>
+                    </Tooltip>
+                }
+            >
+                <Stack spacing={2}>
+                    <FormControl fullWidth disabled={identifiers.length === 0}>
+                        <InputLabel id="challenge-identifier-label">
+                            Identifier
+                        </InputLabel>
+                        <Select
+                            labelId="challenge-identifier-label"
+                            label="Identifier"
+                            value={activeIdentifier}
+                            onChange={(event) => {
+                                setSelectedIdentifier(event.target.value);
+                            }}
+                        >
+                            {identifiers.map((identifier) => (
+                                <MenuItem
+                                    key={identifier.name}
+                                    value={identifier.name}
+                                >
+                                    {identifier.name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
+                            gap: 2,
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                border: 1,
+                                borderColor: 'divider',
+                                borderRadius: 1,
+                                p: 1.5,
+                                minWidth: 0,
+                            }}
+                        >
+                            <Stack spacing={1.5}>
+                                <Typography
+                                    variant="caption"
+                                    color="primary.main"
+                                    sx={{
+                                        display: 'block',
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase',
+                                    }}
+                                >
+                                    Generate challenge
+                                </Typography>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<ShieldOutlinedIcon />}
+                                    disabled={
+                                        !canUseChallenge || challengeRunning
+                                    }
+                                    onClick={submitGenerateChallenge}
+                                    data-testid="challenge-generate-submit"
+                                >
+                                    Generate challenge
+                                </Button>
+                                {generatedChallengePhrase !== null && (
+                                    <CopyBlock
+                                        label="Challenge words"
+                                        value={generatedChallengePhrase}
+                                        valueTestId="challenge-generated-words"
+                                    />
+                                )}
+                                {generatedChallenge !== null && (
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                    >
+                                        Waiting operation{' '}
+                                        {generatedChallenge.challengeId}
+                                    </Typography>
+                                )}
+                            </Stack>
+                        </Box>
+                        <Box
+                            sx={{
+                                border: 1,
+                                borderColor: 'divider',
+                                borderRadius: 1,
+                                p: 1.5,
+                                minWidth: 0,
+                            }}
+                        >
+                            <Stack spacing={1.5}>
+                                <Typography
+                                    variant="caption"
+                                    color="primary.main"
+                                    sx={{
+                                        display: 'block',
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase',
+                                    }}
+                                >
+                                    Respond to challenge
+                                </Typography>
+                                <TextField
+                                    label="Challenge words"
+                                    value={responseWordsDraft}
+                                    onChange={(event) => {
+                                        setResponseWordsDraft(
+                                            event.target.value
+                                        );
+                                    }}
+                                    minRows={3}
+                                    multiline
+                                    fullWidth
+                                    error={responseWordsError !== null}
+                                    helperText={
+                                        responseWordsError ??
+                                        `${responseWords.length} words`
+                                    }
+                                    data-testid="challenge-response-input"
+                                />
+                                <Button
+                                    variant="contained"
+                                    startIcon={<SendIcon />}
+                                    disabled={
+                                        !canUseChallenge ||
+                                        responseRunning ||
+                                        responseWordsInvalid
+                                    }
+                                    onClick={submitRespondChallenge}
+                                    data-testid="challenge-response-submit"
+                                >
+                                    Respond to challenge
+                                </Button>
+                            </Stack>
+                        </Box>
+                    </Box>
+                </Stack>
+            </ConsolePanel>
             <ConsolePanel title="Endpoints" eyebrow="Roles">
                 {contact.endpoints.length === 0 ? (
                     <EmptyState
@@ -331,12 +563,18 @@ export const ContactDetailView = () => {
                                         mb: 0.75,
                                     }}
                                 >
-                                    <StatusPill label={endpoint.role} tone="info" />
+                                    <StatusPill
+                                        label={endpoint.role}
+                                        tone="info"
+                                    />
                                     <Typography variant="body2">
                                         {endpoint.scheme}
                                     </Typography>
                                 </Stack>
-                                <CopyBlock label="Endpoint URL" value={endpoint.url} />
+                                <CopyBlock
+                                    label="Endpoint URL"
+                                    value={endpoint.url}
+                                />
                                 <Typography
                                     variant="caption"
                                     color="text.secondary"
@@ -412,7 +650,36 @@ export const ContactDetailView = () => {
     );
 };
 
-const CopyBlock = ({ label, value }: { label: string; value: string }) => (
+const ActionNotice = ({ data }: { data: ContactActionData }) => (
+    <Box
+        sx={{
+            border: 1,
+            borderColor: data.ok ? 'divider' : 'error.main',
+            borderRadius: 1,
+            bgcolor: data.ok
+                ? 'rgba(39, 215, 255, 0.06)'
+                : 'rgba(255, 61, 79, 0.08)',
+            px: 2,
+            py: 1.25,
+        }}
+    >
+        <StatusPill
+            label={data.ok ? 'accepted' : 'error'}
+            tone={data.ok ? 'success' : 'error'}
+        />{' '}
+        <Typography component="span">{data.message}</Typography>
+    </Box>
+);
+
+const CopyBlock = ({
+    label,
+    value,
+    valueTestId,
+}: {
+    label: string;
+    value: string;
+    valueTestId?: string;
+}) => (
     <Box
         sx={{
             display: 'grid',
@@ -426,11 +693,19 @@ const CopyBlock = ({ label, value }: { label: string; value: string }) => (
             <Typography
                 variant="caption"
                 color="primary.main"
-                sx={{ display: 'block', fontWeight: 700, textTransform: 'uppercase' }}
+                sx={{
+                    display: 'block',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                }}
             >
                 {label}
             </Typography>
-            <Typography variant="body2" sx={monoValueSx}>
+            <Typography
+                variant="body2"
+                sx={monoValueSx}
+                data-testid={valueTestId}
+            >
                 {value}
             </Typography>
         </Box>
@@ -453,7 +728,11 @@ const FullOobiBlock = ({ groups }: { groups: readonly ContactOobiGroup[] }) => (
         <Typography
             variant="caption"
             color="primary.main"
-            sx={{ display: 'block', fontWeight: 700, textTransform: 'uppercase' }}
+            sx={{
+                display: 'block',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+            }}
         >
             Full OOBI
         </Typography>
@@ -520,10 +799,7 @@ const ChallengeBlock = ({ challenge }: { challenge: ChallengeRecord }) => (
             </Typography>
         </Stack>
         <Divider sx={{ my: 1 }} />
-        <TelemetryRow
-            label="Words"
-            value={`${challenge.words.length} words`}
-        />
+        <TelemetryRow label="Words" value={`${challenge.words.length} words`} />
         <TelemetryRow
             label="Result"
             value={challenge.result ?? 'Not available'}

@@ -61,6 +61,18 @@ import {
     type UpdateContactAliasInput,
 } from '../workflows/contacts.op';
 import {
+    challengeResultRoute,
+    generateContactChallengeOp,
+    respondToContactChallengeOp,
+    sendChallengeRequestOp,
+    verifyContactChallengeOp,
+    type GeneratedContactChallengeResult,
+    type GenerateContactChallengeInput,
+    type RespondToContactChallengeInput,
+    type SendChallengeRequestInput,
+    type VerifyContactChallengeInput,
+} from '../workflows/challenges.op';
+import {
     bootOrConnectOp,
     getSignifyStateOp,
     randomPasscodeOp,
@@ -225,9 +237,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null;
 
 const stringValue = (value: unknown): string | null =>
-    typeof value === 'string' && value.trim().length > 0
-        ? value.trim()
-        : null;
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 
 const stringArray = (value: unknown): string[] =>
     Array.isArray(value)
@@ -792,6 +802,99 @@ export class AppRuntime {
             failureNotification: {
                 title: 'Contact update failed',
                 message: `${input.contactId} could not be updated.`,
+                severity: 'error',
+            },
+        });
+
+    generateContactChallenge = async (
+        input: GenerateContactChallengeInput,
+        options: Pick<WorkflowRunOptions, 'requestId' | 'signal'> = {}
+    ): Promise<GeneratedContactChallengeResult> =>
+        this.runWorkflow(() => generateContactChallengeOp(input), {
+            ...options,
+            kind: 'generateChallenge',
+            track: false,
+        });
+
+    startRespondToChallenge = (
+        input: RespondToContactChallengeInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => respondToContactChallengeOp(input), {
+            requestId: options.requestId,
+            label: `Sending challenge response to ${input.counterpartyAid}`,
+            title: 'Send challenge response',
+            description:
+                'Signs the challenge words with the selected identifier and sends the response to the contact.',
+            kind: 'respondChallenge',
+            resourceKeys: [
+                `challenge:respond:${input.counterpartyAid}:${input.localIdentifier}:${input.challengeId ?? 'current'}`,
+            ],
+            resultRoute: challengeResultRoute(input.counterpartyAid),
+            successNotification: {
+                title: 'Challenge response sent',
+                message: 'The signed challenge response was sent.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Challenge response failed',
+                message: 'The challenge response could not be sent.',
+                severity: 'error',
+            },
+        });
+
+    startSendChallengeRequest = (
+        input: SendChallengeRequestInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => sendChallengeRequestOp(input), {
+            requestId: options.requestId,
+            label: `Sending challenge request to ${input.counterpartyAid}`,
+            title: 'Send challenge request',
+            description:
+                'Sends a challenge request notification without embedding the challenge words.',
+            kind: 'sendChallengeRequest',
+            resourceKeys: [
+                `challenge:request:${input.counterpartyAid}:${input.localIdentifier}:${input.challengeId}`,
+            ],
+            resultRoute: challengeResultRoute(input.counterpartyAid),
+            successNotification: {
+                title: 'Challenge request sent',
+                message:
+                    'The contact was notified that a challenge response is requested.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Challenge request failed',
+                message:
+                    'The challenge words remain available, but the notification could not be sent.',
+                severity: 'error',
+            },
+        });
+
+    startVerifyContactChallenge = (
+        input: VerifyContactChallengeInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult =>
+        this.startBackgroundWorkflow(() => verifyContactChallengeOp(input), {
+            requestId: options.requestId,
+            label: `Waiting for challenge response from ${input.counterpartyAid}`,
+            title: 'Verify challenge response',
+            description:
+                'Waits for a matching challenge response, accepts the response SAID, and refreshes contact inventory.',
+            kind: 'verifyChallenge',
+            resourceKeys: [
+                `challenge:verify:${input.counterpartyAid}:${input.challengeId}`,
+            ],
+            resultRoute: challengeResultRoute(input.counterpartyAid),
+            successNotification: {
+                title: 'Challenge verified',
+                message: 'The contact challenge response was accepted.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Challenge verification failed',
+                message: 'The challenge response was not verified.',
                 severity: 'error',
             },
         });

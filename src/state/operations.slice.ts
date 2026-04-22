@@ -23,6 +23,10 @@ export type OperationKind =
     | 'createIdentifier'
     | 'rotateIdentifier'
     | 'generateOobi'
+    | 'generateChallenge'
+    | 'sendChallengeRequest'
+    | 'respondChallenge'
+    | 'verifyChallenge'
     | 'deleteContact'
     | 'updateContact'
     | 'syncInventory'
@@ -83,7 +87,8 @@ const initialState: OperationsState = {
  */
 const now = (): string => new Date().toISOString();
 
-const operationRoute = (requestId: string): string => `/operations/${requestId}`;
+const operationRoute = (requestId: string): string =>
+    `/operations/${requestId}`;
 
 /**
  * Trim completed/canceled/failed operation history without dropping active work.

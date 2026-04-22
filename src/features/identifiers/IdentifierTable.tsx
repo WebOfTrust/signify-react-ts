@@ -49,6 +49,37 @@ const monoSx = {
     letterSpacing: 0,
 };
 
+const tableHeadBg = 'rgba(39, 215, 255, 0.06)';
+
+const compactOnlyActionSx = {
+    display: { sm: 'inline-flex', lg: 'none' },
+} as const;
+
+const mdUpCellSx = {
+    display: { sm: 'none', md: 'table-cell' },
+} as const;
+
+const lgUpCellSx = {
+    display: { sm: 'none', lg: 'table-cell' },
+} as const;
+
+const stickyActionCellSx = {
+    position: 'sticky',
+    right: 0,
+    zIndex: 2,
+    width: { sm: 104, lg: 72 },
+    minWidth: { sm: 104, lg: 72 },
+    bgcolor: 'background.paper',
+    borderLeft: 1,
+    borderLeftColor: 'divider',
+} as const;
+
+const stickyActionHeadCellSx = {
+    ...stickyActionCellSx,
+    zIndex: 4,
+    bgcolor: tableHeadBg,
+} as const;
+
 interface CopyableMonoValueProps {
     value: string;
     label: string;
@@ -77,10 +108,15 @@ const CopyableMonoValue = ({
                 bgcolor: 'transparent',
                 color: copied ? 'success.main' : 'primary.main',
                 cursor: 'copy',
+                display: 'inline-block',
                 fontSize: 'inherit',
                 lineHeight: 'inherit',
                 textAlign: 'left',
                 maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'clip',
+                verticalAlign: 'bottom',
+                whiteSpace: 'nowrap',
                 ...monoSx,
             }}
             aria-label={`Copy ${label} ${value}`}
@@ -197,7 +233,14 @@ export const IdentifierTable = ({
                                 </Stack>
                             </Stack>
                         </CardContent>
-                        <CardActions sx={{ justifyContent: 'flex-end', pt: 0 }}>
+                        <CardActions
+                            sx={{
+                                justifyContent: 'flex-end',
+                                minHeight: 48,
+                                pt: 0,
+                                flexWrap: 'nowrap',
+                            }}
+                        >
                             <OobiCopyButton
                                 identifier={identifier}
                                 copyStatus={agentOobiCopyStatus[identifier.name]}
@@ -229,30 +272,65 @@ export const IdentifierTable = ({
                     overflowX: 'auto',
                 }}
             >
-                <Table sx={{ minWidth: 800 }} aria-label="identifier table">
+                <Table
+                    sx={{
+                        minWidth: { sm: 520, md: 680, lg: 900 },
+                        tableLayout: 'fixed',
+                    }}
+                    aria-label="identifier table"
+                >
                     <TableHead>
                         <TableRow
                             sx={{
-                                bgcolor: 'rgba(39, 215, 255, 0.06)',
+                                bgcolor: tableHeadBg,
                             }}
                         >
-                            <TableCell>Name</TableCell>
-                            <TableCell>AID</TableCell>
-                            <TableCell>Type</TableCell>
-                            <TableCell>KIDX</TableCell>
-                            <TableCell>PIDX</TableCell>
-                            <TableCell align="center">OOBI</TableCell>
-                            <TableCell align="right">Actions</TableCell>
+                            <TableCell
+                                sx={{
+                                    width: { sm: '28%', md: '24%', lg: '17%' },
+                                }}
+                            >
+                                Name
+                            </TableCell>
+                            <TableCell
+                                sx={{
+                                    width: { sm: '52%', md: '42%', lg: '34%' },
+                                }}
+                            >
+                                AID
+                            </TableCell>
+                            <TableCell sx={{ ...mdUpCellSx, width: '12%' }}>
+                                Type
+                            </TableCell>
+                            <TableCell sx={{ ...lgUpCellSx, width: '9%' }}>
+                                KIDX
+                            </TableCell>
+                            <TableCell sx={{ ...lgUpCellSx, width: '9%' }}>
+                                PIDX
+                            </TableCell>
+                            <TableCell
+                                align="center"
+                                sx={{ ...lgUpCellSx, width: 72 }}
+                            >
+                                OOBI
+                            </TableCell>
+                            <TableCell align="right" sx={stickyActionHeadCellSx}>
+                                Actions
+                            </TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {identifiers.map((identifier) => (
                             <TableRow
                                 key={identifier.name}
+                                data-testid={`identifier-table-row-${identifier.name}`}
                                 sx={{
                                     cursor: 'pointer',
                                     '&:hover': {
                                         bgcolor: 'action.hover',
+                                    },
+                                    '&:hover .identifier-actions-cell': {
+                                        bgcolor: 'rgba(39, 215, 255, 0.1)',
                                     },
                                     '&:last-child td, &:last-child th': {
                                         border: 0,
@@ -260,10 +338,23 @@ export const IdentifierTable = ({
                                 }}
                                 onClick={() => onSelect(identifier)}
                             >
-                                <TableCell component="th" scope="row">
-                                    {identifier.name}
+                                <TableCell
+                                    component="th"
+                                    scope="row"
+                                    sx={{ minWidth: 0 }}
+                                >
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {identifier.name}
+                                    </Typography>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={{ minWidth: 0 }}>
                                     <CopyableMonoValue
                                         value={identifier.prefix}
                                         label="full AID"
@@ -273,20 +364,20 @@ export const IdentifierTable = ({
                                         onCopy={copyValue}
                                     />
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={mdUpCellSx}>
                                     {identifierType(identifier)}
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={lgUpCellSx}>
                                     {formatIdentifierMetadata(
                                         identifierKeyIndex(identifier)
                                     )}
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={lgUpCellSx}>
                                     {formatIdentifierMetadata(
                                         identifierIdentifierIndex(identifier)
                                     )}
                                 </TableCell>
-                                <TableCell align="center">
+                                <TableCell align="center" sx={lgUpCellSx}>
                                     <OobiCopyButton
                                         identifier={identifier}
                                         copyStatus={
@@ -295,22 +386,49 @@ export const IdentifierTable = ({
                                         onCopy={copyAgentOobi}
                                     />
                                 </TableCell>
-                                <TableCell align="right">
-                                    <Tooltip title="Rotate identifier">
-                                        <span>
-                                            <IconButton
-                                                aria-label={`Rotate identifier ${identifier.name}`}
-                                                disabled={isRotateDisabled(
-                                                    identifier
-                                                )}
-                                                onClick={(event) =>
-                                                    rotate(event, identifier)
+                                <TableCell
+                                    align="right"
+                                    className="identifier-actions-cell"
+                                    sx={stickyActionCellSx}
+                                >
+                                    <Stack
+                                        direction="row"
+                                        spacing={0.25}
+                                        sx={{
+                                            alignItems: 'center',
+                                            flexWrap: 'nowrap',
+                                            justifyContent: 'flex-end',
+                                        }}
+                                    >
+                                        <Box sx={compactOnlyActionSx}>
+                                            <OobiCopyButton
+                                                identifier={identifier}
+                                                copyStatus={
+                                                    agentOobiCopyStatus[
+                                                        identifier.name
+                                                    ]
                                                 }
-                                            >
-                                                <RotateRightIcon />
-                                            </IconButton>
-                                        </span>
-                                    </Tooltip>
+                                                onCopy={copyAgentOobi}
+                                                size="small"
+                                            />
+                                        </Box>
+                                        <Tooltip title="Rotate identifier">
+                                            <span>
+                                                <IconButton
+                                                    size="small"
+                                                    aria-label={`Rotate identifier ${identifier.name}`}
+                                                    disabled={isRotateDisabled(
+                                                        identifier
+                                                    )}
+                                                    onClick={(event) =>
+                                                        rotate(event, identifier)
+                                                    }
+                                                >
+                                                    <RotateRightIcon fontSize="small" />
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+                                    </Stack>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -343,6 +461,7 @@ const OobiCopyButton = ({
     identifier,
     copyStatus,
     onCopy,
+    size = 'medium',
 }: {
     identifier: IdentifierSummary;
     copyStatus: IdentifierOobiCopyStatus | undefined;
@@ -350,10 +469,12 @@ const OobiCopyButton = ({
         event: MouseEvent<HTMLButtonElement>,
         identifier: IdentifierSummary
     ) => void;
+    size?: 'small' | 'medium';
 }) => (
     <Tooltip title={oobiCopyTooltip(copyStatus)}>
         <span>
             <IconButton
+                size={size}
                 aria-label={`Copy agent OOBI for ${identifier.name}`}
                 disabled={copyStatus?.status === 'loading'}
                 color={
@@ -365,7 +486,9 @@ const OobiCopyButton = ({
                 }
                 onClick={(event) => onCopy(event, identifier)}
             >
-                <ContentCopyIcon />
+                <ContentCopyIcon
+                    fontSize={size === 'small' ? 'small' : 'medium'}
+                />
             </IconButton>
         </span>
     </Tooltip>
