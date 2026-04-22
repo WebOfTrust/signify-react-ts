@@ -14,6 +14,12 @@ import {
     selectUnreadAppNotifications,
     selectLatestActiveOperationLabel,
     selectUnreadNotifications,
+    selectContacts,
+    selectContactById,
+    selectKnownComponents,
+    selectChallenges,
+    selectChallengesForContact,
+    selectDashboardCounts,
 } from '../../src/state/selectors';
 import {
     sessionConnected,
@@ -21,6 +27,12 @@ import {
     sessionDisconnected,
 } from '../../src/state/session.slice';
 import { notificationRecorded } from '../../src/state/notifications.slice';
+import { challengesLoaded } from '../../src/state/challenges.slice';
+import {
+    contactInventoryLoaded,
+    generatedOobiRecorded,
+} from '../../src/state/contacts.slice';
+import { identifierListLoaded } from '../../src/state/identifiers.slice';
 import {
     allAppNotificationsRead,
     appNotificationRecorded,
@@ -147,7 +159,10 @@ describe('RTK state foundation', () => {
         store.dispatch(
             notificationRecorded({
                 id: 'n-1',
+                dt: '2026-04-21T00:00:00.000Z',
+                read: false,
                 route: '/exn/ipex/grant',
+                anchorSaid: null,
                 status: 'unread',
                 message: null,
                 updatedAt: '2026-04-21T00:00:00.000Z',
@@ -158,6 +173,169 @@ describe('RTK state foundation', () => {
         expect(JSON.parse(JSON.stringify(store.getState()))).toMatchObject(
             store.getState()
         );
+    });
+
+    it('tracks contact inventory, generated OOBIs, components, and challenges', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            contactInventoryLoaded({
+                loadedAt: '2026-04-21T00:00:00.000Z',
+                contacts: [
+                    {
+                        id: 'Econtact',
+                        alias: 'Wan',
+                        aid: 'Econtact',
+                        oobi: 'http://127.0.0.1:5642/oobi/Econtact/controller?tag=witness',
+                        endpoints: [
+                            {
+                                role: 'agent',
+                                eid: 'Eagent',
+                                scheme: 'http',
+                                url: 'http://127.0.0.1:3902',
+                            },
+                        ],
+                        wellKnowns: [],
+                        componentTags: ['witness'],
+                        challengeCount: 1,
+                        authenticatedChallengeCount: 1,
+                        resolutionStatus: 'resolved',
+                        error: null,
+                        updatedAt: '2026-04-21T00:00:00.000Z',
+                    },
+                ],
+            })
+        );
+        store.dispatch(
+            generatedOobiRecorded({
+                id: 'alice:agent',
+                identifier: 'alice',
+                role: 'agent',
+                oobis: ['http://127.0.0.1:3902/oobi/Ealice/agent'],
+                generatedAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+        store.dispatch(
+            challengesLoaded({
+                loadedAt: '2026-04-21T00:00:02.000Z',
+                challenges: [
+                    {
+                        id: 'challenge-1',
+                        direction: 'received',
+                        role: 'Wan',
+                        counterpartyAid: 'Econtact',
+                        words: ['one', 'two'],
+                        authenticated: true,
+                        status: 'verified',
+                        result: 'Ssaid',
+                        updatedAt: '2026-04-21T00:00:02.000Z',
+                    },
+                ],
+            })
+        );
+
+        expect(selectContacts(store.getState())).toHaveLength(1);
+        expect(selectContactById('Econtact')(store.getState())?.alias).toBe(
+            'Wan'
+        );
+        expect(selectKnownComponents(store.getState()).map((item) => item.role)).toEqual([
+            'agent',
+            'witness',
+        ]);
+        expect(selectChallenges(store.getState())).toHaveLength(1);
+        expect(selectChallengesForContact('Econtact')(store.getState())).toEqual([
+            expect.objectContaining({ id: 'challenge-1' }),
+        ]);
+        expect(selectDashboardCounts(store.getState())).toMatchObject({
+            contacts: 1,
+            knownComponents: 2,
+            challenges: 1,
+        });
+        expect(store.getState().contacts.generatedOobiIds).toEqual(['alice:agent']);
+    });
+
+    it('clears session-scoped inventory when a new connection starts', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            contactInventoryLoaded({
+                loadedAt: '2026-04-21T00:00:00.000Z',
+                contacts: [
+                    {
+                        id: 'Econtact',
+                        alias: 'Layla',
+                        aid: 'Econtact',
+                        oobi: null,
+                        endpoints: [],
+                        wellKnowns: [],
+                        componentTags: [],
+                        challengeCount: 0,
+                        authenticatedChallengeCount: 0,
+                        resolutionStatus: 'resolved',
+                        error: null,
+                        updatedAt: '2026-04-21T00:00:00.000Z',
+                    },
+                ],
+            })
+        );
+        store.dispatch(
+            generatedOobiRecorded({
+                id: 'alice:agent',
+                identifier: 'alice',
+                role: 'agent',
+                oobis: ['http://127.0.0.1:3902/oobi/Ealice/agent'],
+                generatedAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+        store.dispatch(
+            identifierListLoaded({
+                loadedAt: '2026-04-21T00:00:01.000Z',
+                identifiers: [
+                    {
+                        name: 'alice',
+                        prefix: 'Ealice',
+                    } as never,
+                ],
+            })
+        );
+        store.dispatch(
+            notificationRecorded({
+                id: 'n-1',
+                dt: '2026-04-21T00:00:00.000Z',
+                read: false,
+                route: '/exn',
+                anchorSaid: null,
+                status: 'unread',
+                message: null,
+                updatedAt: '2026-04-21T00:00:00.000Z',
+            })
+        );
+        store.dispatch(
+            challengesLoaded({
+                loadedAt: '2026-04-21T00:00:02.000Z',
+                challenges: [
+                    {
+                        id: 'challenge-1',
+                        direction: 'received',
+                        role: 'Layla',
+                        counterpartyAid: 'Econtact',
+                        words: ['one', 'two'],
+                        authenticated: false,
+                        status: 'responded',
+                        result: null,
+                        updatedAt: '2026-04-21T00:00:02.000Z',
+                    },
+                ],
+            })
+        );
+
+        store.dispatch(sessionConnecting());
+
+        expect(selectContacts(store.getState())).toHaveLength(0);
+        expect(selectChallenges(store.getState())).toHaveLength(0);
+        expect(selectUnreadNotifications(store.getState())).toHaveLength(0);
+        expect(store.getState().contacts.generatedOobiIds).toEqual([]);
+        expect(store.getState().identifiers.prefixes).toEqual([]);
     });
 
     it('tracks unread app notifications separately from KERIA notifications', () => {
@@ -180,6 +358,7 @@ describe('RTK state foundation', () => {
                         path: '/operations/op-1',
                     },
                 ],
+                payloadDetails: [],
             })
         );
 
@@ -201,6 +380,7 @@ describe('RTK state foundation', () => {
                 readAt: null,
                 operationId: null,
                 links: [],
+                payloadDetails: [],
             })
         );
         store.dispatch(
@@ -214,6 +394,7 @@ describe('RTK state foundation', () => {
                 readAt: null,
                 operationId: null,
                 links: [],
+                payloadDetails: [],
             })
         );
 
@@ -255,6 +436,7 @@ describe('RTK state foundation', () => {
                         operationRoute: '/operations/op-running',
                         resultRoute: null,
                         notificationId: null,
+                        payloadDetails: [],
                         keriaOperationName: null,
                         startedAt: '2026-04-21T00:00:00.000Z',
                         finishedAt: null,

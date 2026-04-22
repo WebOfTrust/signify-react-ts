@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import type { PayloadDetailRecord } from './payloadDetails';
 
 /**
  * Bounded retention for user-facing app notifications.
@@ -41,6 +42,7 @@ export interface AppNotificationRecord {
     readAt: string | null;
     operationId: string | null;
     links: AppNotificationLink[];
+    payloadDetails: PayloadDetailRecord[];
 }
 
 /** App notification state keyed by notification id in retention order. */
@@ -75,7 +77,10 @@ const upsertNotification = (
     state: AppNotificationsState,
     notification: AppNotificationRecord
 ): void => {
-    state.byId[notification.id] = notification;
+    state.byId[notification.id] = {
+        ...notification,
+        payloadDetails: notification.payloadDetails ?? [],
+    };
     if (!state.ids.includes(notification.id)) {
         state.ids.push(notification.id);
     }

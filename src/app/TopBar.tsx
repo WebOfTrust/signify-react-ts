@@ -19,6 +19,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { Link as RouterLink } from 'react-router-dom';
 import { StatusPill } from './Console';
+import { PayloadDetails } from './PayloadDetails';
 import { formatOperationWindow, formatTimestamp } from './timeFormat';
 import type { AppNotificationRecord } from '../state/appNotifications.slice';
 import type { OperationRecord } from '../state/operations.slice';
@@ -292,6 +293,7 @@ export const TopBar = ({
                         visibleNotifications.map((notification) => (
                             <ListItemButton
                                 key={notification.id}
+                                data-testid="notification-quick-item"
                                 component={RouterLink}
                                 to={
                                     notification.links[0]?.path ??
@@ -336,6 +338,12 @@ export const TopBar = ({
                                             >
                                                 {notification.message}
                                             </Typography>
+                                            <PayloadDetails
+                                                details={
+                                                    notification.payloadDetails
+                                                }
+                                                dense
+                                            />
                                         </Box>
                                     }
                                 />

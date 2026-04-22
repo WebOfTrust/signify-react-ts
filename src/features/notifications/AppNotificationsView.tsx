@@ -15,6 +15,7 @@ import {
     PageHeader,
     StatusPill,
 } from '../../app/Console';
+import { PayloadDetails } from '../../app/PayloadDetails';
 import { formatTimestamp } from '../../app/timeFormat';
 import { useAppDispatch, useAppSelector } from '../../state/hooks';
 import { allAppNotificationsRead } from '../../state/appNotifications.slice';
@@ -52,7 +53,7 @@ export const AppNotificationsView = () => {
             <PageHeader
                 eyebrow="Activity"
                 title="Notifications"
-                summary="User-facing results emitted by completed background workflows."
+                summary="App operation notices and KERIA protocol inbox items for the connected session."
             />
             {notifications.length === 0 ? (
                 <EmptyState
@@ -126,6 +127,9 @@ export const AppNotificationsView = () => {
                                         >
                                             {notification.message}
                                         </Typography>
+                                        <PayloadDetails
+                                            details={notification.payloadDetails}
+                                        />
                                         <Stack
                                             direction="row"
                                             spacing={1.5}
@@ -148,11 +152,13 @@ export const AppNotificationsView = () => {
                     ))}
                 </List>
             )}
-            {keriaNotifications.length > 0 && (
-                <ConsolePanel
-                    title="KERIA notification inventory"
-                    eyebrow="KERIA"
-                >
+            <ConsolePanel title="KERIA notification inventory" eyebrow="KERIA">
+                {keriaNotifications.length === 0 ? (
+                    <EmptyState
+                        title="No KERIA notifications"
+                        message="Protocol inbox items appear here after live session sync."
+                    />
+                ) : (
                     <List disablePadding>
                         {keriaNotifications.map((notification) => (
                             <ListItem
@@ -225,8 +231,8 @@ export const AppNotificationsView = () => {
                             </ListItem>
                         ))}
                     </List>
-                </ConsolePanel>
-            )}
+                )}
+            </ConsolePanel>
         </Box>
     );
 };

@@ -69,7 +69,7 @@ const browser = await puppeteer.launch({
 try {
   const page = await browser.newPage();
 
-  for (const path of ['/identifiers', '/credentials', '/client']) {
+  for (const path of ['/dashboard', '/contacts', '/identifiers', '/credentials', '/client']) {
     await page.goto(routeUrl(path), { waitUntil: 'networkidle0' });
     await page.waitForSelector('[data-testid="connection-required"]', {
       timeout: 10000,
@@ -112,6 +112,18 @@ try {
     hidden: true,
     timeout: 10000,
   });
+  await page.waitForSelector('[data-testid="known-components"]', {
+    timeout: 10000,
+  });
+  if (!page.url().endsWith('/dashboard')) {
+    throw new Error(`Expected post-connect /dashboard route, got ${page.url()}`);
+  }
+
+  await page.click('[data-testid="nav-open"]');
+  await page.waitForSelector('[data-testid="nav-identifiers"]', {
+    timeout: 10000,
+  });
+  await page.click('[data-testid="nav-identifiers"]');
   await page.waitForSelector('[data-testid="identifier-table"]', {
     timeout: 10000,
   });
@@ -122,7 +134,7 @@ try {
     }
   }
   if (!page.url().endsWith('/identifiers')) {
-    throw new Error(`Expected post-connect /identifiers route, got ${page.url()}`);
+    throw new Error(`Expected drawer navigation to /identifiers, got ${page.url()}`);
   }
 
   const identifierStatus = await page.$('[data-testid="identifier-action-status"]');

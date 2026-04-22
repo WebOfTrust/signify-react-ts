@@ -6,6 +6,7 @@ import {
     StatusPill,
     TelemetryRow,
 } from '../../app/Console';
+import { PayloadDetails } from '../../app/PayloadDetails';
 import { formatTimestamp } from '../../app/timeFormat';
 import { useAppSelector } from '../../state/hooks';
 import { selectOperationById } from '../../state/selectors';
@@ -100,6 +101,11 @@ export const OperationDetailView = () => {
                     }
                 />
             </ConsolePanel>
+            {operation.payloadDetails.length > 0 && (
+                <ConsolePanel title="Returned payload" eyebrow="Copyable">
+                    <PayloadDetails details={operation.payloadDetails} />
+                </ConsolePanel>
+            )}
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                 <Button
                     component={RouterLink}

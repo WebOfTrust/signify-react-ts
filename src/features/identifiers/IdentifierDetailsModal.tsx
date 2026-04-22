@@ -6,15 +6,20 @@ import {
     Box,
     Button,
     Chip,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
+    IconButton,
     Stack,
+    Tooltip,
     Typography,
 } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RotateRightIcon from '@mui/icons-material/RotateRight';
+import type { GeneratedOobiRecord } from '../../state/contacts.slice';
 import type { IdentifierSummary } from './identifierTypes';
 import {
     formatIdentifierMetadata,
@@ -36,9 +41,16 @@ export interface IdentifierDetailsModalProps {
     identifier: IdentifierSummary | null;
     refreshStatus: 'idle' | 'loading' | 'success' | 'error';
     refreshMessage: string | null;
+    oobiState: IdentifierOobiDetailState;
     actionRunning: boolean;
     onClose: () => void;
     onRotate: (name: string) => void;
+}
+
+export interface IdentifierOobiDetailState {
+    status: 'idle' | 'loading' | 'success' | 'error';
+    message: string | null;
+    records: GeneratedOobiRecord[];
 }
 
 interface DetailFieldProps {
@@ -198,6 +210,10 @@ const JsonCodeBlock = ({ value }: { value: string }) => (
     </Box>
 );
 
+const copyValue = (value: string): void => {
+    void globalThis.navigator.clipboard?.writeText(value);
+};
+
 /**
  * Identifier details and rotate action.
  *
@@ -209,6 +225,7 @@ export const IdentifierDetailsModal = ({
     identifier,
     refreshStatus,
     refreshMessage,
+    oobiState,
     actionRunning,
     onClose,
     onRotate,
@@ -350,6 +367,23 @@ export const IdentifierDetailsModal = ({
                             {refreshMessage}
                         </Typography>
                     )}
+                    <Accordion disableGutters defaultExpanded>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                            <Stack
+                                direction="row"
+                                spacing={1}
+                                sx={{ alignItems: 'center' }}
+                            >
+                                <Typography>OOBIs</Typography>
+                                {oobiState.status === 'loading' && (
+                                    <CircularProgress size={16} />
+                                )}
+                            </Stack>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                            <IdentifierOobis state={oobiState} />
+                        </AccordionDetails>
+                    </Accordion>
                     {identifier !== null && (
                         <Accordion disableGutters>
                             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -393,5 +427,101 @@ export const IdentifierDetailsModal = ({
                 </Button>
             </DialogActions>
         </Dialog>
+    );
+};
+
+const IdentifierOobis = ({ state }: { state: IdentifierOobiDetailState }) => {
+    if (state.status === 'loading' || state.status === 'idle') {
+        return (
+            <Typography color="text.secondary">
+                Loading identifier OOBIs...
+            </Typography>
+        );
+    }
+
+    if (state.status === 'error') {
+        return (
+            <Typography color="error">
+                Unable to load identifier OOBIs: {state.message}
+            </Typography>
+        );
+    }
+
+    if (state.records.length === 0) {
+        return (
+            <Typography color="text.secondary">
+                No OOBIs are available for this identifier.
+            </Typography>
+        );
+    }
+
+    return (
+        <Stack spacing={1}>
+            {state.records.map((record) => (
+                <Box
+                    key={record.id}
+                    sx={{
+                        border: 1,
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        px: 1.5,
+                        py: 1.25,
+                    }}
+                >
+                    <Stack spacing={1}>
+                        <Stack
+                            direction="row"
+                            spacing={1}
+                            sx={{
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <Chip
+                                size="small"
+                                label={`${record.role} OOBI`}
+                                color={record.role === 'agent' ? 'primary' : 'info'}
+                                variant="outlined"
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                                {record.oobis.length} URL
+                                {record.oobis.length === 1 ? '' : 's'}
+                            </Typography>
+                        </Stack>
+                        {record.oobis.map((oobi) => (
+                            <Box
+                                key={oobi}
+                                sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'minmax(0, 1fr) auto',
+                                    gap: 1,
+                                    alignItems: 'start',
+                                }}
+                            >
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        fontFamily: 'var(--app-mono-font)',
+                                        overflowWrap: 'anywhere',
+                                        minWidth: 0,
+                                    }}
+                                >
+                                    {oobi}
+                                </Typography>
+                                <Tooltip title={`Copy ${record.role} OOBI`}>
+                                    <IconButton
+                                        size="small"
+                                        aria-label={`Copy ${record.role} OOBI`}
+                                        onClick={() => copyValue(oobi)}
+                                    >
+                                        <ContentCopyIcon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                            </Box>
+                        ))}
+                    </Stack>
+                </Box>
+            ))}
+        </Stack>
     );
 };

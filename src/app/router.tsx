@@ -4,7 +4,10 @@ import {
     type RouteObject,
 } from 'react-router-dom';
 import { ClientView } from '../features/client/ClientView';
+import { ContactDetailView } from '../features/contacts/ContactDetailView';
+import { ContactsView } from '../features/contacts/ContactsView';
 import { CredentialsView } from '../features/credentials/CredentialsView';
+import { DashboardView } from '../features/dashboard/DashboardView';
 import { IdentifiersView } from '../features/identifiers/IdentifiersView';
 import { AppNotificationsView } from '../features/notifications/AppNotificationsView';
 import { OperationDetailView } from '../features/operations/OperationDetailView';
@@ -12,7 +15,10 @@ import { OperationsView } from '../features/operations/OperationsView';
 import type { AppRuntime } from './runtime';
 import {
     DEFAULT_APP_PATH,
+    contactsAction,
     identifiersAction,
+    loadContacts,
+    loadDashboard,
     loadClient,
     loadCredentials,
     loadIdentifiers,
@@ -25,6 +31,8 @@ import { RouteErrorBoundary } from './RouteErrorBoundary';
  * Stable IDs for feature routes that appear in the app shell.
  */
 export type AppRouteId =
+    | 'dashboard'
+    | 'contacts'
     | 'identifiers'
     | 'credentials'
     | 'client'
@@ -85,6 +93,28 @@ interface AppFeatureRouteDescriptor {
  * Ordered feature route registry used only to build native route objects.
  */
 const APP_FEATURE_ROUTES: readonly AppFeatureRouteDescriptor[] = [
+    {
+        id: 'dashboard',
+        path: 'dashboard',
+        handle: {
+            routeId: 'dashboard',
+            label: 'Dashboard',
+            gate: 'client',
+            nav: true,
+            testId: 'nav-dashboard',
+        },
+    },
+    {
+        id: 'contacts',
+        path: 'contacts',
+        handle: {
+            routeId: 'contacts',
+            label: 'Contacts',
+            gate: 'client',
+            nav: true,
+            testId: 'nav-contacts',
+        },
+    },
     {
         id: 'identifiers',
         path: 'identifiers',
@@ -173,9 +203,40 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
                 loader: () => redirect(DEFAULT_APP_PATH),
             },
             {
+                id: 'dashboard',
+                path: 'dashboard',
+                handle: APP_FEATURE_ROUTES[0].handle,
+                loader: ({ request }) => loadDashboard(runtime, request),
+                element: <DashboardView />,
+                errorElement: (
+                    <RouteErrorBoundary title="Dashboard route failed" />
+                ),
+            },
+            {
+                id: 'contacts',
+                path: 'contacts',
+                handle: APP_FEATURE_ROUTES[1].handle,
+                loader: ({ request }) => loadContacts(runtime, request),
+                action: ({ request }) => contactsAction(runtime, request),
+                element: <ContactsView />,
+                errorElement: (
+                    <RouteErrorBoundary title="Contacts route failed" />
+                ),
+            },
+            {
+                id: 'contactDetail',
+                path: 'contacts/:contactId',
+                loader: ({ request }) => loadContacts(runtime, request),
+                action: ({ request }) => contactsAction(runtime, request),
+                element: <ContactDetailView />,
+                errorElement: (
+                    <RouteErrorBoundary title="Contact route failed" />
+                ),
+            },
+            {
                 id: 'identifiers',
                 path: 'identifiers',
-                handle: APP_FEATURE_ROUTES[0].handle,
+                handle: APP_FEATURE_ROUTES[2].handle,
                 loader: ({ request }) => loadIdentifiers(runtime, request),
                 action: ({ request }) => identifiersAction(runtime, request),
                 element: <IdentifiersView />,
@@ -186,7 +247,7 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
             {
                 id: 'credentials',
                 path: 'credentials',
-                handle: APP_FEATURE_ROUTES[1].handle,
+                handle: APP_FEATURE_ROUTES[3].handle,
                 loader: () => loadCredentials(runtime),
                 element: <CredentialsView />,
                 errorElement: (
@@ -196,7 +257,7 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
             {
                 id: 'client',
                 path: 'client',
-                handle: APP_FEATURE_ROUTES[2].handle,
+                handle: APP_FEATURE_ROUTES[4].handle,
                 loader: ({ request }) => loadClient(runtime, request),
                 element: <ClientView />,
                 errorElement: <RouteErrorBoundary title="Client route failed" />,
@@ -204,7 +265,7 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
             {
                 id: 'operations',
                 path: 'operations',
-                handle: APP_FEATURE_ROUTES[3].handle,
+                handle: APP_FEATURE_ROUTES[5].handle,
                 element: <OperationsView />,
                 errorElement: (
                     <RouteErrorBoundary title="Operations route failed" />
@@ -221,7 +282,7 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
             {
                 id: 'appNotifications',
                 path: 'notifications',
-                handle: APP_FEATURE_ROUTES[4].handle,
+                handle: APP_FEATURE_ROUTES[6].handle,
                 element: <AppNotificationsView />,
                 errorElement: (
                     <RouteErrorBoundary title="Notifications route failed" />

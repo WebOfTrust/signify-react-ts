@@ -5,9 +5,12 @@ import type {
 } from '../../src/features/identifiers/identifierTypes';
 import { defaultIdentifierCreateDraft } from '../../src/features/identifiers/identifierHelpers';
 import {
+    contactsAction,
     identifiersAction,
     loadClient,
+    loadContacts,
     loadCredentials,
+    loadDashboard,
     loadIdentifiers,
     rootAction,
     type RouteDataRuntime,
@@ -55,6 +58,7 @@ const makeRuntime = (
     listIdentifiers: vi.fn(async () => [
         { name: 'alice', prefix: 'Ealice' } as IdentifierSummary,
     ]),
+    syncSessionInventory: vi.fn(async () => ({})),
     createIdentifier: vi.fn(async () => []),
     rotateIdentifier: vi.fn(async () => []),
     startCreateIdentifier: vi.fn(() => ({
@@ -67,11 +71,31 @@ const makeRuntime = (
         requestId: 'rotate-request-1',
         operationRoute: '/operations/rotate-request-1',
     })),
+    startGenerateOobi: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'oobi-request-1',
+        operationRoute: '/operations/oobi-request-1',
+    })),
+    startResolveContact: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'resolve-request-1',
+        operationRoute: '/operations/resolve-request-1',
+    })),
+    startDeleteContact: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'delete-contact-request-1',
+        operationRoute: '/operations/delete-contact-request-1',
+    })),
+    startUpdateContactAlias: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'update-contact-request-1',
+        operationRoute: '/operations/update-contact-request-1',
+    })),
     ...overrides,
 });
 
 describe('route loaders', () => {
-    it('blocks identifiers, credentials, and client routes while disconnected', async () => {
+    it('blocks connected routes while disconnected', async () => {
         const runtime = makeRuntime({
             getClient: vi.fn(() => null),
             getState: vi.fn(() => null),
@@ -79,6 +103,12 @@ describe('route loaders', () => {
         });
 
         await expect(loadIdentifiers(runtime)).resolves.toEqual({
+            status: 'blocked',
+        });
+        await expect(loadDashboard(runtime)).resolves.toEqual({
+            status: 'blocked',
+        });
+        await expect(loadContacts(runtime)).resolves.toEqual({
             status: 'blocked',
         });
         expect(loadCredentials(runtime)).toEqual({ status: 'blocked' });
@@ -124,10 +154,23 @@ describe('route loaders', () => {
         });
         expect(runtime.refreshState).toHaveBeenCalledOnce();
     });
+
+    it('loads dashboard and contact inventory through the runtime boundary', async () => {
+        const runtime = makeRuntime();
+
+        await expect(loadDashboard(runtime)).resolves.toEqual({
+            status: 'ready',
+        });
+        await expect(loadContacts(runtime)).resolves.toEqual({
+            status: 'ready',
+        });
+        expect(runtime.listIdentifiers).toHaveBeenCalledTimes(2);
+        expect(runtime.syncSessionInventory).toHaveBeenCalledTimes(2);
+    });
 });
 
 describe('route actions', () => {
-    it('connects through the root action and redirects to identifiers', async () => {
+    it('connects through the root action and redirects to dashboard', async () => {
         const runtime = makeRuntime();
         const response = await rootAction(
             runtime,
@@ -142,7 +185,7 @@ describe('route actions', () => {
         expect(response).toBeInstanceOf(Response);
         expect((response as Response).status).toBe(302);
         expect((response as Response).headers.get('Location')).toBe(
-            '/identifiers'
+            '/dashboard'
         );
         expect(runtime.connect).toHaveBeenCalledWith(
             expect.objectContaining<Partial<SignifyClientConfig>>({
@@ -292,5 +335,60 @@ describe('route actions', () => {
             ok: false,
             message: 'Connect to KERIA before changing identifiers.',
         });
+    });
+
+    it('starts contact OOBI resolution through the contacts action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            contactsAction(
+                runtime,
+                makeRequest('/contacts', {
+                    intent: 'resolve',
+                    requestId: 'resolve-request-1',
+                    oobi: 'http://127.0.0.1:3902/oobi/Ealice/agent?name=alice',
+                    alias: '',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'resolve',
+            ok: true,
+            message: 'Resolving contact OOBI',
+            requestId: 'resolve-request-1',
+            operationRoute: '/operations/resolve-request-1',
+        });
+        expect(runtime.startResolveContact).toHaveBeenCalledWith(
+            {
+                oobi: 'http://127.0.0.1:3902/oobi/Ealice/agent?name=alice',
+                alias: null,
+            },
+            expect.objectContaining({ requestId: 'resolve-request-1' })
+        );
+    });
+
+    it('starts local OOBI generation through the contacts action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            contactsAction(
+                runtime,
+                makeRequest('/contacts', {
+                    intent: 'generateOobi',
+                    requestId: 'oobi-request-1',
+                    identifier: 'alice',
+                    role: 'agent',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'generateOobi',
+            ok: true,
+            message: 'Generating agent OOBI for alice',
+            requestId: 'oobi-request-1',
+            operationRoute: '/operations/oobi-request-1',
+        });
+        expect(runtime.startGenerateOobi).toHaveBeenCalledWith(
+            { identifier: 'alice', role: 'agent' },
+            expect.objectContaining({ requestId: 'oobi-request-1' })
+        );
     });
 });

@@ -106,6 +106,65 @@ describe('AppRuntime workflow bridge', () => {
         await runtime.destroy();
     });
 
+    it('enriches OOBI workflow operations and notifications with copyable payload details', async () => {
+        const store = createAppStore();
+        const runtime = createAppRuntime({ store, storage: null });
+        const oobi = 'http://127.0.0.1:3902/oobi/Ealice/agent?name=alice';
+
+        runtime.startBackgroundWorkflow(
+            function* () {
+                yield* sleep(0);
+                return {
+                    id: 'alice:agent',
+                    identifier: 'alice',
+                    role: 'agent',
+                    oobis: [oobi],
+                    generatedAt: '2026-04-21T00:00:00.000Z',
+                };
+            },
+            {
+                requestId: 'oobi-success',
+                label: 'Generating OOBI...',
+                title: 'Generate OOBI',
+                kind: 'generateOobi',
+                resourceKeys: ['oobi:alice:agent'],
+                successNotification: {
+                    title: 'OOBI generated',
+                    message: 'Generated an agent OOBI.',
+                },
+            }
+        );
+
+        await vi.waitFor(() => {
+            expect(store.getState().operations.byId['oobi-success']).toMatchObject({
+                status: 'success',
+                payloadDetails: [
+                    expect.objectContaining({
+                        label: 'OOBI',
+                        value: oobi,
+                        kind: 'oobi',
+                        copyable: true,
+                    }),
+                ],
+            });
+        });
+
+        const notificationId = store.getState().appNotifications.ids[0];
+        expect(notificationId).toBeDefined();
+        expect(
+            store.getState().appNotifications.byId[notificationId]
+        ).toMatchObject({
+            payloadDetails: [
+                expect.objectContaining({
+                    label: 'OOBI',
+                    value: oobi,
+                }),
+            ],
+        });
+
+        await runtime.destroy();
+    });
+
     it('rejects background workflows with active resource conflicts', async () => {
         const store = createAppStore();
         const runtime = createAppRuntime({ store, storage: null });
@@ -141,6 +200,64 @@ describe('AppRuntime workflow bridge', () => {
             requestId: 'background-running',
             operationRoute: '/operations/background-running',
             message: 'Already working on Resolve contact.',
+        });
+
+        await runtime.destroy();
+    });
+
+    it('rejects contact and OOBI commands with active resource conflicts', async () => {
+        const store = createAppStore();
+        const runtime = createAppRuntime({ store, storage: null });
+        const oobi = 'http://127.0.0.1:3902/oobi/Ealice/agent';
+
+        runtime.startBackgroundWorkflow(
+            function* () {
+                yield* sleep(10_000);
+            },
+            {
+                requestId: 'resolve-running',
+                label: 'Resolving contact...',
+                title: 'Resolve Alice contact',
+                kind: 'resolveContact',
+                resourceKeys: [`contact:oobi:${oobi}`],
+            }
+        );
+
+        expect(
+            runtime.startResolveContact({
+                oobi,
+                alias: 'Alice',
+            })
+        ).toEqual({
+            status: 'conflict',
+            requestId: 'resolve-running',
+            operationRoute: '/operations/resolve-running',
+            message: 'Already working on Resolve Alice contact.',
+        });
+
+        runtime.startBackgroundWorkflow(
+            function* () {
+                yield* sleep(10_000);
+            },
+            {
+                requestId: 'oobi-running',
+                label: 'Generating OOBI...',
+                title: 'Generate agent OOBI',
+                kind: 'generateOobi',
+                resourceKeys: ['oobi:alice:agent'],
+            }
+        );
+
+        expect(
+            runtime.startGenerateOobi({
+                identifier: 'alice',
+                role: 'agent',
+            })
+        ).toEqual({
+            status: 'conflict',
+            requestId: 'oobi-running',
+            operationRoute: '/operations/oobi-running',
+            message: 'Already working on Generate agent OOBI.',
         });
 
         await runtime.destroy();

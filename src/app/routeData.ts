@@ -6,6 +6,10 @@ import type {
 } from '../features/identifiers/identifierTypes';
 import { isIdentifierCreateDraft } from '../features/identifiers/identifierHelpers';
 import type {
+    OobiRole,
+    ResolveContactInput,
+} from '../services/contacts.service';
+import type {
     ConnectedSignifyClient,
     SignifyClientConfig,
     SignifyStateSummary,
@@ -16,7 +20,7 @@ import type { BackgroundWorkflowStartResult } from './runtime';
  * Canonical route used for startup redirects, unknown paths, and successful
  * KERIA connection submissions.
  */
-export const DEFAULT_APP_PATH = '/identifiers';
+export const DEFAULT_APP_PATH = '/dashboard';
 
 /**
  * Loader result used when a connected Signify client is required.
@@ -33,6 +37,22 @@ export type BlockedRouteData = { status: 'blocked' };
 export type IdentifiersLoaderData =
     | { status: 'ready'; identifiers: IdentifierSummary[] }
     | { status: 'error'; identifiers: IdentifierSummary[]; message: string }
+    | BlockedRouteData;
+
+/**
+ * Loader data for `/dashboard`.
+ */
+export type DashboardLoaderData =
+    | { status: 'ready' }
+    | { status: 'error'; message: string }
+    | BlockedRouteData;
+
+/**
+ * Loader data for `/contacts`.
+ */
+export type ContactsLoaderData =
+    | { status: 'ready' }
+    | { status: 'error'; message: string }
     | BlockedRouteData;
 
 /**
@@ -84,6 +104,30 @@ export type IdentifierActionData =
       };
 
 /**
+ * Typed action result for contact/OOBI mutations.
+ */
+export type ContactActionData =
+    | {
+          intent: 'resolve' | 'generateOobi' | 'delete' | 'updateAlias';
+          ok: true;
+          message: string;
+          requestId: string;
+          operationRoute: string;
+      }
+    | {
+          intent:
+              | 'resolve'
+              | 'generateOobi'
+              | 'delete'
+              | 'updateAlias'
+              | 'unsupported';
+          ok: false;
+          message: string;
+          requestId?: string;
+          operationRoute?: string;
+      };
+
+/**
  * Minimal connected-client shape route data needs for diagnostics.
  */
 interface RouteClient {
@@ -114,6 +158,8 @@ export interface RouteDataRuntime {
     refreshState(options?: { signal?: AbortSignal }): Promise<SignifyStateSummary | null>;
     /** Load and normalize identifiers through the connected client. */
     listIdentifiers(options?: { signal?: AbortSignal }): Promise<IdentifierSummary[]>;
+    /** Load live contact, challenge, and protocol notification facts. */
+    syncSessionInventory(options?: { signal?: AbortSignal }): Promise<unknown>;
     /** Create an identifier and wait for its KERIA operation to complete. */
     createIdentifier(
         draft: IdentifierCreateDraft,
@@ -132,6 +178,26 @@ export interface RouteDataRuntime {
     /** Start identifier rotation in the background. */
     startRotateIdentifier(
         aid: string,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start OOBI generation in the background. */
+    startGenerateOobi(
+        input: { identifier: string; role: OobiRole },
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start contact OOBI resolution in the background. */
+    startResolveContact(
+        input: ResolveContactInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start contact deletion in the background. */
+    startDeleteContact(
+        contactId: string,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start contact alias update in the background. */
+    startUpdateContactAlias(
+        input: { contactId: string; alias: string },
         options?: { requestId?: string }
     ): BackgroundWorkflowStartResult;
 }
@@ -165,6 +231,59 @@ const parseIdentifierCreateDraft = (
         return isIdentifierCreateDraft(parsed) ? parsed : null;
     } catch {
         return null;
+    }
+};
+
+const parseOobiRole = (value: string): OobiRole | null =>
+    value === 'agent' || value === 'witness' ? value : null;
+
+/**
+ * Loader for `/dashboard`.
+ */
+export const loadDashboard = async (
+    runtime: RouteDataRuntime,
+    request?: Request
+): Promise<DashboardLoaderData> => {
+    if (runtime.getClient() === null) {
+        return { status: 'blocked' };
+    }
+
+    try {
+        await Promise.all([
+            runtime.listIdentifiers({ signal: request?.signal }),
+            runtime.syncSessionInventory({ signal: request?.signal }),
+        ]);
+        return { status: 'ready' };
+    } catch (error) {
+        return {
+            status: 'error',
+            message: `Unable to refresh dashboard inventory: ${toRouteError(error).message}`,
+        };
+    }
+};
+
+/**
+ * Loader for `/contacts`.
+ */
+export const loadContacts = async (
+    runtime: RouteDataRuntime,
+    request?: Request
+): Promise<ContactsLoaderData> => {
+    if (runtime.getClient() === null) {
+        return { status: 'blocked' };
+    }
+
+    try {
+        await Promise.all([
+            runtime.listIdentifiers({ signal: request?.signal }),
+            runtime.syncSessionInventory({ signal: request?.signal }),
+        ]);
+        return { status: 'ready' };
+    } catch (error) {
+        return {
+            status: 'error',
+            message: `Unable to refresh contact inventory: ${toRouteError(error).message}`,
+        };
     }
 };
 
@@ -398,5 +517,193 @@ export const identifiersAction = async (
         intent: 'unsupported',
         ok: false,
         message: `Unsupported identifier action: ${intent || 'missing intent'}`,
+    };
+};
+
+/**
+ * Route action for contact/OOBI mutations.
+ */
+export const contactsAction = async (
+    runtime: RouteDataRuntime,
+    request: Request
+): Promise<ContactActionData> => {
+    const formData = await request.formData();
+    const intent = formString(formData, 'intent');
+    const requestId = formString(formData, 'requestId');
+
+    if (runtime.getClient() === null) {
+        return {
+            intent:
+                intent === 'generateOobi' ||
+                intent === 'delete' ||
+                intent === 'updateAlias'
+                    ? intent
+                    : 'resolve',
+            ok: false,
+            message: 'Connect to KERIA before changing contacts.',
+            requestId,
+        };
+    }
+
+    try {
+        if (intent === 'resolve') {
+            const oobi = formString(formData, 'oobi').trim();
+            const alias = formString(formData, 'alias').trim();
+            if (oobi.length === 0) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'OOBI URL is required.',
+                    requestId,
+                };
+            }
+
+            const started = runtime.startResolveContact(
+                {
+                    oobi,
+                    alias: alias.length > 0 ? alias : null,
+                },
+                { requestId: requestId || undefined }
+            );
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: 'Resolving contact OOBI',
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
+        if (intent === 'generateOobi') {
+            const identifier = formString(formData, 'identifier').trim();
+            const role = parseOobiRole(formString(formData, 'role'));
+            if (identifier.length === 0 || role === null) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Identifier and OOBI role are required.',
+                    requestId,
+                };
+            }
+
+            const started = runtime.startGenerateOobi(
+                { identifier, role },
+                { requestId: requestId || undefined }
+            );
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Generating ${role} OOBI for ${identifier}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
+        if (intent === 'delete') {
+            const contactId = formString(formData, 'contactId').trim();
+            if (contactId.length === 0) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Contact id is required.',
+                    requestId,
+                };
+            }
+
+            const started = runtime.startDeleteContact(contactId, {
+                requestId: requestId || undefined,
+            });
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Deleting contact ${contactId}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
+        if (intent === 'updateAlias') {
+            const contactId = formString(formData, 'contactId').trim();
+            const alias = formString(formData, 'alias').trim();
+            if (contactId.length === 0 || alias.length === 0) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Contact id and alias are required.',
+                    requestId,
+                };
+            }
+
+            const started = runtime.startUpdateContactAlias(
+                { contactId, alias },
+                { requestId: requestId || undefined }
+            );
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Updating contact ${contactId}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+    } catch (error) {
+        return {
+            intent:
+                intent === 'generateOobi' ||
+                intent === 'delete' ||
+                intent === 'updateAlias'
+                    ? intent
+                    : 'resolve',
+            ok: false,
+            message: toRouteError(error).message,
+            requestId,
+        };
+    }
+
+    return {
+        intent: 'unsupported',
+        ok: false,
+        message: `Unsupported contact action: ${intent || 'missing intent'}`,
+        requestId,
     };
 };

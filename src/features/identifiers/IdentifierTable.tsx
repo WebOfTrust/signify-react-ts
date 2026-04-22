@@ -16,6 +16,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RotateRightIcon from '@mui/icons-material/RotateRight';
 import type { IdentifierSummary } from './identifierTypes';
 import {
@@ -34,6 +35,13 @@ export interface IdentifierTableProps {
     onSelect: (identifier: IdentifierSummary) => void;
     onRotate: (name: string) => void;
     isRotateDisabled: (identifier: IdentifierSummary) => boolean;
+    onCopyAgentOobi: (identifier: IdentifierSummary) => void;
+    agentOobiCopyStatus: Record<string, IdentifierOobiCopyStatus>;
+}
+
+export interface IdentifierOobiCopyStatus {
+    status: 'idle' | 'loading' | 'success' | 'error';
+    message: string | null;
 }
 
 const monoSx = {
@@ -93,6 +101,8 @@ export const IdentifierTable = ({
     onSelect,
     onRotate,
     isRotateDisabled,
+    onCopyAgentOobi,
+    agentOobiCopyStatus,
 }: IdentifierTableProps) => {
     const [copiedValue, setCopiedValue] = useState<string | null>(null);
 
@@ -112,6 +122,14 @@ export const IdentifierTable = ({
     ) => {
         event.stopPropagation();
         onRotate(identifier.name);
+    };
+
+    const copyAgentOobi = (
+        event: MouseEvent<HTMLButtonElement>,
+        identifier: IdentifierSummary
+    ) => {
+        event.stopPropagation();
+        onCopyAgentOobi(identifier);
     };
 
     return (
@@ -180,6 +198,11 @@ export const IdentifierTable = ({
                             </Stack>
                         </CardContent>
                         <CardActions sx={{ justifyContent: 'flex-end', pt: 0 }}>
+                            <OobiCopyButton
+                                identifier={identifier}
+                                copyStatus={agentOobiCopyStatus[identifier.name]}
+                                onCopy={copyAgentOobi}
+                            />
                             <Tooltip title="Rotate identifier">
                                 <span>
                                     <IconButton
@@ -218,6 +241,7 @@ export const IdentifierTable = ({
                             <TableCell>Type</TableCell>
                             <TableCell>KIDX</TableCell>
                             <TableCell>PIDX</TableCell>
+                            <TableCell align="center">OOBI</TableCell>
                             <TableCell align="right">Actions</TableCell>
                         </TableRow>
                     </TableHead>
@@ -262,6 +286,15 @@ export const IdentifierTable = ({
                                         identifierIdentifierIndex(identifier)
                                     )}
                                 </TableCell>
+                                <TableCell align="center">
+                                    <OobiCopyButton
+                                        identifier={identifier}
+                                        copyStatus={
+                                            agentOobiCopyStatus[identifier.name]
+                                        }
+                                        onCopy={copyAgentOobi}
+                                    />
+                                </TableCell>
                                 <TableCell align="right">
                                     <Tooltip title="Rotate identifier">
                                         <span>
@@ -287,3 +320,53 @@ export const IdentifierTable = ({
         </Box>
     );
 };
+
+const oobiCopyTooltip = (
+    status: IdentifierOobiCopyStatus | undefined
+): string => {
+    if (status?.status === 'loading') {
+        return 'Fetching agent OOBI...';
+    }
+
+    if (status?.status === 'success') {
+        return 'Copied agent OOBI';
+    }
+
+    if (status?.status === 'error') {
+        return status.message ?? 'Unable to copy agent OOBI';
+    }
+
+    return 'Copy agent OOBI';
+};
+
+const OobiCopyButton = ({
+    identifier,
+    copyStatus,
+    onCopy,
+}: {
+    identifier: IdentifierSummary;
+    copyStatus: IdentifierOobiCopyStatus | undefined;
+    onCopy: (
+        event: MouseEvent<HTMLButtonElement>,
+        identifier: IdentifierSummary
+    ) => void;
+}) => (
+    <Tooltip title={oobiCopyTooltip(copyStatus)}>
+        <span>
+            <IconButton
+                aria-label={`Copy agent OOBI for ${identifier.name}`}
+                disabled={copyStatus?.status === 'loading'}
+                color={
+                    copyStatus?.status === 'success'
+                        ? 'success'
+                        : copyStatus?.status === 'error'
+                          ? 'error'
+                          : 'default'
+                }
+                onClick={(event) => onCopy(event, identifier)}
+            >
+                <ContentCopyIcon />
+            </IconButton>
+        </span>
+    </Tooltip>
+);
