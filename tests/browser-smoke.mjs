@@ -115,6 +115,12 @@ try {
   await page.waitForSelector('[data-testid="identifier-table"]', {
     timeout: 10000,
   });
+  const identifierTableText = await textContent(page, '[data-testid="identifier-table"]');
+  for (const expectedHeader of ['AID', 'Current Key', 'KIDX', 'PIDX', 'Actions']) {
+    if (!identifierTableText.includes(expectedHeader)) {
+      throw new Error(`Identifier table is missing ${expectedHeader} header`);
+    }
+  }
   if (!page.url().endsWith('/identifiers')) {
     throw new Error(`Expected post-connect /identifiers route, got ${page.url()}`);
   }

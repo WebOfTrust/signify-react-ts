@@ -14,8 +14,12 @@ import {
     idleIdentifierAction,
     type IdentifierActionState,
     type IdentifierCreateDraft,
-    type IdentifierSummary,
 } from './identifierTypes';
+import { useAppSelector } from '../../state/hooks';
+import {
+    selectActiveOperations,
+    selectIdentifiers,
+} from '../../state/selectors';
 
 /**
  * Connected identifiers feature route.
@@ -27,14 +31,20 @@ import {
 export const IdentifiersView = () => {
     const loaderData = useLoaderData() as IdentifiersLoaderData;
     const fetcher = useFetcher<IdentifierActionData>();
-    const [selectedIdentifier, setSelectedIdentifier] =
-        useState<IdentifierSummary | null>(null);
+    const [selectedIdentifierName, setSelectedIdentifierName] = useState<
+        string | null
+    >(null);
     const [createOpen, setCreateOpen] = useState(false);
     const [activeCreateRequestId, setActiveCreateRequestId] = useState<
         string | null
     >(null);
     const [pendingMessage, setPendingMessage] = useState<string | null>(null);
     const actionRunning = fetcher.state !== 'idle';
+    const liveIdentifiers = useAppSelector(selectIdentifiers);
+    const activeOperations = useAppSelector(selectActiveOperations);
+    const activeResourceKeys = new Set(
+        activeOperations.flatMap((operation) => operation.resourceKeys)
+    );
     const createSucceeded =
         activeCreateRequestId !== null &&
         fetcher.state === 'idle' &&
@@ -43,11 +53,20 @@ export const IdentifiersView = () => {
         fetcher.data.requestId === activeCreateRequestId;
     const createDialogOpen = createOpen && !createSucceeded;
 
+    const loaderIdentifiers =
+        loaderData.status === 'blocked' ? [] : loaderData.identifiers;
+    const identifiers =
+        liveIdentifiers.length > 0 ? liveIdentifiers : loaderIdentifiers;
+    const selectedIdentifier =
+        selectedIdentifierName === null
+            ? null
+            : (identifiers.find(
+                  (identifier) => identifier.name === selectedIdentifierName
+              ) ?? null);
+
     if (loaderData.status === 'blocked') {
         return <ConnectionRequired />;
     }
-
-    const identifiers = loaderData.identifiers;
 
     const actionState: IdentifierActionState = (() => {
         if (actionRunning) {
@@ -90,6 +109,7 @@ export const IdentifiersView = () => {
         const formData = new FormData();
         formData.set('intent', 'rotate');
         formData.set('aid', aid);
+        formData.set('requestId', globalThis.crypto.randomUUID());
         fetcher.submit(formData, { method: 'post' });
     };
 
@@ -103,6 +123,9 @@ export const IdentifiersView = () => {
         formData.set('draft', JSON.stringify(draft));
         fetcher.submit(formData, { method: 'post' });
     };
+
+    const isRotateDisabled = (identifierName: string): boolean =>
+        activeResourceKeys.has(`identifier:aid:${identifierName}`);
 
     return (
         <Box sx={{ display: 'grid', gap: 2 }}>
@@ -122,13 +145,23 @@ export const IdentifiersView = () => {
             )}
             <IdentifierTable
                 identifiers={identifiers}
-                onSelect={setSelectedIdentifier}
+                onSelect={(identifier) =>
+                    setSelectedIdentifierName(identifier.name)
+                }
+                onRotate={handleRotate}
+                isRotateDisabled={(identifier) =>
+                    isRotateDisabled(identifier.name)
+                }
             />
             <IdentifierDetailsModal
-                open={selectedIdentifier !== null}
+                open={selectedIdentifierName !== null && selectedIdentifier !== null}
                 identifier={selectedIdentifier}
-                actionRunning={actionRunning}
-                onClose={() => setSelectedIdentifier(null)}
+                actionRunning={
+                    selectedIdentifierName === null
+                        ? false
+                        : isRotateDisabled(selectedIdentifierName)
+                }
+                onClose={() => setSelectedIdentifierName(null)}
                 onRotate={handleRotate}
             />
             {createDialogOpen && (

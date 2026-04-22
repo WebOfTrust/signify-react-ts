@@ -10,7 +10,11 @@ import { LoadingOverlay } from './LoadingOverlay';
 import { NavigationDrawer } from './NavigationDrawer';
 import { TopBar } from './TopBar';
 import { useAppSelector } from '../state/hooks';
-import { selectLatestActiveOperationLabel } from '../state/selectors';
+import {
+    selectActiveOperations,
+    selectAppNotifications,
+    selectUnreadAppNotifications,
+} from '../state/selectors';
 
 export interface RootLayoutProps {
     /** Runtime instance injected into the data-router route tree. */
@@ -31,13 +35,14 @@ const RootLayoutContent = () => {
     const navigation = useNavigation();
     const fetchers = useFetchers();
     const { connection } = useAppSession();
-    const activeOperationLabel = useAppSelector(selectLatestActiveOperationLabel);
+    const activeOperations = useAppSelector(selectActiveOperations);
+    const appNotifications = useAppSelector(selectAppNotifications);
+    const unreadAppNotifications = useAppSelector(selectUnreadAppNotifications);
     const connectDialogOpen = connectOpen && connection.status !== 'connected';
     const pending = derivePendingState({
         navigation,
         fetchers,
         connectionStatus: connection.status,
-        activeOperationLabel,
     });
 
     return (
@@ -50,6 +55,9 @@ const RootLayoutContent = () => {
         >
             <TopBar
                 isConnected={connection.status === 'connected'}
+                activeOperations={activeOperations}
+                recentNotifications={appNotifications}
+                unreadNotificationCount={unreadAppNotifications.length}
                 onMenuClick={() => setDrawerOpen(true)}
                 onConnectClick={() => setConnectOpen(true)}
             />

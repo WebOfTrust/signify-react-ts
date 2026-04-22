@@ -1,4 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit';
+import { appNotificationsReducer } from './appNotifications.slice';
 import { challengesReducer } from './challenges.slice';
 import { contactsReducer } from './contacts.slice';
 import { credentialsReducer } from './credentials.slice';
@@ -18,6 +19,7 @@ export const createAppStore = () =>
         reducer: {
             session: sessionReducer,
             operations: operationsReducer,
+            appNotifications: appNotificationsReducer,
             contacts: contactsReducer,
             challenges: challengesReducer,
             credentials: credentialsReducer,

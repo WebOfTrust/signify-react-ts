@@ -6,7 +6,7 @@
  */
 
 /** Source category currently driving the app-wide loading overlay. */
-export type PendingSource = 'navigation' | 'fetcher' | 'connection' | 'runtime';
+export type PendingSource = 'navigation' | 'fetcher' | 'connection';
 
 /** Derived loading overlay state consumed by the shell. */
 export interface AppPendingState {
@@ -40,7 +40,6 @@ export interface DerivePendingStateInput {
     navigation: PendingNavigation;
     fetchers: readonly PendingFetcher[];
     connectionStatus: 'idle' | 'connecting' | 'connected' | 'error';
-    activeOperationLabel?: string | null;
 }
 
 const idlePendingState: AppPendingState = {
@@ -151,7 +150,6 @@ export const derivePendingState = ({
     navigation,
     fetchers,
     connectionStatus,
-    activeOperationLabel = null,
 }: DerivePendingStateInput): AppPendingState => {
     if (connectionStatus === 'connecting') {
         return {
@@ -192,14 +190,6 @@ export const derivePendingState = ({
             active: true,
             label: pendingLabel(navigation),
             source: 'navigation',
-        };
-    }
-
-    if (activeOperationLabel !== null) {
-        return {
-            active: true,
-            label: activeOperationLabel,
-            source: 'runtime',
         };
     }
 

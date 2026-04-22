@@ -5,6 +5,7 @@ import { callPromise } from '../effects/promise';
 import {
     identifierCreateDraftToArgs,
     identifiersFromResponse,
+    replaceIdentifierSummary,
 } from '../features/identifiers/identifierHelpers';
 import type {
     IdentifierCreateDraft,
@@ -23,6 +24,19 @@ export function* listIdentifiersService({
 }): EffectionOperation<IdentifierSummary[]> {
     const response = yield* callPromise(() => client.identifiers().list());
     return identifiersFromResponse(response);
+}
+
+/**
+ * Fetch one managed identifier by alias or prefix.
+ */
+export function* getIdentifierService({
+    client,
+    aid,
+}: {
+    client: SignifyClient;
+    aid: string;
+}): EffectionOperation<IdentifierSummary> {
+    return yield* callPromise(() => client.identifiers().get(aid));
 }
 
 /**
@@ -81,5 +95,8 @@ export function* rotateIdentifierService({
         logger,
     });
 
-    return yield* listIdentifiersService({ client });
+    const identifiers = yield* listIdentifiersService({ client });
+    const refreshed = yield* getIdentifierService({ client, aid });
+
+    return replaceIdentifierSummary(identifiers, refreshed);
 }

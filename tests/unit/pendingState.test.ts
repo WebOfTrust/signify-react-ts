@@ -101,18 +101,17 @@ describe('derivePendingState', () => {
         });
     });
 
-    it('uses active RTK operation facts when router state is idle', () => {
+    it('does not block the app for background operation facts', () => {
         expect(
             derivePendingState({
                 navigation: idleNavigation,
                 fetchers: [],
                 connectionStatus: 'connected',
-                activeOperationLabel: 'Resolving contact...',
             })
         ).toEqual({
-            active: true,
-            label: 'Resolving contact...',
-            source: 'runtime',
+            active: false,
+            label: 'Loading...',
+            source: null,
         });
     });
 });

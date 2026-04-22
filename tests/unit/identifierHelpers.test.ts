@@ -3,9 +3,19 @@ import { Algos, type HabState, type KeyState } from 'signify-ts';
 import { buildAppConfig } from '../../src/config';
 import {
     defaultIdentifierCreateDraft,
+    formatIdentifierMetadata,
+    identifierCurrentKey,
+    identifierCurrentKeys,
     identifierCreateDraftToArgs,
+    identifierIdentifierIndex,
+    identifierJson,
+    identifierKeyIndex,
+    identifierTier,
+    identifierType,
     identifiersFromResponse,
     isIdentifierCreateDraft,
+    replaceIdentifierSummary,
+    truncateMiddle,
 } from '../../src/features/identifiers/identifierHelpers';
 import type { IdentifierCreateDraft } from '../../src/features/identifiers/identifierTypes';
 
@@ -51,6 +61,22 @@ const identifier = (name: string, prefix: string): HabState => ({
     },
 });
 
+const randyIdentifier = (name: string, prefix: string): HabState => ({
+    name,
+    prefix,
+    icp_dt: '2026-04-21T00:00:00.000000+00:00',
+    state: {
+        ...keyState(prefix),
+        k: [`${prefix}-current-key`],
+    },
+    transferable: true,
+    windexes: [],
+    randy: {
+        prxs: [`${prefix}-public-random`],
+        nxts: [`${prefix}-next-random`],
+    },
+});
+
 describe('identifiersFromResponse', () => {
     it('normalizes direct identifier arrays', () => {
         const identifiers = [identifier('alice', 'Ealice')];
@@ -80,6 +106,86 @@ describe('identifiersFromResponse', () => {
     it('returns an empty list for unrecognized responses', () => {
         expect(identifiersFromResponse(null)).toEqual([]);
         expect(identifiersFromResponse({})).toEqual([]);
+    });
+});
+
+describe('identifier display helpers', () => {
+    it('extracts salty current key and local key-manager metadata', () => {
+        const base = identifier('alice', 'Ealice');
+        const aid = {
+            ...base,
+            state: {
+                ...keyState('Ealice'),
+                k: ['Ealice-key-0', 'Ealice-key-1'],
+            },
+            salty: {
+                ...('salty' in base ? base.salty : undefined),
+                kidx: 3,
+                pidx: 2,
+                tier: 'high',
+            },
+        };
+
+        expect(identifierType(aid)).toBe('salty');
+        expect(identifierCurrentKeys(aid)).toEqual([
+            'Ealice-key-0',
+            'Ealice-key-1',
+        ]);
+        expect(identifierCurrentKey(aid)).toBe('Ealice-key-0');
+        expect(identifierKeyIndex(aid)).toBe(3);
+        expect(identifierIdentifierIndex(aid)).toBe(2);
+        expect(identifierTier(aid)).toBe('high');
+    });
+
+    it('does not invent unavailable randy key-manager metadata', () => {
+        const aid = randyIdentifier('randy', 'Erandy');
+
+        expect(identifierType(aid)).toBe('randy');
+        expect(identifierCurrentKey(aid)).toBe('Erandy-current-key');
+        expect(identifierKeyIndex(aid)).toBeNull();
+        expect(identifierIdentifierIndex(aid)).toBeNull();
+        expect(identifierTier(aid)).toBeNull();
+        expect(formatIdentifierMetadata(identifierKeyIndex(aid))).toBe(
+            'Unavailable'
+        );
+    });
+
+    it('formats full identifier JSON for advanced display', () => {
+        const aid = identifier('alice', 'Ealice');
+
+        expect(identifierJson(aid)).toContain('"state": {');
+        expect(identifierJson(aid)).toContain('"k": [');
+        expect(identifierJson(aid)).toContain('"Ealice-key"');
+    });
+
+    it('shortens long AIDs by preserving the first and last eight characters', () => {
+        expect(truncateMiddle('E123456789abcdefghijklmnop')).toBe(
+            'E1234567...ijklmnop'
+        );
+        expect(truncateMiddle('Eshort')).toBe('Eshort');
+    });
+});
+
+describe('replaceIdentifierSummary', () => {
+    it('replaces an existing identifier by name with freshly fetched state', () => {
+        const stale = identifier('alice', 'Ealice');
+        const fresh = {
+            ...stale,
+            salty: {
+                ...stale.salty,
+                kidx: 1,
+            },
+        };
+
+        expect(
+            replaceIdentifierSummary([stale, identifier('bob', 'Ebob')], fresh)
+        ).toEqual([fresh, identifier('bob', 'Ebob')]);
+    });
+
+    it('appends a refreshed identifier when it was missing from the list', () => {
+        const fresh = identifier('alice', 'Ealice');
+
+        expect(replaceIdentifierSummary([], fresh)).toEqual([fresh]);
     });
 });
 

@@ -6,9 +6,12 @@ import {
     operationFailed,
     operationStarted,
     operationSucceeded,
+    operationsRehydrated,
 } from '../../src/state/operations.slice';
 import {
     selectActiveOperations,
+    selectAppNotifications,
+    selectUnreadAppNotifications,
     selectLatestActiveOperationLabel,
     selectUnreadNotifications,
 } from '../../src/state/selectors';
@@ -18,6 +21,10 @@ import {
     sessionDisconnected,
 } from '../../src/state/session.slice';
 import { notificationRecorded } from '../../src/state/notifications.slice';
+import {
+    allAppNotificationsRead,
+    appNotificationRecorded,
+} from '../../src/state/appNotifications.slice';
 
 describe('RTK state foundation', () => {
     it('records session connection facts without live capabilities', () => {
@@ -151,5 +158,117 @@ describe('RTK state foundation', () => {
         expect(JSON.parse(JSON.stringify(store.getState()))).toMatchObject(
             store.getState()
         );
+    });
+
+    it('tracks unread app notifications separately from KERIA notifications', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            appNotificationRecorded({
+                id: 'app-n-1',
+                severity: 'success',
+                status: 'unread',
+                title: 'Identifier created',
+                message: 'The identifier operation completed.',
+                createdAt: '2026-04-21T00:00:00.000Z',
+                readAt: null,
+                operationId: 'op-1',
+                links: [
+                    {
+                        rel: 'operation',
+                        label: 'View operation',
+                        path: '/operations/op-1',
+                    },
+                ],
+            })
+        );
+
+        expect(selectUnreadAppNotifications(store.getState())).toHaveLength(1);
+        expect(selectUnreadNotifications(store.getState())).toHaveLength(0);
+    });
+
+    it('selects app notifications newest first and marks them read', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            appNotificationRecorded({
+                id: 'app-n-old',
+                severity: 'info',
+                status: 'unread',
+                title: 'Old',
+                message: 'Old notification',
+                createdAt: '2026-04-21T00:00:00.000Z',
+                readAt: null,
+                operationId: null,
+                links: [],
+            })
+        );
+        store.dispatch(
+            appNotificationRecorded({
+                id: 'app-n-new',
+                severity: 'success',
+                status: 'unread',
+                title: 'New',
+                message: 'New notification',
+                createdAt: '2026-04-21T00:00:01.000Z',
+                readAt: null,
+                operationId: null,
+                links: [],
+            })
+        );
+
+        expect(
+            selectAppNotifications(store.getState()).map(
+                (notification) => notification.id
+            )
+        ).toEqual(['app-n-new', 'app-n-old']);
+
+        store.dispatch(
+            allAppNotificationsRead({
+                readAt: '2026-04-21T00:00:02.000Z',
+            })
+        );
+
+        expect(selectUnreadAppNotifications(store.getState())).toHaveLength(0);
+        expect(store.getState().appNotifications.byId['app-n-new']).toMatchObject({
+            status: 'read',
+            readAt: '2026-04-21T00:00:02.000Z',
+        });
+    });
+
+    it('rehydrates running operations as interrupted', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            operationsRehydrated({
+                interruptedAt: '2026-04-21T00:00:01.000Z',
+                records: [
+                    {
+                        requestId: 'op-running',
+                        label: 'Running...',
+                        title: 'Running operation',
+                        description: null,
+                        kind: 'resolveContact',
+                        status: 'running',
+                        phase: 'running',
+                        resourceKeys: ['contact:alice'],
+                        operationRoute: '/operations/op-running',
+                        resultRoute: null,
+                        notificationId: null,
+                        keriaOperationName: null,
+                        startedAt: '2026-04-21T00:00:00.000Z',
+                        finishedAt: null,
+                        error: null,
+                        canceledReason: null,
+                    },
+                ],
+            })
+        );
+
+        expect(store.getState().operations.byId['op-running']).toMatchObject({
+            status: 'interrupted',
+            phase: 'interrupted',
+            finishedAt: '2026-04-21T00:00:01.000Z',
+        });
     });
 });

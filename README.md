@@ -4,6 +4,15 @@
 
 - [App shell and views](./docs/app-shell.md): typed view registry, default view,
   selector contracts, and how to add new app views.
+- [Background operations and app notifications](./docs/background-operations-and-notifications.md):
+  non-blocking Effection workflows, operation history, resource conflicts,
+  notification UX, and how to add new background flows.
+- [Local persistence](./docs/persistence.md): controller-AID-keyed local
+  storage for operations and app notifications, reload interruption semantics,
+  and maintainer change checklist.
+- [Identifier UI](./docs/identifier-ui.md): identifier list/details display
+  rules, AID truncation/copy behavior, KIDX/PIDX/tier extraction, and rotate
+  affordances.
 - [Signify client boundary](./docs/signify-client-boundary.md): ownership,
   configuration, and public boundary API.
 - [Runtime config](./docs/runtime-config.md): app/runtime config ownership,

@@ -9,6 +9,8 @@ import type {
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null;
 
+export const identifierUnavailableValue = 'Unavailable';
+
 /**
  * Runtime guard for the subset of `HabState` required by the identifier UI.
  */
@@ -43,6 +45,135 @@ export const identifiersFromResponse = (
     }
 
     return [];
+};
+
+/**
+ * Replace one identifier in a list with a freshly fetched summary.
+ */
+export const replaceIdentifierSummary = (
+    identifiers: readonly IdentifierSummary[],
+    updated: IdentifierSummary
+): IdentifierSummary[] => {
+    let replaced = false;
+    const next = identifiers.map((identifier) => {
+        if (
+            identifier.prefix === updated.prefix ||
+            identifier.name === updated.name
+        ) {
+            replaced = true;
+            return updated;
+        }
+
+        return identifier;
+    });
+
+    return replaced ? next : [...next, updated];
+};
+
+/**
+ * Best-effort identifier algorithm/type label from Signify's tagged HabState.
+ */
+export const identifierType = (identifier: IdentifierSummary): string =>
+    'salty' in identifier
+        ? 'salty'
+        : 'randy' in identifier
+          ? 'randy'
+          : 'group' in identifier
+            ? 'group'
+            : 'extern' in identifier
+              ? 'extern'
+              : identifierUnavailableValue;
+
+/**
+ * Current public keys advertised by the identifier's current key state.
+ */
+export const identifierCurrentKeys = (
+    identifier: IdentifierSummary
+): readonly string[] => {
+    const state = (identifier as { state?: { k?: unknown } }).state;
+
+    if (!Array.isArray(state?.k)) {
+        return [];
+    }
+
+    return state.k.filter((key): key is string => typeof key === 'string');
+};
+
+/**
+ * First current public key for compact single-key display.
+ */
+export const identifierCurrentKey = (
+    identifier: IdentifierSummary
+): string | null => identifierCurrentKeys(identifier)[0] ?? null;
+
+/**
+ * Current key index for identifier types that expose local key-manager state.
+ *
+ * Do not derive this from event sequence numbers for unsupported identifier
+ * types. Missing local manager metadata should render as unavailable.
+ */
+export const identifierKeyIndex = (
+    identifier: IdentifierSummary
+): number | null =>
+    'salty' in identifier && typeof identifier.salty.kidx === 'number'
+        ? identifier.salty.kidx
+        : null;
+
+/**
+ * Identifier index for identifier types that expose local key-manager state.
+ *
+ * Do not derive this for randy/group/extern identifiers unless Signify exposes
+ * an explicit field for it.
+ */
+export const identifierIdentifierIndex = (
+    identifier: IdentifierSummary
+): number | null =>
+    'salty' in identifier && typeof identifier.salty.pidx === 'number'
+        ? identifier.salty.pidx
+        : null;
+
+/**
+ * Key derivation tier for identifier types that expose local key-manager state.
+ */
+export const identifierTier = (identifier: IdentifierSummary): string | null =>
+    'salty' in identifier && typeof identifier.salty.tier === 'string'
+        ? identifier.salty.tier
+        : null;
+
+/**
+ * Format nullable identifier metadata without inventing unavailable values.
+ */
+export const formatIdentifierMetadata = (
+    value: number | string | null | undefined
+): string => {
+    if (value === null || value === undefined || value === '') {
+        return identifierUnavailableValue;
+    }
+
+    return String(value);
+};
+
+/**
+ * Full identifier JSON payload for advanced inspection.
+ */
+export const identifierJson = (identifier: IdentifierSummary): string =>
+    JSON.stringify(identifier, null, 2);
+
+/**
+ * Keep long AIDs readable while preserving both identifying edges.
+ */
+export const truncateMiddle = (
+    value: string,
+    edgeLength = 8,
+    separator = '...'
+): string => {
+    const minimumTruncatedLength = edgeLength * 2 + separator.length;
+
+    if (value.length <= minimumTruncatedLength) {
+        return value;
+    }
+
+    return `${value.slice(0, edgeLength)}${separator}${value.slice(-edgeLength)}`;
 };
 
 /**
