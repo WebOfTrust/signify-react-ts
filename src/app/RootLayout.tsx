@@ -7,7 +7,7 @@ import { AppRuntimeProvider } from './runtimeContext';
 import { ConnectDialog } from './ConnectDialog';
 import { derivePendingState } from './pendingState';
 import { LoadingOverlay } from './LoadingOverlay';
-import { NavigationDrawer } from './NavigationDrawer';
+import { DesktopNavigationRail, NavigationDrawer } from './NavigationDrawer';
 import { TopBar } from './TopBar';
 import { useAppSelector } from '../state/hooks';
 import {
@@ -65,6 +65,7 @@ const RootLayoutContent = () => {
                 open={drawerOpen}
                 onClose={() => setDrawerOpen(false)}
             />
+            <DesktopNavigationRail />
             <ConnectDialog
                 open={connectDialogOpen}
                 connection={connection}
@@ -81,11 +82,14 @@ const RootLayoutContent = () => {
                     minHeight: '100dvh',
                     overflowX: 'clip',
                     px: { xs: 2, sm: 3 },
+                    ml: { xs: 0, md: '184px' },
                     pt: { xs: 'calc(56px + 16px)', sm: 'calc(64px + 24px)' },
                     pb: {
                         xs: 'calc(88px + env(safe-area-inset-bottom))',
                         sm: 3,
                     },
+                    background:
+                        'linear-gradient(180deg, rgba(39, 215, 255, 0.04) 0%, rgba(5, 9, 13, 0) 220px)',
                 }}
             >
                 <Outlet />

@@ -122,6 +122,13 @@ export const IdentifierTable = ({
                         key={identifier.name}
                         variant="outlined"
                         data-testid={`identifier-row-${identifier.name}`}
+                        sx={{
+                            bgcolor: 'background.paper',
+                            borderColor: 'divider',
+                            '&:hover': {
+                                borderColor: 'primary.main',
+                            },
+                        }}
                     >
                         <CardContent>
                             <Stack
@@ -164,7 +171,9 @@ export const IdentifierTable = ({
                                     >
                                         PIDX:{' '}
                                         {formatIdentifierMetadata(
-                                            identifierIdentifierIndex(identifier)
+                                            identifierIdentifierIndex(
+                                                identifier
+                                            )
                                         )}
                                     </Typography>
                                 </Stack>
@@ -190,11 +199,20 @@ export const IdentifierTable = ({
             </Stack>
             <TableContainer
                 component={Paper}
-                sx={{ display: { xs: 'none', sm: 'block' } }}
+                sx={{
+                    display: { xs: 'none', sm: 'block' },
+                    bgcolor: 'background.paper',
+                    borderColor: 'divider',
+                    overflowX: 'auto',
+                }}
             >
                 <Table sx={{ minWidth: 800 }} aria-label="identifier table">
                     <TableHead>
-                        <TableRow>
+                        <TableRow
+                            sx={{
+                                bgcolor: 'rgba(39, 215, 255, 0.06)',
+                            }}
+                        >
                             <TableCell>Name</TableCell>
                             <TableCell>AID</TableCell>
                             <TableCell>Type</TableCell>
@@ -209,6 +227,9 @@ export const IdentifierTable = ({
                                 key={identifier.name}
                                 sx={{
                                     cursor: 'pointer',
+                                    '&:hover': {
+                                        bgcolor: 'action.hover',
+                                    },
                                     '&:last-child td, &:last-child th': {
                                         border: 0,
                                     },

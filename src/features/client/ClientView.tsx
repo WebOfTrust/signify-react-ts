@@ -1,6 +1,8 @@
-import { Box, Grid, Typography } from '@mui/material';
+import { Box, Grid, Stack } from '@mui/material';
 import { useLoaderData } from 'react-router-dom';
 import { ConnectionRequired } from '../../app/ConnectionRequired';
+import { ConsolePanel, PageHeader, TelemetryRow } from '../../app/Console';
+import { monoValueSx } from '../../app/consoleStyles';
 import type { ClientLoaderData } from '../../app/routeData';
 import { AidCard } from './AidCard';
 
@@ -23,21 +25,40 @@ export const ClientView = () => {
     const controller = summary.state.controller.state;
 
     return (
-        <Box sx={{ display: 'grid', gap: 2 }}>
-            <Box data-testid="client-summary">
-                <Typography
-                    data-testid="controller-aid"
-                    sx={{ overflowWrap: 'anywhere' }}
-                >
-                    Controller AID: {summary.controllerPre}
-                </Typography>
-                <Typography
-                    data-testid="agent-aid"
-                    sx={{ overflowWrap: 'anywhere' }}
-                >
-                    Agent AID: {summary.agentPre}
-                </Typography>
-            </Box>
+        <Box sx={{ display: 'grid', gap: 2.5 }}>
+            <PageHeader
+                eyebrow="Diagnostics"
+                title="Client Console"
+                summary="Controller and agent key-state telemetry for the connected Signify session."
+            />
+            <ConsolePanel title="Session identity" eyebrow="Connected client">
+                <Stack spacing={0.25} data-testid="client-summary">
+                    <TelemetryRow
+                        label="Controller AID"
+                        value={
+                            <Box
+                                component="span"
+                                data-testid="controller-aid"
+                                sx={monoValueSx}
+                            >
+                                {summary.controllerPre}
+                            </Box>
+                        }
+                    />
+                    <TelemetryRow
+                        label="Agent AID"
+                        value={
+                            <Box
+                                component="span"
+                                data-testid="agent-aid"
+                                sx={monoValueSx}
+                            >
+                                {summary.agentPre}
+                            </Box>
+                        }
+                    />
+                </Stack>
+            </ConsolePanel>
             <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
                 <Grid size={{ xs: 12, md: 6 }}>
                     <AidCard data={agent} text="Agent" />

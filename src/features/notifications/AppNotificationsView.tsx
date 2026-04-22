@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import {
     Box,
-    Chip,
     Link,
     List,
     ListItem,
@@ -10,6 +9,7 @@ import {
     Typography,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
+import { EmptyState, PageHeader, StatusPill } from '../../app/Console';
 import { useAppDispatch, useAppSelector } from '../../state/hooks';
 import { allAppNotificationsRead } from '../../state/appNotifications.slice';
 import { selectAppNotifications } from '../../state/selectors';
@@ -38,14 +38,17 @@ export const AppNotificationsView = () => {
     }, [dispatch, unreadCount]);
 
     return (
-        <Box sx={{ display: 'grid', gap: 2 }}>
-            <Typography variant="h5" component="h1">
-                Notifications
-            </Typography>
+        <Box sx={{ display: 'grid', gap: 2.5 }}>
+            <PageHeader
+                eyebrow="Activity"
+                title="Notifications"
+                summary="User-facing results emitted by completed background workflows."
+            />
             {notifications.length === 0 ? (
-                <Typography color="text.secondary">
-                    No app notifications yet.
-                </Typography>
+                <EmptyState
+                    title="No notifications"
+                    message="Completed credential, identifier, and contact operations will report outcomes here."
+                />
             ) : (
                 <List disablePadding>
                     {notifications.map((notification) => (
@@ -59,7 +62,7 @@ export const AppNotificationsView = () => {
                                 alignItems: 'flex-start',
                                 bgcolor:
                                     notification.status === 'unread'
-                                        ? 'common.white'
+                                        ? 'action.selected'
                                         : 'action.hover',
                                 opacity:
                                     notification.status === 'unread' ? 1 : 0.72,
@@ -78,16 +81,16 @@ export const AppNotificationsView = () => {
                                         <Typography component="span">
                                             {notification.title}
                                         </Typography>
-                                        <Chip
-                                            size="small"
+                                        <StatusPill
                                             label={notification.severity}
-                                            color={
-                                                notification.severity === 'error'
+                                            tone={
+                                                notification.severity ===
+                                                'error'
                                                     ? 'error'
                                                     : notification.severity ===
                                                         'success'
                                                       ? 'success'
-                                                      : 'default'
+                                                      : 'neutral'
                                             }
                                         />
                                     </Stack>

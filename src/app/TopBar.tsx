@@ -18,6 +18,7 @@ import CircleIcon from '@mui/icons-material/Circle';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { Link as RouterLink } from 'react-router-dom';
+import { StatusPill } from './Console';
 import type { AppNotificationRecord } from '../state/appNotifications.slice';
 import type { OperationRecord } from '../state/operations.slice';
 import { allAppNotificationsRead } from '../state/appNotifications.slice';
@@ -99,6 +100,7 @@ export const TopBar = ({
                     display: 'flex',
                     gap: { xs: 0.5, sm: 1.5 },
                     minWidth: 0,
+                    minHeight: { xs: 56, sm: 64 },
                 }}
             >
                 <IconButton
@@ -107,6 +109,7 @@ export const TopBar = ({
                     aria-label="menu"
                     data-testid="nav-open"
                     onClick={onMenuClick}
+                    sx={{ display: { xs: 'inline-flex', md: 'none' } }}
                 >
                     <MenuIcon />
                 </IconButton>
@@ -116,10 +119,18 @@ export const TopBar = ({
                     sx={{
                         flex: '1 1 auto',
                         minWidth: 0,
+                        color: 'text.primary',
+                        fontWeight: 700,
                     }}
                 >
-                    Signify Client
+                    Signify Ops
                 </Typography>
+                <Box sx={{ display: { xs: 'none', lg: 'block' } }}>
+                    <StatusPill
+                        label={isConnected ? 'KERIA online' : 'KERIA offline'}
+                        tone={isConnected ? 'success' : 'error'}
+                    />
+                </Box>
                 <Tooltip title="Background operations">
                     <IconButton
                         color="inherit"
@@ -128,7 +139,7 @@ export const TopBar = ({
                         onClick={openOperations}
                     >
                         <Badge
-                            color="secondary"
+                            color="primary"
                             badgeContent={activeOperations.length}
                             invisible={activeOperations.length === 0}
                         >
@@ -144,7 +155,7 @@ export const TopBar = ({
                                     sx={{
                                         width: 22,
                                         height: 22,
-                                        borderRadius: '50%',
+                                        borderRadius: 1,
                                         border: 2,
                                         borderColor: 'currentColor',
                                         display: 'block',
@@ -171,27 +182,30 @@ export const TopBar = ({
                     </IconButton>
                 </Tooltip>
                 <Button
-                    color="inherit"
+                    variant={isConnected ? 'outlined' : 'contained'}
+                    color={isConnected ? 'success' : 'primary'}
                     aria-label={isConnected ? 'Connected' : 'Connect'}
                     sx={{
                         flex: '0 0 auto',
-                        minWidth: { xs: 44, sm: 64 },
+                        minWidth: { xs: 44, sm: 92 },
                         px: { xs: 1, sm: 2 },
                         gap: 0.75,
+                        borderColor: isConnected ? 'success.main' : undefined,
                     }}
                     onClick={onConnectClick}
                     data-testid="connect-open"
                 >
                     <CircleIcon
                         sx={{
-                            color: isConnected ? 'green' : 'red',
+                            fontSize: 14,
+                            color: isConnected ? 'success.main' : 'error.main',
                         }}
                     />
                     <Typography
                         component="span"
                         sx={{ display: { xs: 'none', sm: 'inline' } }}
                     >
-                        Connect
+                        {isConnected ? 'Online' : 'Connect'}
                     </Typography>
                 </Button>
             </Toolbar>
@@ -202,7 +216,7 @@ export const TopBar = ({
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
             >
-                <List sx={{ width: 320, maxWidth: '90vw' }}>
+                <List sx={{ width: 340, maxWidth: '90vw', p: 1 }}>
                     {activeOperations.length === 0 ? (
                         <ListItemText
                             sx={{ px: 2, py: 1 }}
@@ -215,6 +229,12 @@ export const TopBar = ({
                                 component={RouterLink}
                                 to={operation.operationRoute}
                                 onClick={() => setOperationsAnchor(null)}
+                                sx={{
+                                    border: 1,
+                                    borderColor: 'divider',
+                                    borderRadius: 1,
+                                    mb: 0.75,
+                                }}
                             >
                                 <ListItemText
                                     primary={operation.title}
@@ -227,8 +247,9 @@ export const TopBar = ({
                         component={RouterLink}
                         to="/operations"
                         onClick={() => setOperationsAnchor(null)}
+                        sx={{ borderRadius: 1 }}
                     >
-                        <ListItemText primary="All operations" />
+                        <ListItemText primary="Activity console" />
                     </ListItemButton>
                 </List>
             </Popover>
@@ -239,7 +260,7 @@ export const TopBar = ({
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
             >
-                <List sx={{ width: 340, maxWidth: '90vw' }}>
+                <List sx={{ width: 360, maxWidth: '90vw', p: 1 }}>
                     {recentNotifications.length === 0 ? (
                         <ListItemText
                             sx={{ px: 2, py: 1 }}
@@ -258,9 +279,16 @@ export const TopBar = ({
                                 sx={{
                                     bgcolor:
                                         notification.status === 'unread'
-                                            ? 'common.white'
+                                            ? 'action.selected'
                                             : 'action.hover',
                                     color: 'text.primary',
+                                    border: 1,
+                                    borderColor:
+                                        notification.status === 'unread'
+                                            ? 'primary.main'
+                                            : 'divider',
+                                    borderRadius: 1,
+                                    mb: 0.75,
                                 }}
                             >
                                 <ListItemText
@@ -274,6 +302,7 @@ export const TopBar = ({
                         component={RouterLink}
                         to="/notifications"
                         onClick={() => setNotificationsAnchor(null)}
+                        sx={{ borderRadius: 1 }}
                     >
                         <ListItemText primary="All notifications" />
                     </ListItemButton>

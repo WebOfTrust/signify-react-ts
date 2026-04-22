@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Box, Fab, Typography } from '@mui/material';
+import { Box, Button, Fab, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useFetcher, useLoaderData } from 'react-router-dom';
 import { ConnectionRequired } from '../../app/ConnectionRequired';
+import { EmptyState, PageHeader, StatusPill } from '../../app/Console';
 import type {
     IdentifierActionData,
     IdentifiersLoaderData,
@@ -113,7 +114,9 @@ export const IdentifiersView = () => {
         fetcher.submit(formData, { method: 'post' });
     };
 
-    const handleCreate = async (draft: IdentifierCreateDraft): Promise<void> => {
+    const handleCreate = async (
+        draft: IdentifierCreateDraft
+    ): Promise<void> => {
         const requestId = globalThis.crypto.randomUUID();
         setActiveCreateRequestId(requestId);
         setPendingMessage(`Creating identifier ${draft.name}`);
@@ -126,12 +129,61 @@ export const IdentifiersView = () => {
 
     const isRotateDisabled = (identifierName: string): boolean =>
         activeResourceKeys.has(`identifier:aid:${identifierName}`);
+    const openCreate = () => {
+        setActiveCreateRequestId(null);
+        setCreateOpen(true);
+    };
 
     return (
-        <Box sx={{ display: 'grid', gap: 2 }}>
+        <Box sx={{ display: 'grid', gap: 2.5 }}>
+            <PageHeader
+                eyebrow="Identity console"
+                title="Identifiers"
+                summary="Create, inspect, copy, and rotate local AIDs connected to this Signify client."
+                actions={
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        aria-label="create identifier"
+                        onClick={openCreate}
+                        disabled={actionRunning}
+                        sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+                    >
+                        Create Identifier
+                    </Button>
+                }
+            />
             {actionState.message && (
-                <Box>
+                <Box
+                    sx={{
+                        border: 1,
+                        borderColor:
+                            actionState.status === 'error'
+                                ? 'error.main'
+                                : 'divider',
+                        borderRadius: 1,
+                        bgcolor:
+                            actionState.status === 'error'
+                                ? 'rgba(255, 61, 79, 0.08)'
+                                : 'rgba(39, 215, 255, 0.06)',
+                        px: 2,
+                        py: 1.25,
+                    }}
+                >
+                    <StatusPill
+                        label={actionState.status}
+                        tone={
+                            actionState.status === 'error'
+                                ? 'error'
+                                : actionState.status === 'success'
+                                  ? 'success'
+                                  : actionState.status === 'running'
+                                    ? 'warning'
+                                    : 'neutral'
+                        }
+                    />{' '}
                     <Typography
+                        component="span"
                         color={
                             actionState.status === 'error'
                                 ? 'error'
@@ -142,6 +194,24 @@ export const IdentifiersView = () => {
                         {actionState.message}
                     </Typography>
                 </Box>
+            )}
+            {identifiers.length === 0 && (
+                <EmptyState
+                    title="No identifiers in local inventory"
+                    message="Create the first AID before running credential flows or client diagnostics."
+                    action={
+                        <Button
+                            variant="outlined"
+                            startIcon={<AddIcon />}
+                            aria-label="add"
+                            onClick={openCreate}
+                            disabled={actionRunning}
+                            sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+                        >
+                            Create Identifier
+                        </Button>
+                    }
+                />
             )}
             <IdentifierTable
                 identifiers={identifiers}
@@ -154,7 +224,10 @@ export const IdentifiersView = () => {
                 }
             />
             <IdentifierDetailsModal
-                open={selectedIdentifierName !== null && selectedIdentifier !== null}
+                open={
+                    selectedIdentifierName !== null &&
+                    selectedIdentifier !== null
+                }
                 identifier={selectedIdentifier}
                 actionRunning={
                     selectedIdentifierName === null
@@ -179,11 +252,17 @@ export const IdentifiersView = () => {
                 color="primary"
                 aria-label="add"
                 onClick={() => {
-                    setActiveCreateRequestId(null);
-                    setCreateOpen(true);
+                    openCreate();
                 }}
                 disabled={actionRunning}
                 sx={{
+                    display: {
+                        xs:
+                            createDialogOpen || identifiers.length === 0
+                                ? 'none'
+                                : 'inline-flex',
+                        sm: 'none',
+                    },
                     position: 'fixed',
                     right: { xs: '16px', sm: '24px' },
                     bottom: {

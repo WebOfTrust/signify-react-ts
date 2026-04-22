@@ -7,14 +7,17 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
-    Divider,
-    Grid,
+    IconButton,
     Stack,
     TextField,
+    Tooltip,
     Typography,
 } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { useFetcher } from 'react-router-dom';
 import { appConfig, type ConnectionOption } from '../config';
+import { monoValueSx } from './consoleStyles';
 import type { RootActionData } from './routeData';
 import type { SignifyConnectionState } from './runtime';
 
@@ -34,29 +37,6 @@ export interface ConnectDialogProps {
 }
 
 /**
- * User-facing status label for the typed connection state.
- *
- * Keep this local until another component truly needs the same presentation
- * policy; duplicating a second tiny formatter is preferable to a premature
- * shared status abstraction.
- */
-const connectionStatusLabel = (connection: SignifyConnectionState): string => {
-    if (connection.status === 'idle') {
-        return 'Not Connected';
-    }
-
-    if (connection.status === 'connecting') {
-        return 'Connecting';
-    }
-
-    if (connection.status === 'connected') {
-        return 'Connected';
-    }
-
-    return 'Error';
-};
-
-/**
  * Modal form for selecting a configured KERIA target and passcode.
  *
  * Stable `data-testid` values here are part of the browser-smoke contract. The
@@ -73,7 +53,7 @@ export const ConnectDialog = ({
     const [selectedConnection, setSelectedConnection] =
         useState<ConnectionOption>(appConfig.connectionOptions[0]);
     const [draftPasscode, setDraftPasscode] = useState<string | null>(null);
-    const isConnected = connection.status === 'connected';
+    const [copiedPasscode, setCopiedPasscode] = useState(false);
     const isSubmitting =
         connection.status === 'connecting' || connectFetcher.state !== 'idle';
     const isGenerating = passcodeFetcher.state !== 'idle';
@@ -83,6 +63,7 @@ export const ConnectDialog = ({
             ? passcodeFetcher.data.passcode
             : null;
     const passcode = draftPasscode ?? generatedPasscode ?? '';
+    const passcodeReady = passcode.length >= 21;
     const actionError =
         connection.status === 'error'
             ? connection.error.message
@@ -105,7 +86,20 @@ export const ConnectDialog = ({
         const formData = new FormData();
         formData.set('intent', 'generatePasscode');
         setDraftPasscode(null);
+        setCopiedPasscode(false);
         passcodeFetcher.submit(formData, { method: 'post', action: '/' });
+    };
+
+    const handleCopyPasscode = () => {
+        if (passcode.length === 0) {
+            return;
+        }
+
+        void globalThis.navigator.clipboard
+            ?.writeText(passcode)
+            .catch(() => undefined);
+        setCopiedPasscode(true);
+        globalThis.setTimeout(() => setCopiedPasscode(false), 1500);
     };
 
     return (
@@ -124,31 +118,72 @@ export const ConnectDialog = ({
                 },
             }}
         >
-            <DialogTitle>Connect</DialogTitle>
-            <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
-                <Stack spacing={3}>
-                    <Autocomplete
-                        id="combo-box-demo"
-                        options={appConfig.connectionOptions}
-                        getOptionLabel={(option) =>
-                            `${option.label} (${option.adminUrl})`
-                        }
-                        isOptionEqualToValue={(option, value) =>
-                            option.adminUrl === value.adminUrl &&
-                            option.bootUrl === value.bootUrl
-                        }
-                        renderInput={(params) => (
-                            <TextField {...params} fullWidth />
-                        )}
-                        value={selectedConnection}
-                        fullWidth
-                        onChange={(_event, newValue) => {
-                            setSelectedConnection(
-                                newValue ?? appConfig.connectionOptions[0]
-                            );
+            <DialogTitle>Connect Wallet</DialogTitle>
+            <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
+                <Stack spacing={2.5}>
+                    <Box
+                        sx={{
+                            border: 1,
+                            borderColor: passcodeReady
+                                ? 'primary.main'
+                                : 'divider',
+                            borderRadius: 1,
+                            bgcolor: 'rgba(5, 9, 13, 0.62)',
+                            p: { xs: 1.5, sm: 2 },
                         }}
-                    />
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    >
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1}
+                            sx={{
+                                alignItems: { xs: 'stretch', sm: 'center' },
+                                justifyContent: 'space-between',
+                                mb: 1.25,
+                            }}
+                        >
+                            <Box>
+                                <Typography
+                                    variant="caption"
+                                    color="primary.main"
+                                    sx={{
+                                        display: 'block',
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase',
+                                    }}
+                                >
+                                    Passcode generator
+                                </Typography>
+                                <Typography color="text.secondary">
+                                    Generate a fresh Signify passcode or paste
+                                    an existing one.
+                                </Typography>
+                            </Box>
+                            <Stack direction="row" spacing={1}>
+                                <Tooltip title="Copy passcode">
+                                    <span>
+                                        <IconButton
+                                            aria-label="Copy passcode"
+                                            disabled={passcode.length === 0}
+                                            onClick={handleCopyPasscode}
+                                        >
+                                            <ContentCopyIcon />
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    data-testid="generate-passcode"
+                                    disabled={isSubmitting || isGenerating}
+                                    onClick={handleGeneratePasscode}
+                                    startIcon={<RefreshIcon />}
+                                >
+                                    {isGenerating
+                                        ? 'Generating...'
+                                        : 'Generate'}
+                                </Button>
+                            </Stack>
+                        </Stack>
                         <TextField
                             id="outlined-password-input"
                             label="Passcode"
@@ -156,39 +191,42 @@ export const ConnectDialog = ({
                             autoComplete="current-password"
                             variant="outlined"
                             value={passcode}
-                            onChange={(event) =>
-                                setDraftPasscode(event.target.value)
-                            }
-                            helperText="Passcode must be at least 21 characters"
-                            fullWidth
-                        />
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            data-testid="generate-passcode"
-                            disabled={isSubmitting || isGenerating}
-                            onClick={handleGeneratePasscode}
-                            sx={{
-                                alignSelf: {
-                                    xs: 'stretch',
-                                    sm: 'flex-start',
-                                },
-                                minHeight: 40,
-                                mt: { xs: 0, sm: 1 },
+                            onChange={(event) => {
+                                setCopiedPasscode(false);
+                                setDraftPasscode(event.target.value);
                             }}
-                        >
-                            {isGenerating ? 'Creating...' : 'Create'}
-                        </Button>
-                    </Stack>
+                            helperText={
+                                passcodeReady
+                                    ? copiedPasscode
+                                        ? 'Copied to clipboard'
+                                        : 'Ready to connect'
+                                    : 'Passcode must be at least 21 characters'
+                            }
+                            fullWidth
+                            slotProps={{
+                                input: {
+                                    sx: {
+                                        ...monoValueSx,
+                                        fontSize: { xs: '1rem', sm: '1.12rem' },
+                                    },
+                                },
+                                inputLabel: {
+                                    shrink: true,
+                                },
+                            }}
+                        />
+                    </Box>
 
                     <Button
                         variant="contained"
                         color="primary"
                         data-testid="connect-submit"
                         disabled={
-                            isSubmitting || isGenerating || passcode.length < 21
+                            isSubmitting || isGenerating || !passcodeReady
                         }
                         onClick={handleConnect}
+                        size="large"
+                        fullWidth
                     >
                         {isSubmitting ? 'Connecting...' : 'Connect'}
                     </Button>
@@ -200,40 +238,59 @@ export const ConnectDialog = ({
                             {actionError}
                         </Typography>
                     )}
+                    <Box>
+                        <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: 'block', mb: 0.75, fontWeight: 700 }}
+                        >
+                            KERIA target
+                        </Typography>
+                        <Autocomplete
+                            id="combo-box-demo"
+                            options={appConfig.connectionOptions}
+                            getOptionLabel={(option) =>
+                                `${option.label} (${option.adminUrl})`
+                            }
+                            isOptionEqualToValue={(option, value) =>
+                                option.adminUrl === value.adminUrl &&
+                                option.bootUrl === value.bootUrl
+                            }
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Connection"
+                                    fullWidth
+                                />
+                            )}
+                            value={selectedConnection}
+                            fullWidth
+                            onChange={(_event, newValue) => {
+                                setSelectedConnection(
+                                    newValue ?? appConfig.connectionOptions[0]
+                                );
+                            }}
+                        />
+                        <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: 'block', mt: 0.75, ...monoValueSx }}
+                        >
+                            Admin {selectedConnection.adminUrl} | Boot{' '}
+                            {selectedConnection.bootUrl}
+                        </Typography>
+                    </Box>
                 </Stack>
             </DialogContent>
-            <Box sx={{ mt: 2 }}>
-                <Divider />
-            </Box>
-            <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: 2 }}>
-                <Grid container spacing={2} sx={{ width: '100%' }}>
-                    <Grid size={12}>
-                        <Button
-                            fullWidth
-                            disabled
-                            data-testid={`connection-status-${connection.status}`}
-                            sx={{
-                                '&.Mui-disabled': {
-                                    background: isConnected ? 'green' : 'red',
-                                    color: 'black',
-                                },
-                            }}
-                        >
-                            Status: {connectionStatusLabel(connection)}
-                        </Button>
-                    </Grid>
-
-                    <Grid size={12}>
-                        <Button
-                            onClick={onClose}
-                            color="primary"
-                            fullWidth
-                            data-testid="connect-close"
-                        >
-                            Close
-                        </Button>
-                    </Grid>
-                </Grid>
+            <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+                <Button
+                    onClick={onClose}
+                    color="primary"
+                    fullWidth
+                    data-testid="connect-close"
+                >
+                    Close
+                </Button>
             </DialogActions>
         </Dialog>
     );
