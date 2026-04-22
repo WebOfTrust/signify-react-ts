@@ -1,6 +1,9 @@
 import type { ChallengeRequestNotification } from '../../state/notifications.slice';
 import type { IdentifierSummary } from '../identifiers/identifierTypes';
 
+/**
+ * Choose the local identifier that should sign a challenge response.
+ */
 export const defaultChallengeResponseIdentifierName = (
     request: Pick<ChallengeRequestNotification, 'recipientAid'>,
     identifiers: readonly IdentifierSummary[]

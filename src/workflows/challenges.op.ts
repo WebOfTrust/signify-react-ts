@@ -33,6 +33,9 @@ import {
     tombstonedExchangeSaids,
 } from './contacts.op';
 
+/**
+ * Challenger-side command for creating out-of-band challenge words.
+ */
 export interface GenerateContactChallengeInput {
     challengeId?: string;
     counterpartyAid: string;
@@ -42,6 +45,9 @@ export interface GenerateContactChallengeInput {
     strength?: ChallengeStrength;
 }
 
+/**
+ * Foreground result returned to the route so words can be shown immediately.
+ */
 export interface GeneratedContactChallengeResult {
     challengeId: string;
     counterpartyAid: string;
@@ -54,6 +60,9 @@ export interface GeneratedContactChallengeResult {
     generatedAt: string;
 }
 
+/**
+ * Responder-side command for signing and sending challenge words.
+ */
 export interface RespondToContactChallengeInput {
     challengeId?: string;
     notificationId?: string;
@@ -65,6 +74,9 @@ export interface RespondToContactChallengeInput {
     words: readonly string[];
 }
 
+/**
+ * Challenger-side command for notifying a contact without sending the words.
+ */
 export interface SendChallengeRequestInput {
     challengeId: string;
     counterpartyAid: string;
@@ -75,6 +87,9 @@ export interface SendChallengeRequestInput {
     strength: ChallengeStrength;
 }
 
+/**
+ * Challenger-side command for waiting on and accepting a response.
+ */
 export interface VerifyContactChallengeInput {
     challengeId: string;
     counterpartyAid: string;
@@ -382,6 +397,9 @@ export function* verifyContactChallengeOp(
     );
 
     try {
+        // Challenge response is human-paced, but reuse the live inventory
+        // cadence bounds so KERIA is not polled faster than the app already
+        // refreshes session facts.
         const pollMs = Math.max(
             1000,
             Math.min(5000, services.config.operations.liveRefreshMs)
@@ -455,6 +473,9 @@ export function* verifyContactChallengeOp(
     }
 }
 
+/**
+ * Route link used by challenge background operations and notifications.
+ */
 export const challengeResultRoute = (counterpartyAid: string) => ({
     label: 'View contact',
     path: contactRoute(counterpartyAid),

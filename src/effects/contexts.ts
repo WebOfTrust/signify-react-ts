@@ -4,6 +4,9 @@ import type { AppConfig } from '../config';
 import type { OperationLogger } from '../signify/client';
 import type { AppStore } from '../state/store';
 
+/**
+ * Capability set available to Effection workflow operations.
+ */
 export interface AppServices {
     /** Browser runtime boundary that owns the live Signify session. */
     runtime: AppRuntime;

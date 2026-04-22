@@ -9,6 +9,7 @@ import {
 import { Link as RouterLink } from 'react-router-dom';
 import { EmptyState, PageHeader, StatusPill } from '../../app/Console';
 import { formatOperationWindow } from '../../app/timeFormat';
+import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 import { useAppSelector } from '../../state/hooks';
 import { selectOperationRecords } from '../../state/selectors';
 
@@ -28,6 +29,9 @@ const operationTone = (status: string) => {
     return 'neutral' as const;
 };
 
+/**
+ * Route view for persisted foreground/background operation history.
+ */
 export const OperationsView = () => {
     const operations = [...useAppSelector(selectOperationRecords)].reverse();
 
@@ -50,6 +54,7 @@ export const OperationsView = () => {
                             key={operation.requestId}
                             component={RouterLink}
                             to={operation.operationRoute}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                             sx={{
                                 border: 1,
                                 borderColor: 'divider',

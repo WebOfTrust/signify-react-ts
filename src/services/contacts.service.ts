@@ -20,19 +20,31 @@ import type { ChallengeRecord } from '../state/challenges.slice';
 import type { OperationLogger } from '../signify/client';
 import { waitOperationService } from './signify.service';
 
+/**
+ * OOBI role variants the UI can ask KERIA to generate for an identifier.
+ */
 export type OobiRole = 'agent' | 'witness';
 
+/**
+ * Session inventory facts loaded from KERIA contacts and their challenge data.
+ */
 export interface ContactInventorySnapshot {
     contacts: ContactRecord[];
     challenges: ChallengeRecord[];
     loadedAt: string;
 }
 
+/**
+ * User intent for resolving a contact OOBI with optional display alias.
+ */
 export interface ResolveContactInput {
     oobi: string;
     alias?: string | null;
 }
 
+/**
+ * Contact resolution result preserving source/resolution URLs for diagnostics.
+ */
 export interface ResolveContactResult extends ContactInventorySnapshot {
     resolvedAid: string | null;
     alias: string | null;

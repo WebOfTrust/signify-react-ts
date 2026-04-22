@@ -13,6 +13,9 @@ import {
 import { selectActiveOperations } from '../../src/state/selectors';
 import { createAppStore } from '../../src/state/store';
 
+/**
+ * Minimal storage fake used to exercise controller-scoped persistence.
+ */
 class MemoryStorage implements AppStateStorage {
     private readonly values = new Map<string, string>();
 
@@ -37,6 +40,9 @@ class MemoryStorage implements AppStateStorage {
     }
 }
 
+/**
+ * Put the runtime into a connected state without booting a real browser client.
+ */
 const connectRuntimeForTest = (
     runtime: AppRuntime,
     client: SignifyClient
@@ -62,6 +68,9 @@ const connectRuntimeForTest = (
     };
 };
 
+/**
+ * Build the narrow Signify client fake needed by runtime workflow tests.
+ */
 const makeWorkflowClient = ({
     rawNotifications = { notes: [] },
     queryExchanges = [],

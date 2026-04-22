@@ -3,7 +3,11 @@ import { Box, Button, Stack, Typography } from '@mui/material';
 import type { ButtonProps, SxProps, Theme } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { clickablePanelSx, monoValueSx } from './consoleStyles';
+import { UI_SOUND_HOVER_VALUE } from './uiSound';
 
+/**
+ * Standard page title block for routed feature screens.
+ */
 export interface PageHeaderProps {
     eyebrow?: string;
     title: string;
@@ -11,6 +15,9 @@ export interface PageHeaderProps {
     actions?: ReactNode;
 }
 
+/**
+ * Render a responsive feature page heading with optional command actions.
+ */
 export const PageHeader = ({
     eyebrow,
     title,
@@ -56,6 +63,9 @@ export const PageHeader = ({
     </Stack>
 );
 
+/**
+ * Shared dark-panel container for route sections and clickable summaries.
+ */
 export interface ConsolePanelProps {
     children: ReactNode;
     title?: string;
@@ -66,6 +76,9 @@ export interface ConsolePanelProps {
     testId?: string;
 }
 
+/**
+ * Render a command-console panel, optionally as a route link.
+ */
 export const ConsolePanel = ({
     children,
     title,
@@ -79,6 +92,7 @@ export const ConsolePanel = ({
         component={to === undefined ? 'section' : RouterLink}
         to={to}
         data-testid={testId}
+        data-ui-sound={to === undefined ? undefined : UI_SOUND_HOVER_VALUE}
         sx={[
             {
                 position: 'relative',
@@ -139,12 +153,18 @@ export const ConsolePanel = ({
     </Box>
 );
 
+/**
+ * Compact empty-state message with an optional primary action.
+ */
 export interface EmptyStateProps {
     title: string;
     message: string;
     action?: ReactNode;
 }
 
+/**
+ * Render an empty state that fits inside pages without nested-card styling.
+ */
 export const EmptyState = ({ title, message, action }: EmptyStateProps) => (
     <Box
         sx={{
@@ -165,6 +185,9 @@ export const EmptyState = ({ title, message, action }: EmptyStateProps) => (
     </Box>
 );
 
+/**
+ * Label/tone pair for compact operational status chips.
+ */
 export interface StatusPillProps {
     label: string;
     tone?: 'neutral' | 'success' | 'warning' | 'error' | 'info';
@@ -178,6 +201,9 @@ const statusColors = {
     info: { borderColor: 'primary.main', color: 'primary.main' },
 } as const;
 
+/**
+ * Render a fixed-height status chip for tables, cards, and headers.
+ */
 export const StatusPill = ({ label, tone = 'neutral' }: StatusPillProps) => (
     <Box
         component="span"
@@ -199,12 +225,18 @@ export const StatusPill = ({ label, tone = 'neutral' }: StatusPillProps) => (
     </Box>
 );
 
+/**
+ * Label/value row for diagnostics and KERI key-state telemetry.
+ */
 export interface TelemetryRowProps {
     label: string;
     value: ReactNode;
     mono?: boolean;
 }
 
+/**
+ * Render a responsive telemetry row with optional monospace value styling.
+ */
 export const TelemetryRow = ({
     label,
     value,
@@ -244,6 +276,14 @@ export const TelemetryRow = ({
     </Box>
 );
 
+/**
+ * Primary command button wired into the delegated UI sound layer.
+ */
 export const CommandButton = (props: ButtonProps) => (
-    <Button variant="contained" color="primary" {...props} />
+    <Button
+        variant="contained"
+        color="primary"
+        data-ui-sound={UI_SOUND_HOVER_VALUE}
+        {...props}
+    />
 );

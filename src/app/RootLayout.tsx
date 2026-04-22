@@ -9,6 +9,7 @@ import { derivePendingState } from './pendingState';
 import { LoadingOverlay } from './LoadingOverlay';
 import { DesktopNavigationRail, NavigationDrawer } from './NavigationDrawer';
 import { TopBar } from './TopBar';
+import { UiSoundEffects } from './UiSoundEffects';
 import { useAppSelector } from '../state/hooks';
 import {
     selectActiveOperations,
@@ -18,6 +19,9 @@ import {
     selectUnreadAppNotifications,
 } from '../state/selectors';
 
+/**
+ * Props for the root route element that bridges router and runtime state.
+ */
 export interface RootLayoutProps {
     /** Runtime instance injected into the data-router route tree. */
     runtime: AppRuntime;
@@ -60,6 +64,7 @@ const RootLayoutContent = () => {
                 color: 'text.primary',
             }}
         >
+            <UiSoundEffects />
             <TopBar
                 isConnected={connection.status === 'connected'}
                 activeOperations={activeOperations}

@@ -16,6 +16,9 @@ const copyValue = (value: string): void => {
     void globalThis.navigator?.clipboard?.writeText(value);
 };
 
+/**
+ * Copyable operation/notification payload details exposed to users.
+ */
 export interface PayloadDetailsProps {
     details: readonly PayloadDetailRecord[];
     dense?: boolean;

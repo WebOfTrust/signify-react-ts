@@ -27,6 +27,9 @@ const createRequestId = (): string =>
     globalThis.crypto?.randomUUID?.() ??
     `challenge-response-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+/**
+ * Props for responding to a hydrated challenge request notification.
+ */
 export interface ChallengeRequestResponseFormProps {
     request: ChallengeRequestNotification;
     identifiers: readonly IdentifierSummary[];
@@ -34,6 +37,9 @@ export interface ChallengeRequestResponseFormProps {
     dense?: boolean;
 }
 
+/**
+ * Form that signs pasted challenge words with a selected local identifier.
+ */
 export const ChallengeRequestResponseForm = ({
     request,
     identifiers,

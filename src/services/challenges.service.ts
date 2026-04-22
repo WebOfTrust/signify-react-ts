@@ -13,14 +13,27 @@ import {
 import type { OperationLogger } from '../signify/client';
 import { waitOperationService } from './signify.service';
 
+/**
+ * KERI exchange topic used for app-defined challenge request messages.
+ */
 export const CHALLENGE_TOPIC = 'challenge';
+
+/**
+ * KERI exchange route for requesting an out-of-band challenge response.
+ */
 export const CHALLENGE_REQUEST_ROUTE = '/challenge/request';
 
+/**
+ * Result of accepting a completed KERIA challenge response operation.
+ */
 export interface VerifyChallengeResult {
     operationName: string;
     responseSaid: string;
 }
 
+/**
+ * Result metadata for a challenge request EXN that carries no raw words.
+ */
 export interface SendChallengeRequestResult {
     challengeId: string;
     recipientAid: string;

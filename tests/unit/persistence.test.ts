@@ -13,6 +13,9 @@ import { storedChallengeWordsRecorded } from '../../src/state/challenges.slice';
 import { exchangeTombstoneRecorded } from '../../src/state/exchangeTombstones.slice';
 import { operationStarted } from '../../src/state/operations.slice';
 
+/**
+ * Minimal storage fake that supports key iteration and removal.
+ */
 class MemoryStorage implements AppStateStorage {
     private readonly values = new Map<string, string>();
 

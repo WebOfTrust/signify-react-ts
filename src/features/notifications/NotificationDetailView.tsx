@@ -26,6 +26,7 @@ import {
     TelemetryRow,
 } from '../../app/Console';
 import { formatTimestamp } from '../../app/timeFormat';
+import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 import type {
     ContactActionData,
     NotificationsLoaderData,
@@ -41,6 +42,9 @@ import { ChallengeRequestResponseForm } from './ChallengeRequestResponseForm';
 const timestampText = (value: string | null): string =>
     value === null ? 'Not available' : (formatTimestamp(value) ?? value);
 
+/**
+ * Route view for one KERIA protocol notification or synthetic challenge item.
+ */
 export const NotificationDetailView = () => {
     const loaderData = useLoaderData() as NotificationsLoaderData;
     const { notificationId = '' } = useParams();
@@ -78,6 +82,7 @@ export const NotificationDetailView = () => {
                             component={RouterLink}
                             to="/notifications"
                             startIcon={<ArrowBackIcon />}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                         >
                             Back to notifications
                         </Button>
@@ -110,6 +115,7 @@ export const NotificationDetailView = () => {
                                         color="error"
                                         aria-label="dismiss challenge request"
                                         data-testid="challenge-notification-detail-dismiss"
+                                        data-ui-sound={UI_SOUND_HOVER_VALUE}
                                         disabled={
                                             dismissFetcher.state !== 'idle'
                                         }
@@ -152,6 +158,7 @@ export const NotificationDetailView = () => {
                             component={RouterLink}
                             to="/notifications"
                             startIcon={<ArrowBackIcon />}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                         >
                             Back to notifications
                         </Button>

@@ -11,6 +11,8 @@ import { registryReducer } from './registry.slice';
 import { rolesReducer } from './roles.slice';
 import { schemaReducer } from './schema.slice';
 import { sessionReducer } from './session.slice';
+import { uiPreferencesReducer } from './uiPreferences.slice';
+import { loadPersistedUiPreferences } from './uiPreferencesPersistence';
 
 /**
  * Create an isolated Redux store for app runtime or unit tests.
@@ -30,6 +32,10 @@ export const createAppStore = () =>
             schema: schemaReducer,
             registry: registryReducer,
             roles: rolesReducer,
+            uiPreferences: uiPreferencesReducer,
+        },
+        preloadedState: {
+            uiPreferences: loadPersistedUiPreferences(),
         },
     });
 

@@ -2,6 +2,9 @@ import type { ReactNode } from 'react';
 import type { AppRuntime } from './runtime';
 import { AppRuntimeContext } from './runtimeContextValue';
 
+/**
+ * Props for the React provider that exposes the data-router runtime instance.
+ */
 export interface AppRuntimeProviderProps {
     /** Runtime instance shared by the router factory and React context. */
     runtime: AppRuntime;

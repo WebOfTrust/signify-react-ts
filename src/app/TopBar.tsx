@@ -20,17 +20,22 @@ import CircleIcon from '@mui/icons-material/Circle';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { Link as RouterLink, useFetcher } from 'react-router-dom';
 import { StatusPill } from './Console';
 import { PayloadDetails } from './PayloadDetails';
 import { formatOperationWindow, formatTimestamp } from './timeFormat';
+import { UI_SOUND_HOVER_VALUE } from './uiSound';
 import type { ContactActionData } from './routeData';
 import type { AppNotificationRecord } from '../state/appNotifications.slice';
 import type { ChallengeRequestNotification } from '../state/notifications.slice';
 import type { OperationRecord } from '../state/operations.slice';
 import type { IdentifierSummary } from '../features/identifiers/identifierTypes';
 import { allAppNotificationsRead } from '../state/appNotifications.slice';
-import { useAppDispatch } from '../state/hooks';
+import { hoverSoundMutedToggled } from '../state/uiPreferences.slice';
+import { useAppDispatch, useAppSelector } from '../state/hooks';
+import { selectHoverSoundMuted } from '../state/selectors';
 import { ChallengeRequestResponseForm } from '../features/notifications/ChallengeRequestResponseForm';
 import { abbreviateMiddle } from '../features/contacts/contactHelpers';
 
@@ -81,6 +86,7 @@ export const TopBar = ({
         useState<HTMLElement | null>(null);
     const dismissFetcher = useFetcher<ContactActionData>();
     const dispatch = useAppDispatch();
+    const hoverSoundMuted = useAppSelector(selectHoverSoundMuted);
     const operationsOpen = operationsAnchor !== null;
     const notificationsOpen = notificationsAnchor !== null;
     const visibleNotifications = useMemo(
@@ -114,6 +120,10 @@ export const TopBar = ({
         setNotificationsAnchor(event.currentTarget);
     };
 
+    const toggleHoverSoundMuted = () => {
+        dispatch(hoverSoundMutedToggled());
+    };
+
     const dismissChallengeRequest = (request: ChallengeRequestNotification) => {
         const formData = new FormData();
         formData.set('intent', 'dismissExchangeNotification');
@@ -142,6 +152,7 @@ export const TopBar = ({
                     color="inherit"
                     aria-label="menu"
                     data-testid="nav-open"
+                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                     onClick={onMenuClick}
                     sx={{ display: { xs: 'inline-flex', md: 'none' } }}
                 >
@@ -165,11 +176,38 @@ export const TopBar = ({
                         tone={isConnected ? 'success' : 'error'}
                     />
                 </Box>
+                <Tooltip
+                    title={
+                        hoverSoundMuted
+                            ? 'Enable interface sounds'
+                            : 'Mute interface sounds'
+                    }
+                >
+                    <IconButton
+                        color="inherit"
+                        aria-label={
+                            hoverSoundMuted
+                                ? 'Enable interface sounds'
+                                : 'Mute interface sounds'
+                        }
+                        aria-pressed={hoverSoundMuted}
+                        data-testid="ui-sound-toggle"
+                        data-ui-sound={UI_SOUND_HOVER_VALUE}
+                        onClick={toggleHoverSoundMuted}
+                    >
+                        {hoverSoundMuted ? (
+                            <VolumeOffIcon />
+                        ) : (
+                            <VolumeUpIcon />
+                        )}
+                    </IconButton>
+                </Tooltip>
                 <Tooltip title="Background operations">
                     <IconButton
                         color="inherit"
                         aria-label="Background operations"
                         data-testid="operations-indicator"
+                        data-ui-sound={UI_SOUND_HOVER_VALUE}
                         onClick={openOperations}
                     >
                         <Badge
@@ -204,6 +242,7 @@ export const TopBar = ({
                         color="inherit"
                         aria-label="Notifications"
                         data-testid="notifications-open"
+                        data-ui-sound={UI_SOUND_HOVER_VALUE}
                         onClick={openNotifications}
                     >
                         <Badge
@@ -228,6 +267,7 @@ export const TopBar = ({
                     }}
                     onClick={onConnectClick}
                     data-testid="connect-open"
+                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                 >
                     <CircleIcon
                         sx={{
@@ -263,6 +303,7 @@ export const TopBar = ({
                                 component={RouterLink}
                                 to={operation.operationRoute}
                                 onClick={() => setOperationsAnchor(null)}
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
                                 sx={{
                                     border: 1,
                                     borderColor: 'divider',
@@ -302,6 +343,7 @@ export const TopBar = ({
                         component={RouterLink}
                         to="/operations"
                         onClick={() => setOperationsAnchor(null)}
+                        data-ui-sound={UI_SOUND_HOVER_VALUE}
                         sx={{ borderRadius: 1 }}
                     >
                         <ListItemText primary="Activity console" />
@@ -411,6 +453,9 @@ export const TopBar = ({
                                                     )}`}
                                                     size="small"
                                                     data-testid="challenge-notification-detail-link"
+                                                    data-ui-sound={
+                                                        UI_SOUND_HOVER_VALUE
+                                                    }
                                                     onClick={() =>
                                                         setNotificationsAnchor(
                                                             null
@@ -426,6 +471,9 @@ export const TopBar = ({
                                                             color="error"
                                                             aria-label="dismiss challenge request"
                                                             data-testid="challenge-notification-dismiss"
+                                                            data-ui-sound={
+                                                                UI_SOUND_HOVER_VALUE
+                                                            }
                                                             disabled={
                                                                 dismissFetcher.state !==
                                                                 'idle'
@@ -465,6 +513,7 @@ export const TopBar = ({
                                         '/notifications'
                                     }
                                     onClick={() => setNotificationsAnchor(null)}
+                                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                                     sx={{
                                         bgcolor:
                                             notification.status === 'unread'
@@ -520,6 +569,7 @@ export const TopBar = ({
                         component={RouterLink}
                         to="/notifications"
                         onClick={() => setNotificationsAnchor(null)}
+                        data-ui-sound={UI_SOUND_HOVER_VALUE}
                         sx={{ borderRadius: 1 }}
                     >
                         <ListItemText primary="All notifications" />

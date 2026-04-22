@@ -5,8 +5,14 @@ import {
     sessionDisconnected,
 } from './session.slice';
 
+/**
+ * Local reason for hiding an exchange-backed notification from app inventory.
+ */
 export type ExchangeTombstoneReason = 'userDismissed';
 
+/**
+ * Persisted marker for an EXN that KERIA may still return from exchange query.
+ */
 export interface ExchangeTombstoneRecord {
     exnSaid: string;
     route: string;
@@ -15,6 +21,9 @@ export interface ExchangeTombstoneRecord {
     createdAt: string;
 }
 
+/**
+ * Normalized tombstone state keyed by EXN SAID.
+ */
 export interface ExchangeTombstonesState {
     bySaid: Record<string, ExchangeTombstoneRecord>;
     saids: string[];
@@ -27,6 +36,9 @@ const createInitialState = (): ExchangeTombstonesState => ({
 
 const initialState = createInitialState();
 
+/**
+ * Slice for app-local deletes of exchange-backed synthetic notifications.
+ */
 export const exchangeTombstonesSlice = createSlice({
     name: 'exchangeTombstones',
     initialState,
@@ -61,4 +73,7 @@ export const exchangeTombstonesSlice = createSlice({
 export const { exchangeTombstoneRecorded, exchangeTombstonesRehydrated } =
     exchangeTombstonesSlice.actions;
 
+/**
+ * Reducer installed into the root store for exchange tombstone facts.
+ */
 export const exchangeTombstonesReducer = exchangeTombstonesSlice.reducer;

@@ -47,6 +47,9 @@ export interface IdentifierDetailsModalProps {
     onRotate: (name: string) => void;
 }
 
+/**
+ * Async state for detail-modal OOBI loading and copy feedback.
+ */
 export interface IdentifierOobiDetailState {
     status: 'idle' | 'loading' | 'success' | 'error';
     message: string | null;

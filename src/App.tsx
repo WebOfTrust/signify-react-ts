@@ -6,14 +6,18 @@ import { createAppRouter } from './app/router';
 import { createAppRuntime } from './app/runtime';
 import { appTheme } from './app/theme';
 import { appStore } from './state/store';
+import { installUiPreferencesPersistence } from './state/uiPreferencesPersistence';
 
 const appRuntime = createAppRuntime({ store: appStore });
 const appRouter = createAppRouter(appRuntime);
+const uninstallUiPreferencesPersistence =
+    installUiPreferencesPersistence(appStore);
 
 if (typeof window !== 'undefined') {
     window.addEventListener(
         'pagehide',
         () => {
+            uninstallUiPreferencesPersistence();
             void appRuntime.destroy();
         },
         { once: true }
@@ -22,6 +26,7 @@ if (typeof window !== 'undefined') {
 
 if (import.meta.hot) {
     import.meta.hot.dispose(() => {
+        uninstallUiPreferencesPersistence();
         void appRuntime.destroy();
     });
 }

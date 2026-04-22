@@ -20,6 +20,7 @@ import { monoValueSx } from '../../app/consoleStyles';
 import { clickablePanelSx } from '../../app/consoleStyles';
 import { useAppSession } from '../../app/runtimeHooks';
 import { formatTimestamp } from '../../app/timeFormat';
+import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 import type { DashboardLoaderData } from '../../app/routeData';
 import { useAppSelector } from '../../state/hooks';
 import {
@@ -48,6 +49,7 @@ const CountTile = ({
         component={RouterLink}
         to={to}
         aria-label={`Open ${label}`}
+        data-ui-sound={UI_SOUND_HOVER_VALUE}
         sx={{
             border: 1,
             borderColor: 'divider',
@@ -68,6 +70,9 @@ const CountTile = ({
     </Box>
 );
 
+/**
+ * Route view that summarizes session health, activity, and known components.
+ */
 export const DashboardView = () => {
     const loaderData = useLoaderData() as DashboardLoaderData;
     const runtimeSnapshot = useAppSession();

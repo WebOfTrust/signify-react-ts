@@ -3,6 +3,9 @@ import { isRouteErrorResponse, useRouteError } from 'react-router-dom';
 import { ConsolePanel, StatusPill } from './Console';
 import { toError } from '../signify/client';
 
+/**
+ * Props for the shared route-level unexpected-error boundary.
+ */
 export interface RouteErrorBoundaryProps {
     /** Route-specific heading shown above the normalized error message. */
     title: string;

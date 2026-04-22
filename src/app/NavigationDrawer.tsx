@@ -20,6 +20,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { APP_NAV_ITEMS } from './router';
 import type { AppRouteId } from './router';
+import { UI_SOUND_HOVER_VALUE } from './uiSound';
 
 /**
  * Props for the route navigation drawer.
@@ -33,6 +34,9 @@ export interface NavigationDrawerProps {
     onClearLocalState: () => void;
 }
 
+/**
+ * Props for the desktop one-click route rail.
+ */
 export interface DesktopNavigationRailProps {
     /** Clear all persisted local app state for every controller bucket. */
     onClearLocalState: () => void;
@@ -182,6 +186,7 @@ export const NavigationDrawer = ({
                                 onClose();
                             }}
                             data-testid={view.testId}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                             sx={navButtonSx(
                                 location.pathname.startsWith(view.path)
                             )}
@@ -200,6 +205,7 @@ export const NavigationDrawer = ({
                         confirmAndClearLocalState(onClearLocalState, onClose)
                     }
                     data-testid="clear-local-state"
+                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                     sx={clearLocalStateButtonSx}
                 >
                     <ClearLocalStateIcon />
@@ -213,6 +219,9 @@ export const NavigationDrawer = ({
     );
 };
 
+/**
+ * Persistent desktop route rail generated from the same route metadata.
+ */
 export const DesktopNavigationRail = ({
     onClearLocalState,
 }: DesktopNavigationRailProps) => {
@@ -253,6 +262,7 @@ export const DesktopNavigationRail = ({
                         <ListItemButton
                             onClick={() => navigate(view.path)}
                             data-testid={`rail-${view.testId}`}
+                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                             selected={active}
                             sx={{
                                 ...navButtonSx(active),
@@ -283,6 +293,7 @@ export const DesktopNavigationRail = ({
                 <ListItemButton
                     onClick={() => confirmAndClearLocalState(onClearLocalState)}
                     data-testid="rail-clear-local-state"
+                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                     sx={{
                         ...clearLocalStateButtonSx,
                         mx: 0,

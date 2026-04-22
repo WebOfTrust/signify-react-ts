@@ -1,3 +1,6 @@
+/**
+ * Format ISO-ish timestamps for display while preserving invalid raw values.
+ */
 export const formatTimestamp = (
     value: string | null | undefined
 ): string | null => {
@@ -16,6 +19,9 @@ export const formatTimestamp = (
     }).format(date);
 };
 
+/**
+ * Format an operation start/end pair for detail and history views.
+ */
 export const formatOperationWindow = ({
     startedAt,
     finishedAt,

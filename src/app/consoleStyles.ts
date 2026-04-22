@@ -1,3 +1,6 @@
+/**
+ * Shared monospace wrapping style for AIDs, SAIDs, passcodes, and keys.
+ */
 export const monoValueSx = {
     fontFamily: 'var(--app-mono-font)',
     letterSpacing: 0,
@@ -5,6 +8,9 @@ export const monoValueSx = {
     wordBreak: 'break-word',
 } as const;
 
+/**
+ * Shared hover/focus treatment for panels that behave as navigation links.
+ */
 export const clickablePanelSx = {
     textDecoration: 'none',
     color: 'inherit',

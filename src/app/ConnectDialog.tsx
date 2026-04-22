@@ -23,6 +23,7 @@ import { appConfig, type ConnectionOption } from '../config';
 import { monoValueSx } from './consoleStyles';
 import type { RootActionData } from './routeData';
 import type { SignifyConnectionState } from './runtime';
+import { UI_SOUND_HOVER_VALUE } from './uiSound';
 
 /**
  * Props for the KERIA connection dialog.
@@ -169,6 +170,7 @@ export const ConnectDialog = ({
                                             aria-label="Copy passcode"
                                             disabled={passcode.length === 0}
                                             onClick={handleCopyPasscode}
+                                            data-ui-sound={UI_SOUND_HOVER_VALUE}
                                         >
                                             <ContentCopyIcon />
                                         </IconButton>
@@ -181,6 +183,7 @@ export const ConnectDialog = ({
                                     disabled={isSubmitting || isGenerating}
                                     onClick={handleGeneratePasscode}
                                     startIcon={<RefreshIcon />}
+                                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                                 >
                                     {isGenerating
                                         ? 'Generating...'
@@ -239,6 +242,9 @@ export const ConnectDialog = ({
                                                         event.preventDefault();
                                                     }}
                                                     data-testid="toggle-passcode-visibility"
+                                                    data-ui-sound={
+                                                        UI_SOUND_HOVER_VALUE
+                                                    }
                                                 >
                                                     {passcodeVisible ? (
                                                         <VisibilityOffIcon />
@@ -267,6 +273,7 @@ export const ConnectDialog = ({
                         onClick={handleConnect}
                         size="large"
                         fullWidth
+                        data-ui-sound={UI_SOUND_HOVER_VALUE}
                     >
                         {isSubmitting ? 'Connecting...' : 'Connect'}
                     </Button>
@@ -328,6 +335,7 @@ export const ConnectDialog = ({
                     color="primary"
                     fullWidth
                     data-testid="connect-close"
+                    data-ui-sound={UI_SOUND_HOVER_VALUE}
                 >
                     Close
                 </Button>

@@ -9,6 +9,7 @@ import puppeteer from 'puppeteer';
  * correctness belongs to `pnpm keria:smoke`.
  */
 const appUrl = process.env.BROWSER_SMOKE_URL ?? 'http://127.0.0.1:5173';
+const uiPreferencesStorageKey = 'signify-react-ts:ui-preferences:v1';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -68,6 +69,60 @@ const browser = await puppeteer.launch({
 
 try {
   const page = await browser.newPage();
+
+  await page.goto(appUrl, { waitUntil: 'networkidle0' });
+  await page.evaluate((key) => {
+    globalThis.localStorage.removeItem(key);
+  }, uiPreferencesStorageKey);
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForSelector('[data-testid="ui-sound-toggle"]', {
+    timeout: 10000,
+  });
+  const soundToggleBeforeOperations = await page.evaluate(() => {
+    const toggle = globalThis.document.querySelector(
+      '[data-testid="ui-sound-toggle"]'
+    );
+    const operations = globalThis.document.querySelector(
+      '[data-testid="operations-indicator"]'
+    );
+    return toggle?.nextElementSibling === operations;
+  });
+  if (!soundToggleBeforeOperations) {
+    throw new Error('Expected sound toggle immediately before operations indicator');
+  }
+  const defaultSoundMuted = await page.$eval(
+    '[data-testid="ui-sound-toggle"]',
+    (element) => element.getAttribute('aria-pressed')
+  );
+  if (defaultSoundMuted !== 'false') {
+    throw new Error(`Expected sound enabled by default, got aria-pressed=${defaultSoundMuted}`);
+  }
+  await page.click('[data-testid="ui-sound-toggle"]');
+  await page.waitForFunction(
+    () =>
+      globalThis.document
+        .querySelector('[data-testid="ui-sound-toggle"]')
+        ?.getAttribute('aria-pressed') === 'true',
+    { timeout: 10000 }
+  );
+  const persistedSoundPreference = await page.evaluate((key) => {
+    const text = globalThis.localStorage.getItem(key);
+    return text === null ? null : JSON.parse(text);
+  }, uiPreferencesStorageKey);
+  if (persistedSoundPreference?.hoverSoundMuted !== true) {
+    throw new Error('Expected muted sound preference to persist');
+  }
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForSelector('[data-testid="ui-sound-toggle"]', {
+    timeout: 10000,
+  });
+  const restoredSoundMuted = await page.$eval(
+    '[data-testid="ui-sound-toggle"]',
+    (element) => element.getAttribute('aria-pressed')
+  );
+  if (restoredSoundMuted !== 'true') {
+    throw new Error(`Expected muted sound preference after reload, got ${restoredSoundMuted}`);
+  }
 
   for (const path of ['/dashboard', '/contacts', '/identifiers', '/credentials', '/client']) {
     await page.goto(routeUrl(path), { waitUntil: 'networkidle0' });

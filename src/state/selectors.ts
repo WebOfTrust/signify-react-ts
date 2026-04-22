@@ -22,6 +22,10 @@ export const selectSession = (state: RootState) => state.session;
 export const selectConnectionStatus = (state: RootState) =>
     state.session.status;
 
+/** Select the persisted interface sound preference. */
+export const selectHoverSoundMuted = (state: RootState): boolean =>
+    state.uiPreferences.hoverSoundMuted;
+
 /** Select operation records in display order. */
 export const selectOperationRecords = (state: RootState) =>
     state.operations.order
@@ -99,6 +103,9 @@ const byNewestStoredChallengeWordsTimestamp = (
 const byUpdatedContact = (left: ContactRecord, right: ContactRecord): number =>
     (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '');
 
+/**
+ * Select tombstoned EXN SAIDs to filter synthetic exchange-backed inventory.
+ */
 export const selectExchangeTombstoneSaids = (state: RootState) =>
     state.exchangeTombstones.saids;
 
@@ -248,6 +255,9 @@ export const selectChallengesForContact =
             (challenge) => challenge.counterpartyAid === contactId
         );
 
+/**
+ * Select locally stored challenge words newest first for resumable verify UX.
+ */
 export const selectStoredChallengeWords = (state: RootState) =>
     state.challenges.storedWordIds
         .map((id) => state.challenges.storedWordsById[id])
@@ -257,6 +267,9 @@ export const selectStoredChallengeWords = (state: RootState) =>
         )
         .sort(byNewestStoredChallengeWordsTimestamp);
 
+/**
+ * Select pending stored challenge words for one contact detail page.
+ */
 export const selectStoredChallengeWordsForContact =
     (contactId: string) =>
     (state: RootState): StoredChallengeWordsRecord[] =>
