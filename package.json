@@ -15,7 +15,7 @@
         "browser:smoke": "node tests/browser-smoke.mjs",
         "responsive:smoke": "node tests/responsive-smoke.mjs",
         "unit:test": "vitest run tests/unit",
-        "scenario:test": "vitest run tests/scenarios/salty.test.ts tests/scenarios/randy.test.ts tests/scenarios/witnessed.test.ts tests/scenarios/challenge.test.ts tests/scenarios/controller-rotation.test.ts tests/scenarios/oobi-contacts.test.ts",
+        "scenario:test": "vitest run tests/scenarios/salty.test.ts tests/scenarios/randy.test.ts tests/scenarios/witnessed.test.ts tests/scenarios/challenge.test.ts tests/scenarios/controller-rotation.test.ts tests/scenarios/oobi-contacts.test.ts tests/scenarios/credentials.test.ts",
         "scenario:test:all": "vitest run tests/scenarios",
         "test:ci": "pnpm lint && pnpm build && pnpm unit:test && pnpm responsive:smoke && pnpm keria:smoke -- --mode connect && pnpm keria:smoke && pnpm scenario:test && pnpm contact:ui-smoke && pnpm browser:smoke"
     },

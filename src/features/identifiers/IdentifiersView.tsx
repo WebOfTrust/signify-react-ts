@@ -26,11 +26,12 @@ import {
     type IdentifierSummary,
 } from './identifierTypes';
 import type { GeneratedOobiRecord } from '../../state/contacts.slice';
-import { useAppSelector } from '../../state/hooks';
+import { useAppDispatch, useAppSelector } from '../../state/hooks';
 import {
     selectActiveOperations,
     selectIdentifiers,
 } from '../../state/selectors';
+import { walletAidSelected } from '../../state/walletSelection.slice';
 import {
     identifierAvailableOobiRoles,
     type OobiGenerationRole,
@@ -47,6 +48,7 @@ export const IdentifiersView = () => {
     const loaderData = useLoaderData() as IdentifiersLoaderData;
     const fetcher = useFetcher<IdentifierActionData>();
     const runtime = useAppRuntime();
+    const dispatch = useAppDispatch();
     const [selectedIdentifierName, setSelectedIdentifierName] = useState<
         string | null
     >(null);
@@ -227,6 +229,7 @@ export const IdentifiersView = () => {
         setDetailRefresh({ status: 'loading', message: null });
         setDetailOobis({ status: 'loading', message: null, records: [] });
         setSelectedIdentifierName(identifier.name);
+        dispatch(walletAidSelected({ aid: identifier.prefix }));
     };
 
     const copyGeneratedOobi = async (

@@ -19,6 +19,19 @@ export type ChallengeRequestNotificationStatus =
     | 'responded'
     | 'error';
 
+/** Holder-facing state for inbound credential grant notifications. */
+export type CredentialGrantNotificationStatus =
+    | 'actionable'
+    | 'notForThisWallet'
+    | 'admitted'
+    | 'error';
+
+/** Issuer-facing state for inbound credential admit notifications. */
+export type CredentialAdmitNotificationStatus =
+    | 'received'
+    | 'notForThisWallet'
+    | 'error';
+
 /**
  * Actionable challenge request metadata hydrated from a KERIA notification EXN.
  *
@@ -39,6 +52,34 @@ export interface ChallengeRequestNotification {
 }
 
 /**
+ * Credential grant metadata hydrated from an IPEX grant EXN.
+ */
+export interface CredentialGrantNotification {
+    notificationId: string;
+    grantSaid: string;
+    issuerAid: string;
+    holderAid: string;
+    credentialSaid: string;
+    schemaSaid: string | null;
+    attributes: Record<string, string | boolean>;
+    createdAt: string;
+    status: CredentialGrantNotificationStatus;
+}
+
+/**
+ * Credential admit receipt metadata hydrated from an IPEX admit EXN.
+ */
+export interface CredentialAdmitNotification {
+    notificationId: string;
+    admitSaid: string;
+    grantSaid: string | null;
+    issuerAid: string | null;
+    holderAid: string;
+    createdAt: string;
+    status: CredentialAdmitNotificationStatus;
+}
+
+/**
  * Durable notification summary used by polling and future processing workflows.
  */
 export interface NotificationRecord {
@@ -50,6 +91,8 @@ export interface NotificationRecord {
     status: NotificationStatus;
     message: string | null;
     challengeRequest?: ChallengeRequestNotification | null;
+    credentialGrant?: CredentialGrantNotification | null;
+    credentialAdmit?: CredentialAdmitNotification | null;
     updatedAt: string;
 }
 

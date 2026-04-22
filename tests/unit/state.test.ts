@@ -20,9 +20,14 @@ import {
     selectChallenges,
     selectChallengesForContact,
     selectDashboardCounts,
+    selectCredentialIpexActivity,
     selectActionableChallengeRequestNotifications,
+    selectActionableCredentialGrantNotifications,
     selectChallengeRequestNotificationById,
+    selectHeldCredentialCount,
+    selectIssuedCredentialCount,
     selectKeriaNotifications,
+    selectResolvedCredentialSchemas,
     selectStoredChallengeWordsForContact,
 } from '../../src/state/selectors';
 import {
@@ -48,7 +53,10 @@ import {
     allAppNotificationsRead,
     appNotificationRecorded,
 } from '../../src/state/appNotifications.slice';
-import { credentialRecorded } from '../../src/state/credentials.slice';
+import {
+    credentialIpexActivityLoaded,
+    credentialRecorded,
+} from '../../src/state/credentials.slice';
 import { registryRecorded } from '../../src/state/registry.slice';
 import { roleRecorded } from '../../src/state/roles.slice';
 import { schemaRecorded } from '../../src/state/schema.slice';
@@ -190,6 +198,44 @@ describe('RTK state foundation', () => {
         );
     });
 
+    it('selects actionable credential grant notifications for holder alerts', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            notificationRecorded({
+                id: 'grant-note-1',
+                dt: '2026-04-21T00:00:00.000Z',
+                read: false,
+                route: '/exn/ipex/grant',
+                anchorSaid: 'Egrant',
+                status: 'unread',
+                message: 'Credential grant from Eissuer',
+                updatedAt: '2026-04-21T00:00:00.000Z',
+                credentialGrant: {
+                    notificationId: 'grant-note-1',
+                    grantSaid: 'Egrant',
+                    issuerAid: 'Eissuer',
+                    holderAid: 'Eholder',
+                    credentialSaid: 'Ecredential',
+                    schemaSaid: 'Eschema',
+                    attributes: {},
+                    createdAt: '2026-04-21T00:00:00.000Z',
+                    status: 'actionable',
+                },
+            })
+        );
+
+        expect(
+            selectActionableCredentialGrantNotifications(store.getState())
+        ).toEqual([
+            expect.objectContaining({
+                notificationId: 'grant-note-1',
+                holderAid: 'Eholder',
+                status: 'actionable',
+            }),
+        ]);
+    });
+
     it('filters locally tombstoned EXN notifications from selectors', () => {
         const store = createAppStore();
 
@@ -322,11 +368,141 @@ describe('RTK state foundation', () => {
         ).toEqual([expect.objectContaining({ id: 'challenge-1' })]);
         expect(selectDashboardCounts(store.getState())).toMatchObject({
             contacts: 1,
-            knownComponents: 2,
+            resolvedSchemas: 0,
+            issuedCredentials: 0,
+            heldCredentials: 0,
             challenges: 1,
         });
         expect(store.getState().contacts.generatedOobiIds).toEqual([
             'alice:agent',
+        ]);
+    });
+
+    it('counts dashboard credential inventory without exposing known components', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            schemaRecorded({
+                said: 'schema-resolved',
+                oobi: 'http://127.0.0.1:7723/oobi/schema-resolved',
+                status: 'resolved',
+                title: 'Resolved schema',
+                description: null,
+                version: null,
+                error: null,
+                updatedAt: '2026-04-21T00:00:00.000Z',
+            })
+        );
+        store.dispatch(
+            schemaRecorded({
+                said: 'schema-error',
+                oobi: 'http://127.0.0.1:7723/oobi/schema-error',
+                status: 'error',
+                title: null,
+                description: null,
+                version: null,
+                error: 'not found',
+                updatedAt: '2026-04-21T00:00:01.000Z',
+            })
+        );
+        store.dispatch(
+            credentialRecorded({
+                said: 'credential-issued',
+                schemaSaid: 'schema-resolved',
+                registryId: 'registry-1',
+                issuerAid: 'Eissuer',
+                holderAid: 'Eholder',
+                direction: 'issued',
+                status: 'issued',
+                grantSaid: null,
+                admitSaid: null,
+                notificationId: null,
+                issuedAt: '2026-04-21T00:00:02.000Z',
+                grantedAt: null,
+                admittedAt: null,
+                revokedAt: null,
+                error: null,
+                attributes: null,
+                updatedAt: '2026-04-21T00:00:02.000Z',
+            })
+        );
+        store.dispatch(
+            credentialRecorded({
+                said: 'credential-held',
+                schemaSaid: 'schema-resolved',
+                registryId: 'registry-1',
+                issuerAid: 'Eissuer',
+                holderAid: 'Eholder',
+                direction: 'held',
+                status: 'admitted',
+                grantSaid: 'grant-1',
+                admitSaid: 'admit-1',
+                notificationId: 'notification-1',
+                issuedAt: '2026-04-21T00:00:02.000Z',
+                grantedAt: '2026-04-21T00:00:03.000Z',
+                admittedAt: '2026-04-21T00:00:04.000Z',
+                revokedAt: null,
+                error: null,
+                attributes: null,
+                updatedAt: '2026-04-21T00:00:04.000Z',
+            })
+        );
+
+        expect(selectResolvedCredentialSchemas(store.getState())).toEqual([
+            expect.objectContaining({ said: 'schema-resolved' }),
+        ]);
+        expect(selectIssuedCredentialCount(store.getState())).toBe(1);
+        expect(selectHeldCredentialCount(store.getState())).toBe(1);
+        expect(selectDashboardCounts(store.getState())).toMatchObject({
+            resolvedSchemas: 1,
+            issuedCredentials: 1,
+            heldCredentials: 1,
+        });
+        expect(selectDashboardCounts(store.getState())).not.toHaveProperty(
+            'knownComponents'
+        );
+    });
+
+    it('stores credential IPEX exchange activity by credential SAID', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            credentialIpexActivityLoaded({
+                loadedAt: '2026-04-22T00:02:00.000Z',
+                activities: [
+                    {
+                        id: 'Ecredential:Eadmit',
+                        credentialSaid: 'Ecredential',
+                        exchangeSaid: 'Eadmit',
+                        route: '/ipex/admit',
+                        kind: 'admit',
+                        direction: 'sent',
+                        senderAid: 'Eholder',
+                        recipientAid: 'Eissuer',
+                        linkedGrantSaid: 'Egrant',
+                        createdAt: '2026-04-22T00:01:00.000Z',
+                        updatedAt: '2026-04-22T00:02:00.000Z',
+                    },
+                    {
+                        id: 'Ecredential:Egrant',
+                        credentialSaid: 'Ecredential',
+                        exchangeSaid: 'Egrant',
+                        route: '/ipex/grant',
+                        kind: 'grant',
+                        direction: 'received',
+                        senderAid: 'Eissuer',
+                        recipientAid: 'Eholder',
+                        linkedGrantSaid: 'Egrant',
+                        createdAt: '2026-04-22T00:00:00.000Z',
+                        updatedAt: '2026-04-22T00:02:00.000Z',
+                    },
+                ],
+            })
+        );
+
+        expect(selectCredentialIpexActivity('Ecredential')(store.getState())).toEqual([
+            expect.objectContaining({ exchangeSaid: 'Egrant' }),
+            expect.objectContaining({ exchangeSaid: 'Eadmit' }),
         ]);
     });
 

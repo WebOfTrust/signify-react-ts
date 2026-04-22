@@ -23,6 +23,9 @@ const DEFAULT_KERIA_ROUTER_URL = 'http://127.0.0.1:3902';
 const DEFAULT_KERIA_BOOT_URL = 'http://127.0.0.1:3903';
 const DEFAULT_VERIFIER_DIRECT_URL = 'http://127.0.0.1:9723';
 const DEFAULT_VERIFIER_DASHBOARD_URL = 'http://127.0.0.1:9923';
+const DEFAULT_SCHEMA_SERVER_URL = 'http://127.0.0.1:7723';
+const DEFAULT_SEDI_VOTER_ID_SCHEMA_SAID =
+    'EANVmibW8WDFs-aySWUGGaSbZKeV5_yIqVzuSiC9xYer';
 const DEFAULT_WITNESS_AIDS = [
     'BBilc4-L3tFUnfM_wJr4S4OJanAv_VmF_dJNN6vkf2Ha',
     'BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM',
@@ -348,12 +351,14 @@ export const buildAppConfig = (runtimeEnv: RuntimeEnv): AppConfig => {
             sediVoterId: {
                 said:
                     optionalString(runtimeEnv.VITE_SEDI_VOTER_ID_SCHEMA_SAID) ??
-                    optionalString(runtimeEnv.VITE_CREDENTIAL_SCHEMA_SAID),
+                    optionalString(runtimeEnv.VITE_CREDENTIAL_SCHEMA_SAID) ??
+                    DEFAULT_SEDI_VOTER_ID_SCHEMA_SAID,
                 oobiUrl:
                     optionalString(
                         runtimeEnv.VITE_SEDI_VOTER_ID_SCHEMA_OOBI_URL
                     ) ??
-                    optionalString(runtimeEnv.VITE_CREDENTIAL_SCHEMA_OOBI_URL),
+                    optionalString(runtimeEnv.VITE_CREDENTIAL_SCHEMA_OOBI_URL) ??
+                    `${DEFAULT_SCHEMA_SERVER_URL}/oobi/${DEFAULT_SEDI_VOTER_ID_SCHEMA_SAID}`,
             },
         },
         verifier: {

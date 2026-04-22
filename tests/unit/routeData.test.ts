@@ -6,6 +6,7 @@ import type {
 import { defaultIdentifierCreateDraft } from '../../src/features/identifiers/identifierHelpers';
 import {
     contactsAction,
+    credentialsAction,
     identifiersAction,
     loadClient,
     loadContacts,
@@ -60,6 +61,10 @@ const makeRuntime = (
         { name: 'alice', prefix: 'Ealice' } as IdentifierSummary,
     ]),
     syncSessionInventory: vi.fn(async () => ({})),
+    syncKnownCredentialSchemas: vi.fn(async () => ({})),
+    syncCredentialInventory: vi.fn(async () => ({})),
+    syncCredentialRegistries: vi.fn(async () => ({})),
+    syncCredentialIpexActivity: vi.fn(async () => ({})),
     createIdentifier: vi.fn(async () => []),
     rotateIdentifier: vi.fn(async () => []),
     startCreateIdentifier: vi.fn(() => ({
@@ -119,6 +124,31 @@ const makeRuntime = (
         operationRoute: '/operations/verify-challenge-request-1',
     })),
     dismissExchangeNotification: vi.fn(async () => undefined),
+    startResolveCredentialSchema: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'resolve-schema-request-1',
+        operationRoute: '/operations/resolve-schema-request-1',
+    })),
+    startCreateCredentialRegistry: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'create-registry-request-1',
+        operationRoute: '/operations/create-registry-request-1',
+    })),
+    startIssueCredential: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'issue-credential-request-1',
+        operationRoute: '/operations/issue-credential-request-1',
+    })),
+    startGrantCredential: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'grant-credential-request-1',
+        operationRoute: '/operations/grant-credential-request-1',
+    })),
+    startAdmitCredentialGrant: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'admit-credential-request-1',
+        operationRoute: '/operations/admit-credential-request-1',
+    })),
     ...overrides,
 });
 
@@ -139,7 +169,9 @@ describe('route loaders', () => {
         await expect(loadContacts(runtime)).resolves.toEqual({
             status: 'blocked',
         });
-        expect(loadCredentials(runtime)).toEqual({ status: 'blocked' });
+        await expect(loadCredentials(runtime)).resolves.toEqual({
+            status: 'blocked',
+        });
         await expect(loadClient(runtime)).resolves.toEqual({
             status: 'blocked',
         });
@@ -183,17 +215,72 @@ describe('route loaders', () => {
         expect(runtime.refreshState).toHaveBeenCalledOnce();
     });
 
-    it('loads dashboard and contact inventory through the runtime boundary', async () => {
+    it('loads dashboard, session, and credential inventory through the runtime boundary', async () => {
         const runtime = makeRuntime();
 
         await expect(loadDashboard(runtime)).resolves.toEqual({
             status: 'ready',
         });
+        expect(runtime.listIdentifiers).toHaveBeenCalledOnce();
+        expect(runtime.syncSessionInventory).toHaveBeenCalledOnce();
+        expect(runtime.syncKnownCredentialSchemas).toHaveBeenCalledOnce();
+        expect(runtime.syncCredentialRegistries).toHaveBeenCalledOnce();
+        expect(runtime.syncCredentialInventory).toHaveBeenCalledOnce();
+        expect(runtime.syncCredentialIpexActivity).toHaveBeenCalledOnce();
+    });
+
+    it('loads contact inventory through the runtime boundary', async () => {
+        const runtime = makeRuntime();
+
         await expect(loadContacts(runtime)).resolves.toEqual({
             status: 'ready',
         });
-        expect(runtime.listIdentifiers).toHaveBeenCalledTimes(2);
-        expect(runtime.syncSessionInventory).toHaveBeenCalledTimes(2);
+        expect(runtime.listIdentifiers).toHaveBeenCalledOnce();
+        expect(runtime.syncSessionInventory).toHaveBeenCalledOnce();
+    });
+
+    it('loads credential registries and inventory after identifiers', async () => {
+        const calls: string[] = [];
+        const runtime = makeRuntime({
+            listIdentifiers: vi.fn(async () => {
+                calls.push('identifiers');
+                return [];
+            }),
+            syncSessionInventory: vi.fn(async () => {
+                calls.push('session');
+                return {};
+            }),
+            syncKnownCredentialSchemas: vi.fn(async () => {
+                calls.push('schemas');
+                return {};
+            }),
+            syncCredentialRegistries: vi.fn(async () => {
+                calls.push('registries');
+                return {};
+            }),
+            syncCredentialInventory: vi.fn(async () => {
+                calls.push('credentials');
+                return {};
+            }),
+            syncCredentialIpexActivity: vi.fn(async () => {
+                calls.push('ipexActivity');
+                return {};
+            }),
+        });
+
+        await expect(loadCredentials(runtime)).resolves.toEqual({
+            status: 'ready',
+        });
+        expect(calls[0]).toBe('identifiers');
+        expect(calls).toEqual(
+            expect.arrayContaining([
+                'session',
+                'schemas',
+                'registries',
+                'credentials',
+                'ipexActivity',
+            ])
+        );
     });
 });
 
@@ -591,6 +678,112 @@ describe('route actions', () => {
                 requestId: 'dismiss-request-1',
                 signal: expect.any(AbortSignal),
             })
+        );
+    });
+
+    it('starts credential schema resolution through the credentials action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            credentialsAction(
+                runtime,
+                makeRequest('/credentials', {
+                    intent: 'resolveSchema',
+                    requestId: 'resolve-schema-request-1',
+                    schemaSaid: 'Eschema',
+                    schemaOobiUrl: 'http://schema.example/oobi/Eschema',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'resolveSchema',
+            ok: true,
+            message: 'Adding SEDI credential type',
+            requestId: 'resolve-schema-request-1',
+            operationRoute: '/operations/resolve-schema-request-1',
+        });
+        expect(runtime.startResolveCredentialSchema).toHaveBeenCalledWith(
+            {
+                schemaSaid: 'Eschema',
+                schemaOobiUrl: 'http://schema.example/oobi/Eschema',
+            },
+            expect.objectContaining({ requestId: 'resolve-schema-request-1' })
+        );
+    });
+
+    it('starts credential issuance through the credentials action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            credentialsAction(
+                runtime,
+                makeRequest('/credentials', {
+                    intent: 'issueCredential',
+                    requestId: 'issue-credential-request-1',
+                    issuerAlias: 'issuer',
+                    issuerAid: 'Eissuer',
+                    holderAid: 'Eholder',
+                    registryId: 'Eregistry',
+                    schemaSaid: 'Eschema',
+                    fullName: 'Ada Voter',
+                    voterId: 'SEDI-0001',
+                    precinctId: 'PCT-042',
+                    county: 'Demo County',
+                    jurisdiction: 'SEDI',
+                    electionId: 'SEDI-2026-DEMO',
+                    eligible: 'true',
+                    expires: '2026-12-31T23:59:59Z',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'issueCredential',
+            ok: true,
+            message: 'Issuing credential to Eholder',
+            requestId: 'issue-credential-request-1',
+            operationRoute: '/operations/issue-credential-request-1',
+        });
+        expect(runtime.startIssueCredential).toHaveBeenCalledWith(
+            expect.objectContaining({
+                issuerAlias: 'issuer',
+                holderAid: 'Eholder',
+                attributes: expect.objectContaining({
+                    fullName: 'Ada Voter',
+                    eligible: true,
+                }),
+            }),
+            expect.objectContaining({ requestId: 'issue-credential-request-1' })
+        );
+    });
+
+    it('starts holder admit through the credentials action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            credentialsAction(
+                runtime,
+                makeRequest('/credentials', {
+                    intent: 'admitCredentialGrant',
+                    requestId: 'admit-credential-request-1',
+                    holderAlias: 'holder',
+                    holderAid: 'Eholder',
+                    notificationId: 'note-1',
+                    grantSaid: 'Egrant',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'admitCredentialGrant',
+            ok: true,
+            message: 'Admitting credential grant Egrant',
+            requestId: 'admit-credential-request-1',
+            operationRoute: '/operations/admit-credential-request-1',
+        });
+        expect(runtime.startAdmitCredentialGrant).toHaveBeenCalledWith(
+            {
+                holderAlias: 'holder',
+                holderAid: 'Eholder',
+                notificationId: 'note-1',
+                grantSaid: 'Egrant',
+            },
+            expect.objectContaining({ requestId: 'admit-credential-request-1' })
         );
     });
 

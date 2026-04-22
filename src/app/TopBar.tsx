@@ -6,11 +6,14 @@ import {
     Button,
     CircularProgress,
     Divider,
+    FormControl,
     IconButton,
     List,
     ListItemButton,
     ListItemText,
+    MenuItem,
     Popover,
+    Select,
     Stack,
     Toolbar,
     Tooltip,
@@ -18,24 +21,44 @@ import {
 } from '@mui/material';
 import CircleIcon from '@mui/icons-material/Circle';
 import DeleteIcon from '@mui/icons-material/Delete';
+import HowToRegIcon from '@mui/icons-material/HowToReg';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
-import { Link as RouterLink, useFetcher } from 'react-router-dom';
+import {
+    Link as RouterLink,
+    useFetcher,
+    useLocation,
+    useNavigate,
+} from 'react-router-dom';
 import { StatusPill } from './Console';
 import { PayloadDetails } from './PayloadDetails';
 import { formatOperationWindow, formatTimestamp } from './timeFormat';
 import { UI_SOUND_HOVER_VALUE } from './uiSound';
-import type { ContactActionData } from './routeData';
+import type { ContactActionData, CredentialActionData } from './routeData';
 import type { AppNotificationRecord } from '../state/appNotifications.slice';
-import type { ChallengeRequestNotification } from '../state/notifications.slice';
+import type {
+    ChallengeRequestNotification,
+    CredentialGrantNotification,
+} from '../state/notifications.slice';
 import type { OperationRecord } from '../state/operations.slice';
 import type { IdentifierSummary } from '../features/identifiers/identifierTypes';
 import { allAppNotificationsRead } from '../state/appNotifications.slice';
 import { hoverSoundMutedToggled } from '../state/uiPreferences.slice';
+import {
+    walletAidCleared,
+    walletAidSelected,
+    walletRegistryCleared,
+    walletRegistrySelected,
+} from '../state/walletSelection.slice';
 import { useAppDispatch, useAppSelector } from '../state/hooks';
-import { selectHoverSoundMuted } from '../state/selectors';
+import {
+    selectHoverSoundMuted,
+    selectReadyCredentialRegistriesForSelectedAid,
+    selectSelectedWalletIdentifier,
+    selectSelectedWalletRegistry,
+} from '../state/selectors';
 import { ChallengeRequestResponseForm } from '../features/notifications/ChallengeRequestResponseForm';
 import { abbreviateMiddle } from '../features/contacts/contactHelpers';
 
@@ -53,6 +76,8 @@ export interface TopBarProps {
     recentNotifications: readonly AppNotificationRecord[];
     /** Actionable challenge requests discovered from KERIA notifications. */
     challengeRequests: readonly ChallengeRequestNotification[];
+    /** Actionable credential grants discovered from KERIA notifications. */
+    credentialGrants: readonly CredentialGrantNotification[];
     /** Local identifiers available for responding to challenge requests. */
     identifiers: readonly IdentifierSummary[];
     /** Number of unread app notifications plus actionable challenge requests. */
@@ -75,6 +100,7 @@ export const TopBar = ({
     activeOperations,
     recentNotifications,
     challengeRequests,
+    credentialGrants,
     identifiers,
     unreadNotificationCount,
     onMenuClick,
@@ -85,17 +111,29 @@ export const TopBar = ({
     const [notificationsAnchor, setNotificationsAnchor] =
         useState<HTMLElement | null>(null);
     const dismissFetcher = useFetcher<ContactActionData>();
+    const navigate = useNavigate();
+    const location = useLocation();
     const dispatch = useAppDispatch();
     const hoverSoundMuted = useAppSelector(selectHoverSoundMuted);
+    const selectedIdentifier = useAppSelector(selectSelectedWalletIdentifier);
+    const readyRegistries = useAppSelector(
+        selectReadyCredentialRegistriesForSelectedAid
+    );
+    const selectedRegistry = useAppSelector(selectSelectedWalletRegistry);
     const operationsOpen = operationsAnchor !== null;
     const notificationsOpen = notificationsAnchor !== null;
     const visibleNotifications = useMemo(
         () => recentNotifications.slice(0, 5),
         [recentNotifications]
     );
+    const credentialFetcher = useFetcher<CredentialActionData>();
     const visibleChallengeRequests = useMemo(
         () => challengeRequests.slice(0, 3),
         [challengeRequests]
+    );
+    const visibleCredentialGrants = useMemo(
+        () => credentialGrants.slice(0, 3),
+        [credentialGrants]
     );
 
     useEffect(() => {
@@ -124,6 +162,38 @@ export const TopBar = ({
         dispatch(hoverSoundMutedToggled());
     };
 
+    const navigateCredentialSelection = (aid: string | null) => {
+        if (!location.pathname.startsWith('/credentials')) {
+            return;
+        }
+
+        navigate(
+            aid === null
+                ? '/credentials'
+                : `/credentials/${encodeURIComponent(aid)}`
+        );
+    };
+
+    const handleSelectedAidChange = (value: string) => {
+        if (value.length === 0) {
+            dispatch(walletAidCleared());
+            navigateCredentialSelection(null);
+            return;
+        }
+
+        dispatch(walletAidSelected({ aid: value }));
+        navigateCredentialSelection(value);
+    };
+
+    const handleSelectedRegistryChange = (value: string) => {
+        if (value.length === 0) {
+            dispatch(walletRegistryCleared());
+            return;
+        }
+
+        dispatch(walletRegistrySelected({ registryId: value }));
+    };
+
     const dismissChallengeRequest = (request: ChallengeRequestNotification) => {
         const formData = new FormData();
         formData.set('intent', 'dismissExchangeNotification');
@@ -135,6 +205,28 @@ export const TopBar = ({
             method: 'post',
             action: '/notifications',
         });
+    };
+
+    const admitCredentialGrant = (grant: CredentialGrantNotification) => {
+        const recipient = identifiers.find(
+            (identifier) => identifier.prefix === grant.holderAid
+        );
+        if (recipient === undefined) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('intent', 'admitCredentialGrant');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('holderAlias', recipient.name);
+        formData.set('holderAid', grant.holderAid);
+        formData.set('notificationId', grant.notificationId);
+        formData.set('grantSaid', grant.grantSaid);
+        credentialFetcher.submit(formData, {
+            method: 'post',
+            action: '/credentials',
+        });
+        setNotificationsAnchor(null);
     };
 
     return (
@@ -158,18 +250,133 @@ export const TopBar = ({
                 >
                     <MenuIcon />
                 </IconButton>
-                <Typography
-                    variant="h6"
-                    noWrap
+                <Stack
+                    direction="row"
+                    spacing={1}
                     sx={{
                         flex: '1 1 auto',
                         minWidth: 0,
-                        color: 'text.primary',
-                        fontWeight: 700,
+                        alignItems: 'center',
                     }}
                 >
-                    Signify Ops
-                </Typography>
+                    <Typography
+                        variant="h6"
+                        noWrap
+                        sx={{
+                            flex: '0 0 auto',
+                            color: 'text.primary',
+                            fontWeight: 700,
+                        }}
+                    >
+                        Signify Ops
+                    </Typography>
+                    {selectedIdentifier !== null && (
+                        <FormControl
+                            size="small"
+                            sx={{
+                                display: { xs: 'none', sm: 'block' },
+                                minWidth: { sm: 146, lg: 190 },
+                                maxWidth: { sm: 170, lg: 230 },
+                                flex: '0 1 auto',
+                            }}
+                        >
+                            <Select
+                                aria-label="Selected wallet AID"
+                                value={selectedIdentifier.prefix}
+                                onChange={(event) =>
+                                    handleSelectedAidChange(event.target.value)
+                                }
+                                renderValue={(value) => {
+                                    const identifier =
+                                        identifiers.find(
+                                            (candidate) =>
+                                                candidate.prefix === value
+                                        ) ?? selectedIdentifier;
+                                    return `${identifier.name} / ${abbreviateMiddle(
+                                        identifier.prefix,
+                                        12
+                                    )}`;
+                                }}
+                                data-testid="topbar-selected-aid"
+                                sx={{
+                                    height: 32,
+                                    fontSize: '0.78rem',
+                                    bgcolor: 'rgba(13, 23, 34, 0.72)',
+                                    '.MuiSelect-select': {
+                                        py: 0.5,
+                                        pr: 3,
+                                        minWidth: 0,
+                                    },
+                                }}
+                            >
+                                <MenuItem value="">
+                                    <em>Clear AID</em>
+                                </MenuItem>
+                                {identifiers.map((identifier) => (
+                                    <MenuItem
+                                        key={identifier.prefix}
+                                        value={identifier.prefix}
+                                    >
+                                        {identifier.name} /{' '}
+                                        {abbreviateMiddle(identifier.prefix, 18)}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    )}
+                    {selectedRegistry !== null && (
+                        <FormControl
+                            size="small"
+                            sx={{
+                                display: { xs: 'none', lg: 'block' },
+                                minWidth: 168,
+                                maxWidth: 230,
+                                flex: '0 1 auto',
+                            }}
+                        >
+                            <Select
+                                aria-label="Selected credential registry"
+                                value={selectedRegistry.id}
+                                onChange={(event) =>
+                                    handleSelectedRegistryChange(
+                                        event.target.value
+                                    )
+                                }
+                                renderValue={(value) => {
+                                    const registry =
+                                        readyRegistries.find(
+                                            (candidate) => candidate.id === value
+                                        ) ?? selectedRegistry;
+                                    return `Registry: ${registry.registryName}`;
+                                }}
+                                data-testid="topbar-selected-registry"
+                                sx={{
+                                    height: 32,
+                                    fontSize: '0.78rem',
+                                    bgcolor: 'rgba(13, 23, 34, 0.72)',
+                                    '.MuiSelect-select': {
+                                        py: 0.5,
+                                        pr: 3,
+                                        minWidth: 0,
+                                    },
+                                }}
+                            >
+                                <MenuItem value="">
+                                    <em>Clear registry</em>
+                                </MenuItem>
+                                {readyRegistries.map((registry) => (
+                                    <MenuItem
+                                        key={registry.id}
+                                        value={registry.id}
+                                    >
+                                        {registry.registryName} /{' '}
+                                        {abbreviateMiddle(registry.regk, 18)}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    )}
+                </Stack>
                 <Box sx={{ display: { xs: 'none', lg: 'block' } }}>
                     <StatusPill
                         label={isConnected ? 'KERIA online' : 'KERIA offline'}
@@ -359,7 +566,8 @@ export const TopBar = ({
             >
                 <List sx={{ width: 360, maxWidth: '90vw', p: 1 }}>
                     {recentNotifications.length === 0 &&
-                    visibleChallengeRequests.length === 0 ? (
+                    visibleChallengeRequests.length === 0 &&
+                    visibleCredentialGrants.length === 0 ? (
                         <ListItemText
                             sx={{ px: 2, py: 1 }}
                             primary="No notifications"
@@ -499,7 +707,178 @@ export const TopBar = ({
                                     </Stack>
                                 </Box>
                             ))}
-                            {visibleChallengeRequests.length > 0 &&
+                            {visibleCredentialGrants.map((grant) => {
+                                const recipient = identifiers.find(
+                                    (identifier) =>
+                                        identifier.prefix === grant.holderAid
+                                );
+                                const recipientLabel =
+                                    recipient === undefined
+                                        ? abbreviateMiddle(grant.holderAid, 28)
+                                        : `${recipient.name} / ${abbreviateMiddle(
+                                              grant.holderAid,
+                                              20
+                                          )}`;
+                                const canAdmit =
+                                    recipient !== undefined &&
+                                    credentialFetcher.state === 'idle';
+
+                                return (
+                                    <Box
+                                        key={grant.notificationId}
+                                        data-testid="credential-grant-notification-card"
+                                        sx={{
+                                            border: 1,
+                                            borderColor: 'primary.main',
+                                            borderRadius: 1,
+                                            bgcolor: 'action.selected',
+                                            p: 1.25,
+                                            mb: 0.75,
+                                        }}
+                                    >
+                                        <Stack
+                                            direction={{ xs: 'column', sm: 'row' }}
+                                            spacing={1}
+                                            sx={{
+                                                alignItems: {
+                                                    xs: 'stretch',
+                                                    sm: 'flex-start',
+                                                },
+                                                justifyContent: 'space-between',
+                                                gap: 1,
+                                            }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    minWidth: 0,
+                                                    flex: '1 1 auto',
+                                                }}
+                                            >
+                                                <Typography
+                                                    variant="subtitle2"
+                                                    noWrap
+                                                >
+                                                    Credential grant
+                                                </Typography>
+                                                <Typography
+                                                    component="div"
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                    data-testid="credential-grant-notification-from"
+                                                    sx={{
+                                                        display: 'block',
+                                                        minWidth: 0,
+                                                    }}
+                                                >
+                                                    From{' '}
+                                                    {abbreviateMiddle(
+                                                        grant.issuerAid,
+                                                        28
+                                                    )}
+                                                </Typography>
+                                                <Typography
+                                                    component="div"
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                    data-testid="credential-grant-notification-recipient"
+                                                    sx={{
+                                                        display: 'block',
+                                                        mt: 0.25,
+                                                    }}
+                                                >
+                                                    Recipient {recipientLabel}
+                                                </Typography>
+                                                <Typography
+                                                    component="div"
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                    sx={{
+                                                        display: 'block',
+                                                        mt: 0.25,
+                                                    }}
+                                                >
+                                                    Credential{' '}
+                                                    {abbreviateMiddle(
+                                                        grant.credentialSaid,
+                                                        28
+                                                    )}
+                                                </Typography>
+                                                {formatTimestamp(
+                                                    grant.createdAt
+                                                ) !== null && (
+                                                    <Typography
+                                                        component="div"
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        noWrap
+                                                        sx={{
+                                                            display: 'block',
+                                                            mt: 0.25,
+                                                        }}
+                                                    >
+                                                        {formatTimestamp(
+                                                            grant.createdAt
+                                                        )}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                            <Stack
+                                                direction="row"
+                                                spacing={0.75}
+                                                sx={{
+                                                    flex: '0 0 auto',
+                                                    alignItems: 'center',
+                                                    justifyContent: {
+                                                        xs: 'flex-start',
+                                                        sm: 'flex-end',
+                                                    },
+                                                }}
+                                            >
+                                                <Button
+                                                    size="small"
+                                                    variant="contained"
+                                                    startIcon={<HowToRegIcon />}
+                                                    data-testid="credential-grant-notification-admit"
+                                                    data-ui-sound={
+                                                        UI_SOUND_HOVER_VALUE
+                                                    }
+                                                    disabled={!canAdmit}
+                                                    onClick={() =>
+                                                        admitCredentialGrant(
+                                                            grant
+                                                        )
+                                                    }
+                                                >
+                                                    Admit
+                                                </Button>
+                                                <Button
+                                                    component={RouterLink}
+                                                    to={`/credentials/${encodeURIComponent(
+                                                        grant.holderAid
+                                                    )}/wallet`}
+                                                    size="small"
+                                                    data-testid="credential-grant-notification-wallet-link"
+                                                    data-ui-sound={
+                                                        UI_SOUND_HOVER_VALUE
+                                                    }
+                                                    onClick={() =>
+                                                        setNotificationsAnchor(
+                                                            null
+                                                        )
+                                                    }
+                                                >
+                                                    Wallet
+                                                </Button>
+                                            </Stack>
+                                        </Stack>
+                                    </Box>
+                                );
+                            })}
+                            {(visibleChallengeRequests.length > 0 ||
+                                visibleCredentialGrants.length > 0) &&
                                 visibleNotifications.length > 0 && (
                                     <Divider sx={{ my: 0.75 }} />
                                 )}

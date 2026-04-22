@@ -22,6 +22,13 @@ import type {
 } from '../workflows/challenges.op';
 import type { DismissExchangeNotificationInput } from '../workflows/notifications.op';
 import type {
+    AdmitCredentialGrantInput,
+    CreateCredentialRegistryInput,
+    GrantCredentialInput,
+    IssueSediCredentialInput,
+    ResolveCredentialSchemaInput,
+} from '../workflows/credentials.op';
+import type {
     ConnectedSignifyClient,
     SignifyClientConfig,
     SignifyStateSummary,
@@ -84,11 +91,11 @@ export type ClientLoaderData =
 
 /**
  * Loader data for the credentials route.
- *
- * This intentionally stays tiny until the real credential workflow lands; the
- * useful contract today is the connected-route gate.
  */
-export type CredentialsLoaderData = { status: 'ready' } | BlockedRouteData;
+export type CredentialsLoaderData =
+    | { status: 'ready' }
+    | { status: 'error'; message: string }
+    | BlockedRouteData;
 
 /**
  * Typed action result for root-level shell actions.
@@ -165,6 +172,38 @@ export type ContactActionData =
       };
 
 /**
+ * Typed action result for credential workflow commands.
+ */
+export type CredentialActionData =
+    | {
+          intent:
+              | 'resolveSchema'
+              | 'createRegistry'
+              | 'issueCredential'
+              | 'grantCredential'
+              | 'admitCredentialGrant'
+              | 'refreshCredentials';
+          ok: true;
+          message: string;
+          requestId: string;
+          operationRoute: string;
+      }
+    | {
+          intent:
+              | 'resolveSchema'
+              | 'createRegistry'
+              | 'issueCredential'
+              | 'grantCredential'
+              | 'admitCredentialGrant'
+              | 'refreshCredentials'
+              | 'unsupported';
+          ok: false;
+          message: string;
+          requestId?: string;
+          operationRoute?: string;
+      };
+
+/**
  * Minimal connected-client shape route data needs for diagnostics.
  */
 interface RouteClient {
@@ -201,6 +240,22 @@ export interface RouteDataRuntime {
     }): Promise<IdentifierSummary[]>;
     /** Load live contact, challenge, and protocol notification facts. */
     syncSessionInventory(options?: { signal?: AbortSignal }): Promise<unknown>;
+    /** Load holder-side credential inventory. */
+    syncCredentialInventory(options?: {
+        signal?: AbortSignal;
+    }): Promise<unknown>;
+    /** Load issuer-side credential registry inventory. */
+    syncCredentialRegistries(options?: {
+        signal?: AbortSignal;
+    }): Promise<unknown>;
+    /** Load credential-linked IPEX exchange activity. */
+    syncCredentialIpexActivity(options?: {
+        signal?: AbortSignal;
+    }): Promise<unknown>;
+    /** Detect app-supported schemas the connected agent already knows. */
+    syncKnownCredentialSchemas(options?: {
+        signal?: AbortSignal;
+    }): Promise<unknown>;
     /** Create an identifier and wait for its KERIA operation to complete. */
     createIdentifier(
         draft: IdentifierCreateDraft,
@@ -266,6 +321,31 @@ export interface RouteDataRuntime {
         input: DismissExchangeNotificationInput,
         options?: { signal?: AbortSignal; requestId?: string }
     ): Promise<void>;
+    /** Start adding the SEDI credential schema type in the background. */
+    startResolveCredentialSchema(
+        input: ResolveCredentialSchemaInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start issuer registry creation in the background. */
+    startCreateCredentialRegistry(
+        input: CreateCredentialRegistryInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start issuer-side credential issuance in the background. */
+    startIssueCredential(
+        input: IssueSediCredentialInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start issuer-side IPEX grant in the background. */
+    startGrantCredential(
+        input: GrantCredentialInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start holder-side IPEX grant admit in the background. */
+    startAdmitCredentialGrant(
+        input: AdmitCredentialGrantInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
 }
 
 /**
@@ -316,6 +396,22 @@ const contactIntentFromString = (
         ? value
         : 'resolve';
 
+const credentialIntentFromString = (
+    value: string
+): Exclude<CredentialActionData['intent'], 'unsupported'> =>
+    value === 'createRegistry' ||
+    value === 'issueCredential' ||
+    value === 'grantCredential' ||
+    value === 'admitCredentialGrant' ||
+    value === 'refreshCredentials'
+        ? value
+        : 'resolveSchema';
+
+const formBoolean = (formData: FormData, field: string): boolean => {
+    const value = formString(formData, field).trim().toLowerCase();
+    return value === 'true' || value === 'on' || value === '1';
+};
+
 /**
  * Loader for `/dashboard`.
  */
@@ -328,10 +424,14 @@ export const loadDashboard = async (
     }
 
     try {
+        await runtime.listIdentifiers({ signal: request?.signal });
         await Promise.all([
-            runtime.listIdentifiers({ signal: request?.signal }),
             runtime.syncSessionInventory({ signal: request?.signal }),
+            runtime.syncKnownCredentialSchemas({ signal: request?.signal }),
+            runtime.syncCredentialRegistries({ signal: request?.signal }),
+            runtime.syncCredentialInventory({ signal: request?.signal }),
         ]);
+        await runtime.syncCredentialIpexActivity({ signal: request?.signal });
         return { status: 'ready' };
     } catch (error) {
         return {
@@ -455,10 +555,31 @@ export const loadClient = async (
  * The route is a connected placeholder today; keeping the loader explicit sets
  * the gating contract for future issuer/holder/verifier credential children.
  */
-export const loadCredentials = (
-    runtime: RouteDataRuntime
-): CredentialsLoaderData =>
-    runtime.getClient() === null ? { status: 'blocked' } : { status: 'ready' };
+export const loadCredentials = async (
+    runtime: RouteDataRuntime,
+    request?: Request
+): Promise<CredentialsLoaderData> => {
+    if (runtime.getClient() === null) {
+        return { status: 'blocked' };
+    }
+
+    try {
+        await runtime.listIdentifiers({ signal: request?.signal });
+        await Promise.all([
+            runtime.syncSessionInventory({ signal: request?.signal }),
+            runtime.syncKnownCredentialSchemas({ signal: request?.signal }),
+            runtime.syncCredentialRegistries({ signal: request?.signal }),
+            runtime.syncCredentialInventory({ signal: request?.signal }),
+        ]);
+        await runtime.syncCredentialIpexActivity({ signal: request?.signal });
+        return { status: 'ready' };
+    } catch (error) {
+        return {
+            status: 'error',
+            message: `Unable to refresh credential inventory: ${toRouteError(error).message}`,
+        };
+    }
+};
 
 /**
  * Root route action for shell-level commands.
@@ -1064,3 +1185,287 @@ export const notificationsAction = async (
     runtime: RouteDataRuntime,
     request: Request
 ): Promise<ContactActionData> => contactsAction(runtime, request);
+
+/**
+ * Route action for credential workflow commands.
+ */
+export const credentialsAction = async (
+    runtime: RouteDataRuntime,
+    request: Request
+): Promise<CredentialActionData> => {
+    const formData = await request.formData();
+    const intent = formString(formData, 'intent');
+    const requestId = formString(formData, 'requestId');
+
+    if (runtime.getClient() === null) {
+        return {
+            intent: credentialIntentFromString(intent),
+            ok: false,
+            message: 'Connect to KERIA before changing credentials.',
+            requestId,
+        };
+    }
+
+    try {
+        if (intent === 'refreshCredentials') {
+            await runtime.listIdentifiers({ signal: request.signal });
+            await Promise.all([
+                runtime.syncSessionInventory({ signal: request.signal }),
+                runtime.syncKnownCredentialSchemas({ signal: request.signal }),
+                runtime.syncCredentialRegistries({ signal: request.signal }),
+                runtime.syncCredentialInventory({ signal: request.signal }),
+            ]);
+            await runtime.syncCredentialIpexActivity({ signal: request.signal });
+            return {
+                intent,
+                ok: true,
+                message: 'Credential inventory refreshed.',
+                requestId,
+                operationRoute: '/credentials',
+            };
+        }
+
+        if (intent === 'resolveSchema') {
+            const schemaSaid =
+                formString(formData, 'schemaSaid').trim() ||
+                appConfig.schemas.sediVoterId.said ||
+                '';
+            const schemaOobiUrl =
+                formString(formData, 'schemaOobiUrl').trim() ||
+                appConfig.schemas.sediVoterId.oobiUrl ||
+                '';
+            if (schemaSaid.length === 0 || schemaOobiUrl.length === 0) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Schema SAID and OOBI URL are required.',
+                    requestId,
+                };
+            }
+
+            const started = runtime.startResolveCredentialSchema(
+                { schemaSaid, schemaOobiUrl },
+                { requestId: requestId || undefined }
+            );
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: 'Adding SEDI credential type',
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
+        if (intent === 'createRegistry') {
+            const issuerAlias = formString(formData, 'issuerAlias').trim();
+            const issuerAid = formString(formData, 'issuerAid').trim();
+            const registryName =
+                formString(formData, 'registryName').trim() ||
+                'sedi-voter-registry';
+            if (issuerAlias.length === 0 || issuerAid.length === 0) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Issuer identifier and AID are required.',
+                    requestId,
+                };
+            }
+
+            const started = runtime.startCreateCredentialRegistry(
+                { issuerAlias, issuerAid, registryName },
+                { requestId: requestId || undefined }
+            );
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Preparing registry for ${issuerAlias}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
+        if (intent === 'issueCredential') {
+            const issuerAlias = formString(formData, 'issuerAlias').trim();
+            const issuerAid = formString(formData, 'issuerAid').trim();
+            const holderAid = formString(formData, 'holderAid').trim();
+            const registryId = formString(formData, 'registryId').trim();
+            const schemaSaid = formString(formData, 'schemaSaid').trim();
+            if (
+                issuerAlias.length === 0 ||
+                issuerAid.length === 0 ||
+                holderAid.length === 0 ||
+                registryId.length === 0 ||
+                schemaSaid.length === 0
+            ) {
+                return {
+                    intent,
+                    ok: false,
+                    message:
+                        'Issuer, holder, registry, and schema are required.',
+                    requestId,
+                };
+            }
+
+            const input: IssueSediCredentialInput = {
+                issuerAlias,
+                issuerAid,
+                holderAid,
+                registryId,
+                schemaSaid,
+                attributes: {
+                    i: holderAid,
+                    fullName: formString(formData, 'fullName'),
+                    voterId: formString(formData, 'voterId'),
+                    precinctId: formString(formData, 'precinctId'),
+                    county: formString(formData, 'county'),
+                    jurisdiction: formString(formData, 'jurisdiction'),
+                    electionId: formString(formData, 'electionId'),
+                    eligible: formBoolean(formData, 'eligible'),
+                    expires: formString(formData, 'expires'),
+                },
+            };
+            const started = runtime.startIssueCredential(input, {
+                requestId: requestId || undefined,
+            });
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Issuing credential to ${holderAid}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
+        if (intent === 'grantCredential') {
+            const input: GrantCredentialInput = {
+                issuerAlias: formString(formData, 'issuerAlias').trim(),
+                issuerAid: formString(formData, 'issuerAid').trim(),
+                holderAid: formString(formData, 'holderAid').trim(),
+                credentialSaid: formString(formData, 'credentialSaid').trim(),
+            };
+            if (
+                input.issuerAlias.length === 0 ||
+                input.issuerAid.length === 0 ||
+                input.holderAid.length === 0 ||
+                input.credentialSaid.length === 0
+            ) {
+                return {
+                    intent,
+                    ok: false,
+                    message:
+                        'Issuer, holder, and credential SAID are required.',
+                    requestId,
+                };
+            }
+
+            const started = runtime.startGrantCredential(input, {
+                requestId: requestId || undefined,
+            });
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Granting credential ${input.credentialSaid}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+
+        if (intent === 'admitCredentialGrant') {
+            const input: AdmitCredentialGrantInput = {
+                holderAlias: formString(formData, 'holderAlias').trim(),
+                holderAid: formString(formData, 'holderAid').trim(),
+                notificationId: formString(formData, 'notificationId').trim(),
+                grantSaid: formString(formData, 'grantSaid').trim(),
+            };
+            if (
+                input.holderAlias.length === 0 ||
+                input.holderAid.length === 0 ||
+                input.notificationId.length === 0 ||
+                input.grantSaid.length === 0
+            ) {
+                return {
+                    intent,
+                    ok: false,
+                    message:
+                        'Holder identifier, notification, and grant SAID are required.',
+                    requestId,
+                };
+            }
+
+            const started = runtime.startAdmitCredentialGrant(input, {
+                requestId: requestId || undefined,
+            });
+            if (started.status === 'conflict') {
+                return {
+                    intent,
+                    ok: false,
+                    message: started.message,
+                    requestId: started.requestId,
+                    operationRoute: started.operationRoute,
+                };
+            }
+
+            return {
+                intent,
+                ok: true,
+                message: `Admitting credential grant ${input.grantSaid}`,
+                requestId: started.requestId,
+                operationRoute: started.operationRoute,
+            };
+        }
+    } catch (error) {
+        return {
+            intent: credentialIntentFromString(intent),
+            ok: false,
+            message: toRouteError(error).message,
+            requestId,
+        };
+    }
+
+    return {
+        intent: 'unsupported',
+        ok: false,
+        message: `Unsupported credential action: ${intent || 'missing intent'}`,
+        requestId,
+    };
+};
