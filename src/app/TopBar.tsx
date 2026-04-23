@@ -8,6 +8,7 @@ import {
     Divider,
     FormControl,
     IconButton,
+    InputLabel,
     List,
     ListItemButton,
     ListItemText,
@@ -15,6 +16,7 @@ import {
     Popover,
     Select,
     Stack,
+    TextField,
     Toolbar,
     Tooltip,
     Typography,
@@ -36,12 +38,17 @@ import { StatusPill } from './Console';
 import { PayloadDetails } from './PayloadDetails';
 import { formatOperationWindow, formatTimestamp } from './timeFormat';
 import { UI_SOUND_HOVER_VALUE } from './uiSound';
-import type { ContactActionData, CredentialActionData } from './routeData';
+import type {
+    ContactActionData,
+    CredentialActionData,
+    MultisigActionData,
+} from './routeData';
 import type { AppNotificationRecord } from '../state/appNotifications.slice';
 import type {
     ChallengeRequestNotification,
     CredentialGrantNotification,
     DelegationRequestNotification,
+    MultisigRequestNotification,
 } from '../state/notifications.slice';
 import type { OperationRecord } from '../state/operations.slice';
 import type { IdentifierSummary } from '../features/identifiers/identifierTypes';
@@ -62,6 +69,16 @@ import {
 } from '../state/selectors';
 import { ChallengeRequestResponseForm } from '../features/notifications/ChallengeRequestResponseForm';
 import { abbreviateMiddle } from '../features/contacts/contactHelpers';
+import {
+    defaultMultisigRequestGroupAlias,
+    defaultMultisigRequestLocalMember,
+    displayMultisigRequestGroupAlias,
+    multisigRequestActionLabel,
+    multisigRequestIntent,
+    multisigRequestLocalMembers,
+    multisigRequestTitle,
+    requiresMultisigJoinLabel,
+} from '../features/multisig/multisigRequestUi';
 
 const APP_NOTIFICATION_READ_DELAY_MS = 1250;
 
@@ -81,6 +98,8 @@ export interface TopBarProps {
     credentialGrants: readonly CredentialGrantNotification[];
     /** Actionable delegation requests discovered from KERIA notifications. */
     delegationRequests: readonly DelegationRequestNotification[];
+    /** Actionable multisig requests discovered from KERIA notifications. */
+    multisigRequests: readonly MultisigRequestNotification[];
     /** Local identifiers available for responding to challenge requests. */
     identifiers: readonly IdentifierSummary[];
     /** Number of unread app notifications plus actionable challenge requests. */
@@ -105,6 +124,7 @@ export const TopBar = ({
     challengeRequests,
     credentialGrants,
     delegationRequests,
+    multisigRequests,
     identifiers,
     unreadNotificationCount,
     onMenuClick,
@@ -114,6 +134,9 @@ export const TopBar = ({
         useState<HTMLElement | null>(null);
     const [notificationsAnchor, setNotificationsAnchor] =
         useState<HTMLElement | null>(null);
+    const [multisigDrafts, setMultisigDrafts] = useState<
+        Record<string, { groupAlias: string; localMemberName: string }>
+    >({});
     const dismissFetcher = useFetcher<ContactActionData>();
     const navigate = useNavigate();
     const location = useLocation();
@@ -132,6 +155,7 @@ export const TopBar = ({
     );
     const credentialFetcher = useFetcher<CredentialActionData>();
     const delegationFetcher = useFetcher<ContactActionData>();
+    const multisigFetcher = useFetcher<MultisigActionData>();
     const visibleChallengeRequests = useMemo(
         () => challengeRequests.slice(0, 3),
         [challengeRequests]
@@ -143,6 +167,14 @@ export const TopBar = ({
     const visibleDelegationRequests = useMemo(
         () => delegationRequests.slice(0, 3),
         [delegationRequests]
+    );
+    const visibleMultisigRequests = useMemo(
+        () => multisigRequests.slice(0, 3),
+        [multisigRequests]
+    );
+    const multisigLocalMemberOptions = useMemo(
+        () => multisigRequestLocalMembers(identifiers),
+        [identifiers]
     );
 
     useEffect(() => {
@@ -262,6 +294,25 @@ export const TopBar = ({
         delegationFetcher.submit(formData, {
             method: 'post',
             action: '/notifications',
+        });
+        setNotificationsAnchor(null);
+    };
+
+    const submitMultisigRequest = (
+        request: MultisigRequestNotification,
+        groupAlias: string,
+        localMemberName: string
+    ) => {
+        const formData = new FormData();
+        formData.set('intent', multisigRequestIntent(request));
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('notificationId', request.notificationId);
+        formData.set('exnSaid', request.exnSaid);
+        formData.set('groupAlias', groupAlias.trim());
+        formData.set('localMemberName', localMemberName);
+        multisigFetcher.submit(formData, {
+            method: 'post',
+            action: '/multisig',
         });
         setNotificationsAnchor(null);
     };
@@ -605,7 +656,8 @@ export const TopBar = ({
                     {recentNotifications.length === 0 &&
                     visibleChallengeRequests.length === 0 &&
                     visibleCredentialGrants.length === 0 &&
-                    visibleDelegationRequests.length === 0 ? (
+                    visibleDelegationRequests.length === 0 &&
+                    visibleMultisigRequests.length === 0 ? (
                         <ListItemText
                             sx={{ px: 2, py: 1 }}
                             primary="No notifications"
@@ -782,6 +834,237 @@ export const TopBar = ({
                                                     Open
                                                 </Button>
                                             </Stack>
+                                        </Stack>
+                                    </Box>
+                                );
+                            })}
+                            {visibleMultisigRequests.map((request) => {
+                                const localDefault =
+                                    defaultMultisigRequestLocalMember(
+                                        request,
+                                        identifiers
+                                    );
+                                const defaultDraft = {
+                                    groupAlias:
+                                        defaultMultisigRequestGroupAlias(
+                                            request,
+                                            identifiers
+                                        ),
+                                    localMemberName: localDefault?.name ?? '',
+                                };
+                                const draft =
+                                    multisigDrafts[request.notificationId] ??
+                                    defaultDraft;
+                                const requiresJoinLabel =
+                                    requiresMultisigJoinLabel(request);
+                                const canSubmit =
+                                    request.status === 'actionable' &&
+                                    multisigFetcher.state === 'idle' &&
+                                    draft.groupAlias.trim().length > 0 &&
+                                    draft.localMemberName.trim().length > 0;
+                                const memberLabelId = `topbar-multisig-member-${request.notificationId}`;
+
+                                return (
+                                    <Box
+                                        key={request.notificationId}
+                                        data-testid="multisig-request-notification-card"
+                                        sx={{
+                                            border: 1,
+                                            borderColor: 'primary.main',
+                                            borderRadius: 1,
+                                            bgcolor: 'action.selected',
+                                            p: 1.25,
+                                            mb: 0.75,
+                                        }}
+                                    >
+                                        <Stack spacing={1}>
+                                            <Stack
+                                                direction="row"
+                                                spacing={1}
+                                                sx={{
+                                                    alignItems: 'flex-start',
+                                                    justifyContent:
+                                                        'space-between',
+                                                    gap: 1,
+                                                }}
+                                            >
+                                                <Box
+                                                    sx={{
+                                                        minWidth: 0,
+                                                        flex: '1 1 auto',
+                                                    }}
+                                                >
+                                                    <Typography
+                                                        variant="subtitle2"
+                                                        noWrap
+                                                    >
+                                                        {multisigRequestTitle(
+                                                            request
+                                                        )}
+                                                    </Typography>
+                                                    <Typography
+                                                        component="div"
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        noWrap
+                                                        sx={{
+                                                            display: 'block',
+                                                            minWidth: 0,
+                                                        }}
+                                                    >
+                                                        Group{' '}
+                                                        {displayMultisigRequestGroupAlias(
+                                                            request,
+                                                            identifiers
+                                                        )}
+                                                    </Typography>
+                                                    <Typography
+                                                        component="div"
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        noWrap
+                                                        sx={{
+                                                            display: 'block',
+                                                            mt: 0.25,
+                                                        }}
+                                                    >
+                                                        AID{' '}
+                                                        {request.groupAid ===
+                                                        null
+                                                            ? 'Not available'
+                                                            : abbreviateMiddle(
+                                                                  request.groupAid,
+                                                                  28
+                                                              )}
+                                                    </Typography>
+                                                    <Typography
+                                                        component="div"
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        noWrap
+                                                        sx={{
+                                                            display: 'block',
+                                                            mt: 0.25,
+                                                        }}
+                                                    >
+                                                        Responses{' '}
+                                                        {
+                                                            request.progress
+                                                                .completed
+                                                        }
+                                                        /
+                                                        {request.progress.total}
+                                                    </Typography>
+                                                </Box>
+                                                <Button
+                                                    component={RouterLink}
+                                                    to={`/notifications/${encodeURIComponent(
+                                                        request.notificationId
+                                                    )}`}
+                                                    size="small"
+                                                    data-testid="multisig-request-notification-detail-link"
+                                                    data-ui-sound={
+                                                        UI_SOUND_HOVER_VALUE
+                                                    }
+                                                    onClick={() =>
+                                                        setNotificationsAnchor(
+                                                            null
+                                                        )
+                                                    }
+                                                >
+                                                    Open
+                                                </Button>
+                                            </Stack>
+                                            {requiresJoinLabel && (
+                                                <TextField
+                                                    size="small"
+                                                    label="New group label"
+                                                    value={draft.groupAlias}
+                                                    helperText="Local label for this wallet after joining."
+                                                    fullWidth
+                                                    onChange={(event) =>
+                                                        setMultisigDrafts(
+                                                            (current) => ({
+                                                                ...current,
+                                                                [request.notificationId]:
+                                                                    {
+                                                                        ...draft,
+                                                                        groupAlias:
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                    },
+                                                            })
+                                                        )
+                                                    }
+                                                    data-testid="multisig-request-notification-group-label"
+                                                />
+                                            )}
+                                            <FormControl size="small" fullWidth>
+                                                <InputLabel id={memberLabelId}>
+                                                    Local member
+                                                </InputLabel>
+                                                <Select
+                                                    labelId={memberLabelId}
+                                                    label="Local member"
+                                                    value={
+                                                        draft.localMemberName
+                                                    }
+                                                    onChange={(event) =>
+                                                        setMultisigDrafts(
+                                                            (current) => ({
+                                                                ...current,
+                                                                [request.notificationId]:
+                                                                    {
+                                                                        ...draft,
+                                                                        localMemberName:
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                    },
+                                                            })
+                                                        )
+                                                    }
+                                                >
+                                                    {multisigLocalMemberOptions.map(
+                                                        (identifier) => (
+                                                            <MenuItem
+                                                                key={
+                                                                    identifier.prefix
+                                                                }
+                                                                value={
+                                                                    identifier.name
+                                                                }
+                                                            >
+                                                                {
+                                                                    identifier.name
+                                                                }
+                                                            </MenuItem>
+                                                        )
+                                                    )}
+                                                </Select>
+                                            </FormControl>
+                                            <Button
+                                                size="small"
+                                                variant="contained"
+                                                startIcon={<HowToRegIcon />}
+                                                data-testid="multisig-request-notification-submit"
+                                                data-ui-sound={
+                                                    UI_SOUND_HOVER_VALUE
+                                                }
+                                                disabled={!canSubmit}
+                                                onClick={() =>
+                                                    submitMultisigRequest(
+                                                        request,
+                                                        draft.groupAlias,
+                                                        draft.localMemberName
+                                                    )
+                                                }
+                                            >
+                                                {multisigRequestActionLabel(
+                                                    request
+                                                )}
+                                            </Button>
                                         </Stack>
                                     </Box>
                                 );
@@ -1094,7 +1377,8 @@ export const TopBar = ({
                             })}
                             {(visibleChallengeRequests.length > 0 ||
                                 visibleDelegationRequests.length > 0 ||
-                                visibleCredentialGrants.length > 0) &&
+                                visibleCredentialGrants.length > 0 ||
+                                visibleMultisigRequests.length > 0) &&
                                 visibleNotifications.length > 0 && (
                                     <Divider sx={{ my: 0.75 }} />
                                 )}

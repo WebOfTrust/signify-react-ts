@@ -275,7 +275,7 @@ describe('notification service helpers', () => {
                 multisigRequest: expect.objectContaining({
                     route: MULTISIG_ICP_ROUTE,
                     groupAid: 'Egroup',
-                    groupAlias: 'team',
+                    groupAlias: null,
                     status: 'actionable',
                     signingMemberAids: ['Erecipient', 'Esender'],
                 }),
@@ -396,6 +396,7 @@ describe('notification service helpers', () => {
                 message: 'Group invitation',
                 multisigRequest: expect.objectContaining({
                     route: MULTISIG_ICP_ROUTE,
+                    groupAlias: null,
                     status: 'actionable',
                     progress: {
                         groupAid: 'Egroup',

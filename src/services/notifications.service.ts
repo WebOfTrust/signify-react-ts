@@ -683,7 +683,12 @@ const multisigRequestFromGroup = ({
         route,
         senderAid,
         groupAid,
-        groupAlias: stringValue(groupRecord.groupName),
+        groupAlias:
+            route === '/multisig/icp'
+                ? null
+                : (stringValue(groupRecord.groupName) ??
+                  stringValue(attrs.name) ??
+                  stringValue(attrs.alias)),
         signingMemberAids,
         rotationMemberAids: effectiveRotationMemberAids,
         signingThreshold: details.signingThreshold,

@@ -1312,6 +1312,20 @@ export const multisigAction = async (
             intent === 'acceptRotation' ||
             intent === 'joinRotation'
         ) {
+            const groupAlias = formString(formData, 'groupAlias').trim();
+            if (
+                (intent === 'acceptInception' ||
+                    intent === 'joinInception') &&
+                groupAlias.length === 0
+            ) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Enter a label for this new group identifier.',
+                    requestId,
+                };
+            }
+
             const input = parseMultisigRequestInput(formData);
             if (input === null) {
                 return {

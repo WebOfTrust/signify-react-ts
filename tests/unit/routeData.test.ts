@@ -651,6 +651,30 @@ describe('route actions', () => {
         );
     });
 
+    it('rejects multisig inception joins without a follower-local group label', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            multisigAction(
+                runtime,
+                makeRequest('/multisig', {
+                    intent: 'joinInception',
+                    requestId: 'accept-multisig-request-1',
+                    notificationId: 'note-1',
+                    exnSaid: 'Eexn',
+                    groupAlias: '',
+                    localMemberName: 'alice',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'joinInception',
+            ok: false,
+            message: 'Enter a label for this new group identifier.',
+            requestId: 'accept-multisig-request-1',
+        });
+        expect(runtime.startAcceptMultisigInception).not.toHaveBeenCalled();
+    });
+
     it('starts multisig interactions with parsed JSON and plain-string payloads', async () => {
         const runtime = makeRuntime();
 

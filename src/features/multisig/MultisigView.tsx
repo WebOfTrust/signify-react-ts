@@ -67,6 +67,16 @@ import type {
 } from './multisigTypes';
 import type { MultisigRequestNotification } from '../../state/notifications.slice';
 import { ThresholdEditor } from './ThresholdEditor';
+import {
+    defaultMultisigRequestGroupAlias,
+    defaultMultisigRequestLocalMember,
+    displayMultisigRequestGroupAlias,
+    multisigRequestActionLabel,
+    multisigRequestIntent,
+    multisigRequestLocalMembers,
+    multisigRequestTitle,
+    requiresMultisigJoinLabel,
+} from './multisigRequestUi';
 
 const unique = (values: readonly string[]): string[] => {
     const seen = new Set<string>();
@@ -204,87 +214,6 @@ const specForAids = (
     validateThresholdSpecForMembers({ spec, memberAids: aids }) === null
         ? spec
         : thresholdSpecForMembers(aids);
-
-const defaultLocalMember = (
-    request: MultisigRequestNotification,
-    identifiers: readonly IdentifierSummary[]
-): IdentifierSummary | null => {
-    const participants = new Set([
-        ...request.signingMemberAids,
-        ...request.rotationMemberAids,
-    ]);
-    return (
-        identifiers.find((identifier) => participants.has(identifier.prefix)) ??
-        identifiers.find((identifier) => !isGroupIdentifier(identifier)) ??
-        null
-    );
-};
-
-const defaultGroupAlias = (
-    request: MultisigRequestNotification,
-    identifiers: readonly IdentifierSummary[]
-): string => {
-    const existing =
-        request.groupAid === null
-            ? undefined
-            : identifiers.find((identifier) => identifier.prefix === request.groupAid);
-
-    return (
-        existing?.name ??
-        request.groupAlias ??
-        (request.groupAid === null
-            ? 'multisig-group'
-            : `group-${request.groupAid.slice(-6)}`)
-    );
-};
-
-const requestIntent = (
-    request: MultisigRequestNotification
-):
-    | 'joinInception'
-    | 'acceptEndRole'
-    | 'acceptInteraction'
-    | 'acceptRotation' => {
-    if (request.route === '/multisig/icp') {
-        return 'joinInception';
-    }
-
-    if (request.route === '/multisig/rpy') {
-        return 'acceptEndRole';
-    }
-
-    if (request.route === '/multisig/ixn') {
-        return 'acceptInteraction';
-    }
-
-    return 'acceptRotation';
-};
-
-const requestTitle = (request: MultisigRequestNotification): string => {
-    if (request.route === '/multisig/icp') {
-        return 'Group invitation';
-    }
-    if (request.route === '/multisig/rpy') {
-        return 'Agent authorization';
-    }
-    if (request.route === '/multisig/ixn') {
-        return 'Interaction approval';
-    }
-    return 'Rotation approval';
-};
-
-const requestActionLabel = (request: MultisigRequestNotification): string => {
-    if (request.route === '/multisig/icp') {
-        return 'Join group';
-    }
-    if (request.route === '/multisig/rpy') {
-        return 'Authorize agent';
-    }
-    if (request.route === '/multisig/ixn') {
-        return 'Approve interaction';
-    }
-    return 'Approve rotation';
-};
 
 const groupStateValue = (
     group: IdentifierSummary,
@@ -987,9 +916,7 @@ export const MultisigView = () => {
         ).map((detail) => [detail.groupAid, detail])
     );
     const memberOptions = memberOptionsFromInventory(identifiers, contacts);
-    const localMemberIdentifiers = identifiers.filter(
-        (identifier) => !isGroupIdentifier(identifier)
-    );
+    const localMemberIdentifiers = multisigRequestLocalMembers(identifiers);
 
     const submitDraft = (intent: string, fields: Record<string, string>) => {
         const formData = new FormData();
@@ -1008,15 +935,15 @@ export const MultisigView = () => {
 
     const submitRequest = (request: MultisigRequestNotification) => {
         const defaults = {
-            groupAlias: defaultGroupAlias(request, identifiers),
+            groupAlias: defaultMultisigRequestGroupAlias(request, identifiers),
             localMemberName:
-                defaultLocalMember(request, identifiers)?.name ?? '',
+                defaultMultisigRequestLocalMember(request, identifiers)?.name ?? '',
         };
         const draft = requestDrafts[request.notificationId] ?? defaults;
-        submitDraft(requestIntent(request), {
+        submitDraft(multisigRequestIntent(request), {
             notificationId: request.notificationId,
             exnSaid: request.exnSaid,
-            groupAlias: draft.groupAlias,
+            groupAlias: draft.groupAlias.trim(),
             localMemberName: draft.localMemberName,
         });
     };
@@ -1241,14 +1168,19 @@ export const MultisigView = () => {
                 ) : (
                     <Stack spacing={2}>
                         {requests.map((request) => {
-                            const localDefault = defaultLocalMember(
+                            const localDefault = defaultMultisigRequestLocalMember(
                                 request,
                                 identifiers
                             );
                             const draft = requestDrafts[request.notificationId] ?? {
-                                groupAlias: defaultGroupAlias(request, identifiers),
+                                groupAlias: defaultMultisigRequestGroupAlias(
+                                    request,
+                                    identifiers
+                                ),
                                 localMemberName: localDefault?.name ?? '',
                             };
+                            const requiresJoinLabel =
+                                requiresMultisigJoinLabel(request);
                             return (
                                 <Box
                                     key={request.notificationId}
@@ -1272,7 +1204,7 @@ export const MultisigView = () => {
                                             }}
                                         >
                                             <Typography variant="h6">
-                                                {requestTitle(request)}
+                                                {multisigRequestTitle(request)}
                                             </Typography>
                                             <StatusPill
                                                 label={request.status}
@@ -1292,6 +1224,13 @@ export const MultisigView = () => {
                                             label="Group AID"
                                             value={request.groupAid ?? 'Not available'}
                                             mono
+                                        />
+                                        <TelemetryRow
+                                            label="Group alias"
+                                            value={displayMultisigRequestGroupAlias(
+                                                request,
+                                                identifiers
+                                            )}
                                         />
                                         <TelemetryRow
                                             label="Sender"
@@ -1356,8 +1295,17 @@ export const MultisigView = () => {
                                         >
                                             <TextField
                                                 size="small"
-                                                label="Group alias"
+                                                label={
+                                                    requiresJoinLabel
+                                                        ? 'New group label'
+                                                        : 'Group alias'
+                                                }
                                                 value={draft.groupAlias}
+                                                helperText={
+                                                    requiresJoinLabel
+                                                        ? 'Local label for this wallet after joining.'
+                                                        : undefined
+                                                }
                                                 onChange={(event) =>
                                                     setRequestDrafts((current) => ({
                                                         ...current,
@@ -1423,7 +1371,7 @@ export const MultisigView = () => {
                                                 onClick={() => submitRequest(request)}
                                                 data-ui-sound={UI_SOUND_HOVER_VALUE}
                                             >
-                                                {requestActionLabel(request)}
+                                                {multisigRequestActionLabel(request)}
                                             </Button>
                                         </Stack>
                                     </Stack>

@@ -16,6 +16,7 @@ import {
     selectActionableChallengeRequestNotifications,
     selectActionableCredentialGrantNotifications,
     selectActionableDelegationRequestNotifications,
+    selectActionableMultisigRequestNotifications,
     selectAppNotifications,
     selectIdentifiers,
     selectUnreadAppNotifications,
@@ -56,6 +57,9 @@ const RootLayoutContent = () => {
     const delegationRequests = useAppSelector(
         selectActionableDelegationRequestNotifications
     );
+    const multisigRequests = useAppSelector(
+        selectActionableMultisigRequestNotifications
+    );
     const identifiers = useAppSelector(selectIdentifiers);
     const connectDialogOpen = connectOpen && connection.status !== 'connected';
     const pending = derivePendingState({
@@ -80,12 +84,14 @@ const RootLayoutContent = () => {
                 challengeRequests={challengeRequests}
                 credentialGrants={credentialGrants}
                 delegationRequests={delegationRequests}
+                multisigRequests={multisigRequests}
                 identifiers={identifiers}
                 unreadNotificationCount={
                     unreadAppNotifications.length +
                     challengeRequests.length +
                     credentialGrants.length +
-                    delegationRequests.length
+                    delegationRequests.length +
+                    multisigRequests.length
                 }
                 onMenuClick={() => setDrawerOpen(true)}
                 onConnectClick={() => setConnectOpen(true)}

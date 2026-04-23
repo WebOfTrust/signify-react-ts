@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Box,
     Button,
     Divider,
     IconButton,
     Stack,
+    TextField,
     Tooltip,
     Typography,
 } from '@mui/material';
@@ -50,6 +51,15 @@ import type {
 } from '../../state/notifications.slice';
 import { ChallengeRequestResponseForm } from './ChallengeRequestResponseForm';
 import { sithSummary } from '../multisig/multisigThresholds';
+import {
+    defaultMultisigRequestGroupAlias,
+    defaultMultisigRequestLocalMember,
+    displayMultisigRequestGroupAlias,
+    multisigRequestActionLabel,
+    multisigRequestIntent,
+    multisigRequestTitle,
+    requiresMultisigJoinLabel,
+} from '../multisig/multisigRequestUi';
 
 const timestampText = (value: string | null): string =>
     value === null ? 'Not available' : (formatTimestamp(value) ?? value);
@@ -108,54 +118,6 @@ const multisigStatusTone = (
     return 'info';
 };
 
-const multisigIntent = (
-    request: MultisigRequestNotification
-):
-    | 'joinInception'
-    | 'acceptEndRole'
-    | 'acceptInteraction'
-    | 'acceptRotation' => {
-    if (request.route === '/multisig/icp') {
-        return 'joinInception';
-    }
-
-    if (request.route === '/multisig/rpy') {
-        return 'acceptEndRole';
-    }
-
-    if (request.route === '/multisig/ixn') {
-        return 'acceptInteraction';
-    }
-
-    return 'acceptRotation';
-};
-
-const multisigTitle = (request: MultisigRequestNotification): string => {
-    if (request.route === '/multisig/icp') {
-        return 'Group invitation';
-    }
-    if (request.route === '/multisig/rpy') {
-        return 'Agent authorization';
-    }
-    if (request.route === '/multisig/ixn') {
-        return 'Interaction approval';
-    }
-    return 'Rotation approval';
-};
-
-const multisigActionLabel = (request: MultisigRequestNotification): string => {
-    if (request.route === '/multisig/icp') {
-        return 'Join group';
-    }
-    if (request.route === '/multisig/rpy') {
-        return 'Authorize agent';
-    }
-    if (request.route === '/multisig/ixn') {
-        return 'Approve interaction';
-    }
-    return 'Approve rotation';
-};
-
 /**
  * Route view for one KERIA protocol notification or synthetic challenge item.
  */
@@ -167,6 +129,9 @@ export const NotificationDetailView = () => {
     const credentialFetcher = useFetcher<CredentialActionData>();
     const delegationFetcher = useFetcher<ContactActionData>();
     const multisigFetcher = useFetcher<MultisigActionData>();
+    const [multisigAliasDrafts, setMultisigAliasDrafts] = useState<
+        Record<string, string>
+    >({});
     const notification = useAppSelector(
         selectKeriaNotificationById(notificationId)
     );
@@ -205,34 +170,32 @@ export const NotificationDetailView = () => {
         delegationRequest?.status === 'actionable' &&
         delegationApprover !== undefined &&
         delegationFetcher.state === 'idle';
-    const multisigParticipants = new Set([
-        ...(multisigRequest?.signingMemberAids ?? []),
-        ...(multisigRequest?.rotationMemberAids ?? []),
-    ]);
     const multisigMember =
         multisigRequest === null
             ? undefined
-            : identifiers.find((identifier) =>
-                  multisigParticipants.has(identifier.prefix)
-              );
-    const multisigGroup =
-        multisigRequest?.groupAid === null ||
-        multisigRequest?.groupAid === undefined
-            ? undefined
-            : identifiers.find(
-                  (identifier) =>
-                      identifier.prefix === multisigRequest.groupAid
-              );
+            : (defaultMultisigRequestLocalMember(
+                  multisigRequest,
+                  identifiers
+              ) ?? undefined);
+    const multisigDefaultGroupAlias =
+        multisigRequest === null
+            ? ''
+            : defaultMultisigRequestGroupAlias(multisigRequest, identifiers);
     const multisigGroupAlias =
-        multisigGroup?.name ??
-        multisigRequest?.groupAlias ??
-        (multisigRequest?.groupAid === undefined ||
-        multisigRequest?.groupAid === null
-            ? 'multisig-group'
-            : `group-${multisigRequest.groupAid.slice(-6)}`);
+        multisigRequest === null
+            ? ''
+            : (multisigAliasDrafts[multisigRequest.notificationId] ??
+              multisigDefaultGroupAlias);
+    const multisigDisplayGroupAlias =
+        multisigRequest === null
+            ? 'Not available'
+            : displayMultisigRequestGroupAlias(multisigRequest, identifiers);
+    const multisigRequiresJoinLabel =
+        multisigRequest !== null && requiresMultisigJoinLabel(multisigRequest);
     const canApproveMultisig =
         multisigRequest?.status === 'actionable' &&
         multisigMember !== undefined &&
+        multisigGroupAlias.trim().length > 0 &&
         multisigFetcher.state === 'idle';
 
     useEffect(() => {
@@ -319,11 +282,11 @@ export const NotificationDetailView = () => {
         }
 
         const formData = new FormData();
-        formData.set('intent', multisigIntent(multisigRequest));
+        formData.set('intent', multisigRequestIntent(multisigRequest));
         formData.set('requestId', globalThis.crypto.randomUUID());
         formData.set('notificationId', multisigRequest.notificationId);
         formData.set('exnSaid', multisigRequest.exnSaid);
-        formData.set('groupAlias', multisigGroupAlias);
+        formData.set('groupAlias', multisigGroupAlias.trim());
         formData.set('localMemberName', multisigMember.name);
         multisigFetcher.submit(formData, {
             method: 'post',
@@ -674,7 +637,7 @@ export const NotificationDetailView = () => {
                 </ConsolePanel>
             ) : multisigRequest !== null ? (
                 <ConsolePanel
-                    title={multisigTitle(multisigRequest)}
+                    title={multisigRequestTitle(multisigRequest)}
                     eyebrow="Group"
                     actions={
                         <StatusPill
@@ -691,7 +654,7 @@ export const NotificationDetailView = () => {
                             />
                             <TelemetryRow
                                 label="Group alias"
-                                value={multisigGroupAlias}
+                                value={multisigDisplayGroupAlias}
                             />
                             <TelemetryRow
                                 label="Group AID"
@@ -791,6 +754,22 @@ export const NotificationDetailView = () => {
                                 alignItems: { xs: 'stretch', sm: 'center' },
                             }}
                         >
+                            {multisigRequiresJoinLabel && (
+                                <TextField
+                                    size="small"
+                                    label="New group label"
+                                    value={multisigGroupAlias}
+                                    helperText="Local label for this wallet after joining."
+                                    onChange={(event) =>
+                                        setMultisigAliasDrafts((current) => ({
+                                            ...current,
+                                            [multisigRequest.notificationId]:
+                                                event.target.value,
+                                        }))
+                                    }
+                                    data-testid="multisig-notification-detail-group-label"
+                                />
+                            )}
                             <Button
                                 variant="contained"
                                 startIcon={<HowToRegIcon />}
@@ -799,7 +778,7 @@ export const NotificationDetailView = () => {
                                 disabled={!canApproveMultisig}
                                 onClick={approveMultisigRequest}
                             >
-                                {multisigActionLabel(multisigRequest)}
+                                {multisigRequestActionLabel(multisigRequest)}
                             </Button>
                             <Button
                                 component={RouterLink}
