@@ -9,6 +9,7 @@ import { ContactsView } from '../features/contacts/ContactsView';
 import { CredentialsView } from '../features/credentials/CredentialsView';
 import { DashboardView } from '../features/dashboard/DashboardView';
 import { IdentifiersView } from '../features/identifiers/IdentifiersView';
+import { MultisigView } from '../features/multisig/MultisigView';
 import { AppNotificationsView } from '../features/notifications/AppNotificationsView';
 import { NotificationDetailView } from '../features/notifications/NotificationDetailView';
 import { OperationDetailView } from '../features/operations/OperationDetailView';
@@ -24,7 +25,9 @@ import {
     loadClient,
     loadCredentials,
     loadIdentifiers,
+    loadMultisig,
     loadNotifications,
+    multisigAction,
     notificationsAction,
     rootAction,
 } from './routeData';
@@ -38,6 +41,7 @@ export type AppRouteId =
     | 'dashboard'
     | 'contacts'
     | 'identifiers'
+    | 'multisig'
     | 'credentials'
     | 'client'
     | 'operations'
@@ -128,6 +132,17 @@ const APP_FEATURE_ROUTES: readonly AppFeatureRouteDescriptor[] = [
             gate: 'client',
             nav: true,
             testId: 'nav-identifiers',
+        },
+    },
+    {
+        id: 'multisig',
+        path: 'multisig',
+        handle: {
+            routeId: 'multisig',
+            label: 'Multisig',
+            gate: 'client',
+            nav: true,
+            testId: 'nav-multisig',
         },
     },
     {
@@ -289,11 +304,22 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
                     <RouteErrorBoundary title="Identifiers route failed" />
                 ),
             },
+            {
+                id: 'multisig',
+                path: 'multisig',
+                handle: APP_FEATURE_ROUTES[3].handle,
+                loader: ({ request }) => loadMultisig(runtime, request),
+                action: ({ request }) => multisigAction(runtime, request),
+                element: <MultisigView />,
+                errorElement: (
+                    <RouteErrorBoundary title="Multisig route failed" />
+                ),
+            },
             credentialRoute(
                 'credentials',
                 'credentials',
                 runtime,
-                APP_FEATURE_ROUTES[3].handle
+                APP_FEATURE_ROUTES[4].handle
             ),
             credentialRoute('credentialAid', 'credentials/:aid', runtime),
             credentialRoute(
@@ -314,7 +340,7 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
             {
                 id: 'client',
                 path: 'client',
-                handle: APP_FEATURE_ROUTES[4].handle,
+                handle: APP_FEATURE_ROUTES[5].handle,
                 loader: ({ request }) => loadClient(runtime, request),
                 element: <ClientView />,
                 errorElement: (
@@ -324,7 +350,7 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
             {
                 id: 'operations',
                 path: 'operations',
-                handle: APP_FEATURE_ROUTES[5].handle,
+                handle: APP_FEATURE_ROUTES[6].handle,
                 element: <OperationsView />,
                 errorElement: (
                     <RouteErrorBoundary title="Operations route failed" />
@@ -341,7 +367,7 @@ export const createAppRoutes = (runtime: AppRuntime): RouteObject[] => [
             {
                 id: 'appNotifications',
                 path: 'notifications',
-                handle: APP_FEATURE_ROUTES[6].handle,
+                handle: APP_FEATURE_ROUTES[7].handle,
                 loader: ({ request }) => loadNotifications(runtime, request),
                 action: ({ request }) => notificationsAction(runtime, request),
                 element: <AppNotificationsView />,

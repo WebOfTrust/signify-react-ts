@@ -35,6 +35,14 @@ describe('data-router route metadata', () => {
                 path: '/identifiers',
             },
             {
+                routeId: 'multisig',
+                label: 'Multisig',
+                gate: 'client',
+                nav: true,
+                testId: 'nav-multisig',
+                path: '/multisig',
+            },
+            {
                 routeId: 'credentials',
                 label: 'Credentials',
                 gate: 'client',
@@ -101,20 +109,24 @@ describe('data-router route metadata', () => {
                 handle: routeHandles[2],
             },
             {
-                id: 'credentials',
+                id: 'multisig',
                 handle: routeHandles[3],
             },
             {
-                id: 'client',
+                id: 'credentials',
                 handle: routeHandles[4],
             },
             {
-                id: 'operations',
+                id: 'client',
                 handle: routeHandles[5],
             },
             {
-                id: 'appNotifications',
+                id: 'operations',
                 handle: routeHandles[6],
+            },
+            {
+                id: 'appNotifications',
+                handle: routeHandles[7],
             },
         ]);
     });

@@ -4,6 +4,18 @@ import type {
     IdentifierCreateDraft,
     IdentifierSummary,
 } from '../features/identifiers/identifierTypes';
+import type {
+    MultisigCreateDraft,
+    MultisigInteractionDraft,
+    MultisigRequestActionInput,
+    MultisigRotationDraft,
+} from '../features/multisig/multisigTypes';
+import {
+    isMultisigThresholdSpec,
+    thresholdSpecForMembers,
+    type MultisigThresholdSith,
+    type MultisigThresholdSpec,
+} from '../features/multisig/multisigThresholds';
 import { isIdentifierCreateDraft } from '../features/identifiers/identifierHelpers';
 import type {
     OobiRole,
@@ -81,6 +93,34 @@ export type ContactsLoaderData =
 export type NotificationsLoaderData =
     | { status: 'ready'; identifiers: IdentifierSummary[] }
     | { status: 'error'; identifiers: IdentifierSummary[]; message: string }
+    | BlockedRouteData;
+
+export interface MultisigGroupDetails {
+    groupAlias: string;
+    groupAid: string;
+    signingMemberAids: string[];
+    rotationMemberAids: string[];
+    signingThreshold: MultisigThresholdSith | null;
+    rotationThreshold: MultisigThresholdSith | null;
+    sequence: string | null;
+    digest: string | null;
+}
+
+/**
+ * Loader data for `/multisig`.
+ */
+export type MultisigLoaderData =
+    | {
+          status: 'ready';
+          identifiers: IdentifierSummary[];
+          groupDetails: MultisigGroupDetails[];
+      }
+    | {
+          status: 'error';
+          identifiers: IdentifierSummary[];
+          groupDetails: MultisigGroupDetails[];
+          message: string;
+      }
     | BlockedRouteData;
 
 /**
@@ -207,11 +247,55 @@ export type CredentialActionData =
       };
 
 /**
+ * Typed action result for multisig group workflows.
+ */
+export type MultisigActionData =
+    | {
+          intent:
+              | 'create'
+              | 'acceptInception'
+              | 'joinInception'
+              | 'authorizeAgents'
+              | 'acceptEndRole'
+              | 'interact'
+              | 'acceptInteraction'
+              | 'rotate'
+              | 'acceptRotation'
+              | 'joinRotation';
+          ok: true;
+          message: string;
+          requestId: string;
+          operationRoute: string;
+      }
+    | {
+          intent:
+              | 'create'
+              | 'acceptInception'
+              | 'joinInception'
+              | 'authorizeAgents'
+              | 'acceptEndRole'
+              | 'interact'
+              | 'acceptInteraction'
+              | 'rotate'
+              | 'acceptRotation'
+              | 'joinRotation'
+              | 'unsupported';
+          ok: false;
+          message: string;
+          requestId?: string;
+          operationRoute?: string;
+      };
+
+/**
  * Minimal connected-client shape route data needs for diagnostics.
  */
 interface RouteClient {
     /** KERIA admin URL shown in identifier-loader failure guidance. */
     url?: string;
+    /** Optional live Signify identifier API used for group member detail hydration. */
+    identifiers?: () => {
+        members: (name: string) => Promise<unknown>;
+    };
 }
 
 /**
@@ -277,6 +361,51 @@ export interface RouteDataRuntime {
     /** Start identifier rotation in the background. */
     startRotateIdentifier(
         aid: string,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start multisig group inception in the background. */
+    startCreateMultisigGroup(
+        draft: MultisigCreateDraft,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Accept a multisig inception request in the background. */
+    startAcceptMultisigInception(
+        input: MultisigRequestActionInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Authorize member agent endpoints for a multisig group. */
+    startAuthorizeMultisigAgents(
+        input: { groupAlias: string; localMemberName?: string | null },
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Accept a multisig endpoint role request in the background. */
+    startAcceptMultisigEndRole(
+        input: MultisigRequestActionInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start a multisig interaction in the background. */
+    startInteractMultisigGroup(
+        draft: MultisigInteractionDraft,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Accept a multisig interaction request in the background. */
+    startAcceptMultisigInteraction(
+        input: MultisigRequestActionInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Start a multisig rotation in the background. */
+    startRotateMultisigGroup(
+        draft: MultisigRotationDraft,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Accept a multisig rotation request in the background. */
+    startAcceptMultisigRotation(
+        input: MultisigRequestActionInput,
+        options?: { requestId?: string }
+    ): BackgroundWorkflowStartResult;
+    /** Join a multisig group through a rotation request. */
+    startJoinMultisigRotation(
+        input: MultisigRequestActionInput,
         options?: { requestId?: string }
     ): BackgroundWorkflowStartResult;
     /** Start OOBI generation in the background. */
@@ -386,6 +515,240 @@ const parseIdentifierCreateDraft = (
     } catch {
         return null;
     }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
+const isStringArray = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+const isNestedStringArray = (value: unknown): value is string[][] =>
+    Array.isArray(value) && value.every(isStringArray);
+
+const isSithValue = (value: unknown): value is MultisigThresholdSith =>
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    isStringArray(value) ||
+    isNestedStringArray(value);
+
+const aidValue = (entry: unknown): string | null => {
+    if (!isRecord(entry)) {
+        return null;
+    }
+
+    const state = isRecord(entry.state) ? entry.state : {};
+    const candidates = [entry.prefix, entry.aid, state.i];
+    for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim().length > 0) {
+            return candidate.trim();
+        }
+    }
+
+    return null;
+};
+
+const groupMembersFromResponse = (
+    response: unknown,
+    role: 'signing' | 'rotation'
+): string[] => {
+    const record = isRecord(response) ? response : {};
+    const entries = Array.isArray(record[role]) ? record[role] : [];
+    const seen = new Set<string>();
+    const aids: string[] = [];
+    for (const entry of entries) {
+        const aid = aidValue(entry);
+        if (aid !== null && !seen.has(aid)) {
+            seen.add(aid);
+            aids.push(aid);
+        }
+    }
+    return aids;
+};
+
+const groupDetailsFromIdentifier = async (
+    runtime: RouteDataRuntime,
+    identifier: IdentifierSummary
+): Promise<MultisigGroupDetails> => {
+    const state: Record<string, unknown> = isRecord(identifier.state)
+        ? (identifier.state as Record<string, unknown>)
+        : {};
+    let signingMemberAids: string[] = [];
+    let rotationMemberAids: string[] = [];
+    try {
+        const response = await runtime
+            .getClient()
+            ?.identifiers?.()
+            .members(identifier.name);
+        signingMemberAids = groupMembersFromResponse(response, 'signing');
+        rotationMemberAids = groupMembersFromResponse(response, 'rotation');
+    } catch {
+        // Missing member details should not block rendering the multisig page.
+    }
+
+    return {
+        groupAlias: identifier.name,
+        groupAid: identifier.prefix,
+        signingMemberAids,
+        rotationMemberAids:
+            rotationMemberAids.length > 0 ? rotationMemberAids : signingMemberAids,
+        signingThreshold: isSithValue(state.kt) ? state.kt : null,
+        rotationThreshold: isSithValue(state.nt) ? state.nt : null,
+        sequence: typeof state.s === 'string' ? state.s : null,
+        digest: typeof state.d === 'string' ? state.d : null,
+    };
+};
+
+const isThresholdSpec = (value: unknown): value is MultisigThresholdSpec =>
+    isMultisigThresholdSpec(value);
+
+const parseJsonRecord = (value: string): Record<string, unknown> | null => {
+    if (value.trim().length === 0) {
+        return null;
+    }
+
+    try {
+        const parsed: unknown = JSON.parse(value);
+        return isRecord(parsed) ? parsed : null;
+    } catch {
+        return null;
+    }
+};
+
+const parseMultisigCreateDraft = (
+    value: string
+): MultisigCreateDraft | null => {
+    const parsed = parseJsonRecord(value);
+    if (parsed === null) {
+        return null;
+    }
+
+    const signingMemberAids = parsed.signingMemberAids;
+    const rotationMemberAids = parsed.rotationMemberAids;
+    if (
+        typeof parsed.groupAlias !== 'string' ||
+        parsed.groupAlias.trim().length === 0 ||
+        typeof parsed.localMemberName !== 'string' ||
+        parsed.localMemberName.trim().length === 0 ||
+        typeof parsed.localMemberAid !== 'string' ||
+        parsed.localMemberAid.trim().length === 0 ||
+        !Array.isArray(parsed.members) ||
+        !isStringArray(signingMemberAids) ||
+        !isStringArray(rotationMemberAids)
+    ) {
+        return null;
+    }
+
+    return {
+        groupAlias: parsed.groupAlias,
+        localMemberName: parsed.localMemberName,
+        localMemberAid: parsed.localMemberAid,
+        members: parsed.members.flatMap((member) =>
+            isRecord(member) &&
+            typeof member.aid === 'string' &&
+            typeof member.alias === 'string'
+                ? [
+                      {
+                          aid: member.aid,
+                          alias: member.alias,
+                          source:
+                              member.source === 'local' ||
+                              member.source === 'contact' ||
+                              member.source === 'manual'
+                                  ? member.source
+                                  : 'manual',
+                      },
+                  ]
+                : []
+        ),
+        signingMemberAids,
+        rotationMemberAids,
+        signingThreshold: isThresholdSpec(parsed.signingThreshold)
+            ? parsed.signingThreshold
+            : thresholdSpecForMembers(signingMemberAids),
+        rotationThreshold: isThresholdSpec(parsed.rotationThreshold)
+            ? parsed.rotationThreshold
+            : thresholdSpecForMembers(rotationMemberAids),
+        witnessMode: parsed.witnessMode === 'demo' ? 'demo' : 'none',
+    };
+};
+
+const parseMultisigInteractionDraft = (
+    formData: FormData
+): MultisigInteractionDraft | null => {
+    const groupAlias = formString(formData, 'groupAlias').trim();
+    if (groupAlias.length === 0) {
+        return null;
+    }
+
+    const rawData = formString(formData, 'data').trim();
+    let data: unknown = {};
+    if (rawData.length > 0) {
+        try {
+            data = JSON.parse(rawData);
+        } catch {
+            data = rawData;
+        }
+    }
+
+    return {
+        groupAlias,
+        localMemberName: formString(formData, 'localMemberName').trim() || null,
+        data,
+    };
+};
+
+const parseMultisigRotationDraft = (
+    value: string
+): MultisigRotationDraft | null => {
+    const parsed = parseJsonRecord(value);
+    if (parsed === null) {
+        return null;
+    }
+
+    if (
+        typeof parsed.groupAlias !== 'string' ||
+        parsed.groupAlias.trim().length === 0 ||
+        !isStringArray(parsed.signingMemberAids) ||
+        !isStringArray(parsed.rotationMemberAids)
+    ) {
+        return null;
+    }
+
+    return {
+        groupAlias: parsed.groupAlias,
+        localMemberName:
+            typeof parsed.localMemberName === 'string'
+                ? parsed.localMemberName
+                : null,
+        signingMemberAids: parsed.signingMemberAids,
+        rotationMemberAids: parsed.rotationMemberAids,
+        nextThreshold: isThresholdSpec(parsed.nextThreshold)
+            ? parsed.nextThreshold
+            : thresholdSpecForMembers(parsed.rotationMemberAids),
+    };
+};
+
+const parseMultisigRequestInput = (
+    formData: FormData
+): MultisigRequestActionInput | null => {
+    const exnSaid = formString(formData, 'exnSaid').trim();
+    const groupAlias = formString(formData, 'groupAlias').trim();
+    const localMemberName = formString(formData, 'localMemberName').trim();
+    if (
+        exnSaid.length === 0 ||
+        groupAlias.length === 0 ||
+        localMemberName.length === 0
+    ) {
+        return null;
+    }
+
+    return {
+        notificationId: formString(formData, 'notificationId').trim() || null,
+        exnSaid,
+        groupAlias,
+        localMemberName,
+    };
 };
 
 const parseOobiRole = (value: string): OobiRole | null =>
@@ -531,6 +894,39 @@ export const loadIdentifiers = async (
             status: 'error',
             identifiers: [],
             message: `Unable to load identifiers: ${normalized.message}. Connect can succeed even when the browser blocks signed KERIA resource requests; check that ${client.url ?? 'KERIA'} is reachable from this page and allows the Signify signed-request headers.`,
+        };
+    }
+};
+
+/**
+ * Loader for `/multisig`.
+ */
+export const loadMultisig = async (
+    runtime: RouteDataRuntime,
+    request?: Request
+): Promise<MultisigLoaderData> => {
+    const client = runtime.getClient();
+    if (client === null) {
+        return { status: 'blocked' };
+    }
+
+    try {
+        const [identifiers] = await Promise.all([
+            runtime.listIdentifiers({ signal: request?.signal }),
+            runtime.syncSessionInventory({ signal: request?.signal }),
+        ]);
+        const groupDetails = await Promise.all(
+            identifiers
+                .filter((identifier) => 'group' in identifier)
+                .map((identifier) => groupDetailsFromIdentifier(runtime, identifier))
+        );
+        return { status: 'ready', identifiers, groupDetails };
+    } catch (error) {
+        return {
+            status: 'error',
+            identifiers: [],
+            groupDetails: [],
+            message: `Unable to load multisig inventory: ${toRouteError(error).message}`,
         };
     }
 };
@@ -755,6 +1151,236 @@ export const identifiersAction = async (
         ok: false,
         message: `Unsupported identifier action: ${intent || 'missing intent'}`,
     };
+};
+
+const multisigIntentFromString = (
+    value: string
+): Exclude<MultisigActionData['intent'], 'unsupported'> =>
+    value === 'acceptInception' ||
+    value === 'joinInception' ||
+    value === 'authorizeAgents' ||
+    value === 'acceptEndRole' ||
+    value === 'interact' ||
+    value === 'acceptInteraction' ||
+    value === 'rotate' ||
+    value === 'acceptRotation' ||
+    value === 'joinRotation'
+        ? value
+        : 'create';
+
+const multisigActionStarted = (
+    intent: Exclude<MultisigActionData['intent'], 'unsupported'>,
+    started: BackgroundWorkflowStartResult,
+    message: string
+): MultisigActionData => {
+    if (started.status === 'conflict') {
+        return {
+            intent,
+            ok: false,
+            message: started.message,
+            requestId: started.requestId,
+            operationRoute: started.operationRoute,
+        };
+    }
+
+    return {
+        intent,
+        ok: true,
+        message,
+        requestId: started.requestId,
+        operationRoute: started.operationRoute,
+    };
+};
+
+/**
+ * Route action for multisig group workflows.
+ */
+export const multisigAction = async (
+    runtime: RouteDataRuntime,
+    request: Request
+): Promise<MultisigActionData> => {
+    const formData = await request.formData();
+    const intent = formString(formData, 'intent');
+    const requestId = formString(formData, 'requestId');
+    const typedIntent = multisigIntentFromString(intent);
+
+    if (runtime.getClient() === null) {
+        return {
+            intent: typedIntent,
+            ok: false,
+            message: 'Connect to KERIA before changing multisig groups.',
+            requestId,
+        };
+    }
+
+    try {
+        if (intent === 'create') {
+            const draft = parseMultisigCreateDraft(
+                formString(formData, 'draft')
+            );
+            if (draft === null) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Invalid multisig group draft.',
+                    requestId,
+                };
+            }
+
+            return multisigActionStarted(
+                intent,
+                runtime.startCreateMultisigGroup(draft, {
+                    requestId: requestId || undefined,
+                }),
+                `Creating multisig group ${draft.groupAlias}`
+            );
+        }
+
+        if (intent === 'authorizeAgents') {
+            const groupAlias = formString(formData, 'groupAlias').trim();
+            if (groupAlias.length === 0) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Group alias is required.',
+                    requestId,
+                };
+            }
+
+            return multisigActionStarted(
+                intent,
+                runtime.startAuthorizeMultisigAgents(
+                    {
+                        groupAlias,
+                        localMemberName:
+                            formString(formData, 'localMemberName').trim() ||
+                            null,
+                    },
+                    { requestId: requestId || undefined }
+                ),
+                `Authorizing agents for ${groupAlias}`
+            );
+        }
+
+        if (intent === 'interact') {
+            const draft = parseMultisigInteractionDraft(formData);
+            if (draft === null) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Group alias is required.',
+                    requestId,
+                };
+            }
+
+            return multisigActionStarted(
+                intent,
+                runtime.startInteractMultisigGroup(draft, {
+                    requestId: requestId || undefined,
+                }),
+                `Interacting with ${draft.groupAlias}`
+            );
+        }
+
+        if (intent === 'rotate') {
+            const draft = parseMultisigRotationDraft(
+                formString(formData, 'draft')
+            );
+            if (draft === null) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Invalid multisig rotation draft.',
+                    requestId,
+                };
+            }
+
+            return multisigActionStarted(
+                intent,
+                runtime.startRotateMultisigGroup(draft, {
+                    requestId: requestId || undefined,
+                }),
+                `Rotating multisig group ${draft.groupAlias}`
+            );
+        }
+
+        if (
+            intent === 'acceptInception' ||
+            intent === 'joinInception' ||
+            intent === 'acceptEndRole' ||
+            intent === 'acceptInteraction' ||
+            intent === 'acceptRotation' ||
+            intent === 'joinRotation'
+        ) {
+            const groupAlias = formString(formData, 'groupAlias').trim();
+            if (
+                (intent === 'acceptInception' ||
+                    intent === 'joinInception') &&
+                groupAlias.length === 0
+            ) {
+                return {
+                    intent,
+                    ok: false,
+                    message: 'Enter a label for this new group identifier.',
+                    requestId,
+                };
+            }
+
+            const input = parseMultisigRequestInput(formData);
+            if (input === null) {
+                return {
+                    intent,
+                    ok: false,
+                    message:
+                        'Notification SAID, group alias, and local member are required.',
+                    requestId,
+                };
+            }
+
+            const started =
+                intent === 'acceptInception' || intent === 'joinInception'
+                    ? runtime.startAcceptMultisigInception(input, {
+                          requestId: requestId || undefined,
+                      })
+                    : intent === 'acceptEndRole'
+                      ? runtime.startAcceptMultisigEndRole(input, {
+                            requestId: requestId || undefined,
+                        })
+                      : intent === 'acceptInteraction'
+                        ? runtime.startAcceptMultisigInteraction(input, {
+                              requestId: requestId || undefined,
+                          })
+                        : intent === 'acceptRotation'
+                          ? runtime.startAcceptMultisigRotation(input, {
+                                requestId: requestId || undefined,
+                            })
+                          : runtime.startJoinMultisigRotation(input, {
+                                requestId: requestId || undefined,
+                            });
+
+            return multisigActionStarted(
+                intent,
+                started,
+                intent === 'joinInception'
+                    ? `Joining multisig group ${input.groupAlias}`
+                    : `Handling multisig request for ${input.groupAlias}`
+            );
+        }
+
+        return {
+            intent: 'unsupported',
+            ok: false,
+            message: `Unsupported multisig action: ${intent || 'missing intent'}`,
+            requestId,
+        };
+    } catch (error) {
+        return {
+            intent: typedIntent,
+            ok: false,
+            message: toRouteError(error).message,
+            requestId,
+        };
+    }
 };
 
 /**

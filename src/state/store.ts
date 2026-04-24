@@ -5,6 +5,7 @@ import { contactsReducer } from './contacts.slice';
 import { credentialsReducer } from './credentials.slice';
 import { exchangeTombstonesReducer } from './exchangeTombstones.slice';
 import { identifiersReducer } from './identifiers.slice';
+import { multisigReducer } from './multisig.slice';
 import { notificationsReducer } from './notifications.slice';
 import { operationsReducer } from './operations.slice';
 import { registryReducer } from './registry.slice';
@@ -29,6 +30,7 @@ export const createAppStore = () =>
             exchangeTombstones: exchangeTombstonesReducer,
             credentials: credentialsReducer,
             identifiers: identifiersReducer,
+            multisig: multisigReducer,
             notifications: notificationsReducer,
             schema: schemaReducer,
             registry: registryReducer,

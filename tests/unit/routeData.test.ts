@@ -13,7 +13,9 @@ import {
     loadCredentials,
     loadDashboard,
     loadIdentifiers,
+    loadMultisig,
     notificationsAction,
+    multisigAction,
     rootAction,
     type RouteDataRuntime,
 } from '../../src/app/routeData';
@@ -76,6 +78,51 @@ const makeRuntime = (
         status: 'accepted',
         requestId: 'rotate-request-1',
         operationRoute: '/operations/rotate-request-1',
+    })),
+    startCreateMultisigGroup: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'create-multisig-request-1',
+        operationRoute: '/operations/create-multisig-request-1',
+    })),
+    startAcceptMultisigInception: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'accept-multisig-request-1',
+        operationRoute: '/operations/accept-multisig-request-1',
+    })),
+    startAuthorizeMultisigAgents: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'authorize-multisig-request-1',
+        operationRoute: '/operations/authorize-multisig-request-1',
+    })),
+    startAcceptMultisigEndRole: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'accept-role-multisig-request-1',
+        operationRoute: '/operations/accept-role-multisig-request-1',
+    })),
+    startInteractMultisigGroup: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'interact-multisig-request-1',
+        operationRoute: '/operations/interact-multisig-request-1',
+    })),
+    startAcceptMultisigInteraction: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'accept-interaction-multisig-request-1',
+        operationRoute: '/operations/accept-interaction-multisig-request-1',
+    })),
+    startRotateMultisigGroup: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'rotate-multisig-request-1',
+        operationRoute: '/operations/rotate-multisig-request-1',
+    })),
+    startAcceptMultisigRotation: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'accept-rotation-multisig-request-1',
+        operationRoute: '/operations/accept-rotation-multisig-request-1',
+    })),
+    startJoinMultisigRotation: vi.fn(() => ({
+        status: 'accepted',
+        requestId: 'join-rotation-multisig-request-1',
+        operationRoute: '/operations/join-rotation-multisig-request-1',
     })),
     startGenerateOobi: vi.fn(() => ({
         status: 'accepted',
@@ -177,6 +224,9 @@ describe('route loaders', () => {
         await expect(loadCredentials(runtime)).resolves.toEqual({
             status: 'blocked',
         });
+        await expect(loadMultisig(runtime)).resolves.toEqual({
+            status: 'blocked',
+        });
         await expect(loadClient(runtime)).resolves.toEqual({
             status: 'blocked',
         });
@@ -239,6 +289,53 @@ describe('route loaders', () => {
 
         await expect(loadContacts(runtime)).resolves.toEqual({
             status: 'ready',
+        });
+        expect(runtime.listIdentifiers).toHaveBeenCalledOnce();
+        expect(runtime.syncSessionInventory).toHaveBeenCalledOnce();
+    });
+
+    it('loads multisig inventory through identifiers and session sync', async () => {
+        const identifiers = [
+            {
+                name: 'group',
+                prefix: 'Egroup',
+                group: {},
+                state: {
+                    kt: ['1/2', '1/2'],
+                    nt: ['1/2', '1/2'],
+                    s: '0',
+                    d: 'Eevent',
+                },
+            } as IdentifierSummary,
+        ];
+        const runtime = makeRuntime({
+            listIdentifiers: vi.fn(async () => identifiers),
+            getClient: vi.fn(() => ({
+                url: 'http://keria.example',
+                identifiers: () => ({
+                    members: vi.fn(async () => ({
+                        signing: [{ prefix: 'Ealice' }, { prefix: 'Ebob' }],
+                        rotation: [{ prefix: 'Ealice' }, { prefix: 'Ebob' }],
+                    })),
+                }),
+            })),
+        });
+
+        await expect(loadMultisig(runtime)).resolves.toEqual({
+            status: 'ready',
+            identifiers,
+            groupDetails: [
+                {
+                    groupAlias: 'group',
+                    groupAid: 'Egroup',
+                    signingMemberAids: ['Ealice', 'Ebob'],
+                    rotationMemberAids: ['Ealice', 'Ebob'],
+                    signingThreshold: ['1/2', '1/2'],
+                    rotationThreshold: ['1/2', '1/2'],
+                    sequence: '0',
+                    digest: 'Eevent',
+                },
+            ],
         });
         expect(runtime.listIdentifiers).toHaveBeenCalledOnce();
         expect(runtime.syncSessionInventory).toHaveBeenCalledOnce();
@@ -434,6 +531,245 @@ describe('route actions', () => {
         expect(runtime.startRotateIdentifier).toHaveBeenCalledWith(
             'alice',
             expect.objectContaining({ requestId: 'rotate-request-1' })
+        );
+    });
+
+    it('creates multisig groups through the multisig action', async () => {
+        const runtime = makeRuntime();
+        const draft = {
+            groupAlias: 'team',
+            localMemberName: 'alice',
+            localMemberAid: 'Ealice',
+            members: [
+                { aid: 'Ealice', alias: 'alice', source: 'local' },
+                { aid: 'Ebob', alias: 'bob', source: 'contact' },
+            ],
+            signingMemberAids: ['Ealice', 'Ebob'],
+            rotationMemberAids: ['Ealice', 'Ebob'],
+            signingThreshold: {
+                mode: 'autoEqual',
+                memberAids: ['Ealice', 'Ebob'],
+            },
+            rotationThreshold: {
+                mode: 'autoEqual',
+                memberAids: ['Ealice', 'Ebob'],
+            },
+            witnessMode: 'none',
+        };
+
+        await expect(
+            multisigAction(
+                runtime,
+                makeRequest('/multisig', {
+                    intent: 'create',
+                    requestId: 'create-multisig-request-1',
+                    draft: JSON.stringify(draft),
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'create',
+            ok: true,
+            message: 'Creating multisig group team',
+            requestId: 'create-multisig-request-1',
+            operationRoute: '/operations/create-multisig-request-1',
+        });
+        expect(runtime.startCreateMultisigGroup).toHaveBeenCalledWith(
+            draft,
+            expect.objectContaining({
+                requestId: 'create-multisig-request-1',
+            })
+        );
+    });
+
+    it('accepts multisig requests through the multisig action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            multisigAction(
+                runtime,
+                makeRequest('/multisig', {
+                    intent: 'acceptInception',
+                    requestId: 'accept-multisig-request-1',
+                    notificationId: 'note-1',
+                    exnSaid: 'Eexn',
+                    groupAlias: 'team',
+                    localMemberName: 'alice',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'acceptInception',
+            ok: true,
+            message: 'Handling multisig request for team',
+            requestId: 'accept-multisig-request-1',
+            operationRoute: '/operations/accept-multisig-request-1',
+        });
+        expect(runtime.startAcceptMultisigInception).toHaveBeenCalledWith(
+            {
+                notificationId: 'note-1',
+                exnSaid: 'Eexn',
+                groupAlias: 'team',
+                localMemberName: 'alice',
+            },
+            expect.objectContaining({
+                requestId: 'accept-multisig-request-1',
+            })
+        );
+    });
+
+    it('joins multisig inception requests through the multisig action alias', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            multisigAction(
+                runtime,
+                makeRequest('/multisig', {
+                    intent: 'joinInception',
+                    requestId: 'accept-multisig-request-1',
+                    notificationId: 'note-1',
+                    exnSaid: 'Eexn',
+                    groupAlias: 'team',
+                    localMemberName: 'alice',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'joinInception',
+            ok: true,
+            message: 'Joining multisig group team',
+            requestId: 'accept-multisig-request-1',
+            operationRoute: '/operations/accept-multisig-request-1',
+        });
+        expect(runtime.startAcceptMultisigInception).toHaveBeenCalledWith(
+            {
+                notificationId: 'note-1',
+                exnSaid: 'Eexn',
+                groupAlias: 'team',
+                localMemberName: 'alice',
+            },
+            expect.objectContaining({
+                requestId: 'accept-multisig-request-1',
+            })
+        );
+    });
+
+    it('rejects multisig inception joins without a follower-local group label', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            multisigAction(
+                runtime,
+                makeRequest('/multisig', {
+                    intent: 'joinInception',
+                    requestId: 'accept-multisig-request-1',
+                    notificationId: 'note-1',
+                    exnSaid: 'Eexn',
+                    groupAlias: '',
+                    localMemberName: 'alice',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'joinInception',
+            ok: false,
+            message: 'Enter a label for this new group identifier.',
+            requestId: 'accept-multisig-request-1',
+        });
+        expect(runtime.startAcceptMultisigInception).not.toHaveBeenCalled();
+    });
+
+    it('starts multisig interactions with parsed JSON and plain-string payloads', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            multisigAction(
+                runtime,
+                makeRequest('/multisig', {
+                    intent: 'interact',
+                    requestId: 'interact-multisig-request-1',
+                    groupAlias: 'team',
+                    localMemberName: 'alice',
+                    data: JSON.stringify({ anchor: 'Eevent', sequence: 1 }),
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'interact',
+            ok: true,
+            message: 'Interacting with team',
+            requestId: 'interact-multisig-request-1',
+            operationRoute: '/operations/interact-multisig-request-1',
+        });
+        expect(runtime.startInteractMultisigGroup).toHaveBeenCalledWith(
+            {
+                groupAlias: 'team',
+                localMemberName: 'alice',
+                data: { anchor: 'Eevent', sequence: 1 },
+            },
+            expect.objectContaining({
+                requestId: 'interact-multisig-request-1',
+            })
+        );
+
+        const stringRuntime = makeRuntime();
+        await expect(
+            multisigAction(
+                stringRuntime,
+                makeRequest('/multisig', {
+                    intent: 'interact',
+                    requestId: 'interact-multisig-request-2',
+                    groupAlias: 'team',
+                    localMemberName: '',
+                    data: 'plain interaction data',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'interact',
+            ok: true,
+            message: 'Interacting with team',
+            requestId: 'interact-multisig-request-1',
+            operationRoute: '/operations/interact-multisig-request-1',
+        });
+        expect(stringRuntime.startInteractMultisigGroup).toHaveBeenCalledWith(
+            {
+                groupAlias: 'team',
+                localMemberName: null,
+                data: 'plain interaction data',
+            },
+            expect.objectContaining({
+                requestId: 'interact-multisig-request-2',
+            })
+        );
+    });
+
+    it('accepts multisig interaction requests through the multisig action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            multisigAction(
+                runtime,
+                makeRequest('/multisig', {
+                    intent: 'acceptInteraction',
+                    requestId: 'accept-interaction-multisig-request-1',
+                    notificationId: 'note-ixn',
+                    exnSaid: 'Eixn-exn',
+                    groupAlias: 'team',
+                    localMemberName: 'alice',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'acceptInteraction',
+            ok: true,
+            message: 'Handling multisig request for team',
+            requestId: 'accept-interaction-multisig-request-1',
+            operationRoute: '/operations/accept-interaction-multisig-request-1',
+        });
+        expect(runtime.startAcceptMultisigInteraction).toHaveBeenCalledWith(
+            {
+                notificationId: 'note-ixn',
+                exnSaid: 'Eixn-exn',
+                groupAlias: 'team',
+                localMemberName: 'alice',
+            },
+            expect.objectContaining({
+                requestId: 'accept-interaction-multisig-request-1',
+            })
         );
     });
 

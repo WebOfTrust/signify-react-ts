@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import type { MultisigThresholdSith } from '../features/multisig/multisigThresholds';
 import {
     sessionConnectionFailed,
     sessionConnecting,
@@ -39,6 +40,31 @@ export type DelegationRequestNotificationStatus =
     | 'approved'
     | 'notForThisWallet'
     | 'error';
+
+/** Local state for multisig protocol requests. */
+export type MultisigRequestNotificationStatus =
+    | 'actionable'
+    | 'approved'
+    | 'notForThisWallet'
+    | 'error';
+
+/** Multisig request route variants handled by this wallet. */
+export type MultisigRequestRoute =
+    | '/multisig/icp'
+    | '/multisig/rpy'
+    | '/multisig/ixn'
+    | '/multisig/rot';
+
+/** Response progress for one multisig exchange route and group. */
+export interface MultisigExchangeProgress {
+    groupAid: string | null;
+    route: MultisigRequestRoute;
+    expectedMemberAids: string[];
+    respondedMemberAids: string[];
+    waitingMemberAids: string[];
+    completed: number;
+    total: number;
+}
 
 /**
  * Actionable challenge request metadata hydrated from a KERIA notification EXN.
@@ -105,6 +131,29 @@ export interface DelegationRequestNotification {
 }
 
 /**
+ * Hydrated multisig protocol metadata. Event payloads remain summarized here;
+ * the workflows reload the authoritative EXN through `groups().getRequest`.
+ */
+export interface MultisigRequestNotification {
+    notificationId: string;
+    exnSaid: string;
+    route: MultisigRequestRoute;
+    senderAid: string | null;
+    groupAid: string | null;
+    groupAlias: string | null;
+    signingMemberAids: string[];
+    rotationMemberAids: string[];
+    signingThreshold: MultisigThresholdSith | null;
+    rotationThreshold: MultisigThresholdSith | null;
+    embeddedPayloadSummary: string | null;
+    embeddedEventType: string | null;
+    embeddedEventSaid: string | null;
+    progress: MultisigExchangeProgress;
+    createdAt: string;
+    status: MultisigRequestNotificationStatus;
+}
+
+/**
  * Durable notification summary used by polling and future processing workflows.
  */
 export interface NotificationRecord {
@@ -119,6 +168,7 @@ export interface NotificationRecord {
     credentialGrant?: CredentialGrantNotification | null;
     credentialAdmit?: CredentialAdmitNotification | null;
     delegationRequest?: DelegationRequestNotification | null;
+    multisigRequest?: MultisigRequestNotification | null;
     updatedAt: string;
 }
 
@@ -247,6 +297,33 @@ export const notificationsSlice = createSlice({
                 }
             }
         },
+        multisigRequestNotificationApproved(
+            state,
+            {
+                payload,
+            }: PayloadAction<{
+                id: string;
+                updatedAt: string;
+                message?: string | null;
+            }>
+        ) {
+            const notification = state.byId[payload.id];
+            if (notification !== undefined) {
+                notification.read = true;
+                notification.status = 'processed';
+                notification.updatedAt = payload.updatedAt;
+                notification.message = payload.message ?? notification.message;
+                if (
+                    notification.multisigRequest !== null &&
+                    notification.multisigRequest !== undefined
+                ) {
+                    notification.multisigRequest = {
+                        ...notification.multisigRequest,
+                        status: 'approved',
+                    };
+                }
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -263,6 +340,7 @@ export const {
     notificationStatusChanged,
     challengeRequestNotificationResponded,
     delegationRequestNotificationApproved,
+    multisigRequestNotificationApproved,
 } = notificationsSlice.actions;
 
 /** Reducer mounted at `state.notifications`. */

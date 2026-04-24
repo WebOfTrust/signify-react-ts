@@ -9,6 +9,12 @@ import type {
     IdentifierDelegationChainNode,
     IdentifierSummary,
 } from '../features/identifiers/identifierTypes';
+import type {
+    MultisigCreateDraft,
+    MultisigInteractionDraft,
+    MultisigRequestActionInput,
+    MultisigRotationDraft,
+} from '../features/multisig/multisigTypes';
 import type { ResolveContactInput } from '../services/contacts.service';
 import type { GeneratedOobiRecord } from '../state/contacts.slice';
 import {
@@ -120,6 +126,17 @@ import {
     type IssueSediCredentialInput,
     type ResolveCredentialSchemaInput,
 } from '../workflows/credentials.op';
+import {
+    acceptMultisigEndRoleOp,
+    acceptMultisigInceptionOp,
+    acceptMultisigInteractionOp,
+    acceptMultisigRotationOp,
+    authorizeMultisigAgentsOp,
+    createMultisigGroupOp,
+    interactMultisigGroupOp,
+    joinMultisigRotationOp,
+    rotateMultisigGroupOp,
+} from '../workflows/multisig.op';
 
 /**
  * Complete connection-state model for the app runtime.
@@ -1033,6 +1050,310 @@ export class AppRuntime {
                         ? 'Delegated rotation failed'
                         : 'Identifier rotation failed',
                     message: `The rotation for ${aid} failed.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    /**
+     * Launch multisig group inception and invitation delivery.
+     */
+    startCreateMultisigGroup = (
+        draft: MultisigCreateDraft,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const groupAlias = draft.groupAlias.trim();
+        const requestId = options.requestId ?? createRequestId();
+
+        return this.startBackgroundWorkflow(
+            () => createMultisigGroupOp(draft, requestId),
+            {
+                requestId,
+                label: `Creating multisig group ${groupAlias}`,
+                title: `Create multisig group ${groupAlias}`,
+                description:
+                    'Creates the local group inception event, sends member invitations, and waits for KERIA completion.',
+                kind: 'createMultisigGroup',
+                resourceKeys: [
+                    `multisig:group:${groupAlias}`,
+                    `identifier:aid:${draft.localMemberAid}`,
+                ],
+                resultRoute: { label: 'View multisig', path: '/multisig' },
+                successNotification: {
+                    title: 'Multisig inception complete',
+                    message: `${groupAlias} exists. Authorize group agents before using agent OOBIs.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Multisig inception failed',
+                    message: `${groupAlias} could not be created.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startAcceptMultisigInception = (
+        input: MultisigRequestActionInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const requestId = options.requestId ?? createRequestId();
+
+        return this.startBackgroundWorkflow(
+            () => acceptMultisigInceptionOp(input, requestId),
+            {
+                requestId,
+                label: `Joining multisig group ${input.groupAlias}`,
+                title: 'Join multisig group',
+                description:
+                    'Recreates the proposed group inception event and sends this member signature to the group.',
+                kind: 'acceptMultisigInception',
+                resourceKeys: [
+                    `multisig:proposal:${input.exnSaid}`,
+                    `multisig:group:${input.groupAlias}`,
+                ],
+                resultRoute: { label: 'View multisig', path: '/multisig' },
+                successNotification: {
+                    title: 'Joined multisig group',
+                    message: `${input.groupAlias} exists locally. Authorize group agents before using agent OOBIs.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Multisig join failed',
+                    message: `${input.groupAlias} could not be joined.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startAuthorizeMultisigAgents = (
+        input: { groupAlias: string; localMemberName?: string | null },
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const requestId = options.requestId ?? createRequestId();
+        const groupAlias = input.groupAlias.trim();
+
+        return this.startBackgroundWorkflow(
+            () => authorizeMultisigAgentsOp(input, requestId),
+            {
+                requestId,
+                label: `Authorizing agents for ${groupAlias}`,
+                title: 'Authorize multisig agents',
+                description:
+                    'Signs endpoint role authorizations for member agents and sends them to the group.',
+                kind: 'authorizeMultisigAgent',
+                resourceKeys: [`multisig:group:${groupAlias}:agents`],
+                resultRoute: { label: 'View multisig', path: '/multisig' },
+                successNotification: {
+                    title: 'Multisig agents authorized',
+                    message: `${groupAlias} can publish usable agent OOBIs.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Agent authorization failed',
+                    message: `${groupAlias} agent authorization failed.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startAcceptMultisigEndRole = (
+        input: MultisigRequestActionInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const requestId = options.requestId ?? createRequestId();
+
+        return this.startBackgroundWorkflow(
+            () => acceptMultisigEndRoleOp(input, requestId),
+            {
+                requestId,
+                label: `Approving multisig role for ${input.groupAlias}`,
+                title: 'Approve multisig endpoint role',
+                description:
+                    'Signs the proposed endpoint role authorization and sends it to group members.',
+                kind: 'approveMultisigEndRole',
+                resourceKeys: [
+                    `multisig:proposal:${input.exnSaid}`,
+                    `multisig:group:${input.groupAlias}:agents`,
+                ],
+                resultRoute: { label: 'View multisig', path: '/multisig' },
+                successNotification: {
+                    title: 'Multisig role approved',
+                    message: `${input.groupAlias} endpoint role was approved.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Role approval failed',
+                    message: `${input.groupAlias} endpoint role approval failed.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startInteractMultisigGroup = (
+        draft: MultisigInteractionDraft,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const requestId = options.requestId ?? createRequestId();
+        const groupAlias = draft.groupAlias.trim();
+
+        return this.startBackgroundWorkflow(
+            () => interactMultisigGroupOp(draft, requestId),
+            {
+                requestId,
+                label: `Interacting with multisig group ${groupAlias}`,
+                title: 'Create multisig interaction',
+                description:
+                    'Creates a group interaction event and sends it to the other members.',
+                kind: 'interactMultisigGroup',
+                resourceKeys: [`multisig:group:${groupAlias}:event`],
+                resultRoute: { label: 'View multisig', path: '/multisig' },
+                successNotification: {
+                    title: 'Multisig interaction complete',
+                    message: `${groupAlias} interaction completed.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Multisig interaction failed',
+                    message: `${groupAlias} interaction failed.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startAcceptMultisigInteraction = (
+        input: MultisigRequestActionInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const requestId = options.requestId ?? createRequestId();
+
+        return this.startBackgroundWorkflow(
+            () => acceptMultisigInteractionOp(input, requestId),
+            {
+                requestId,
+                label: `Accepting multisig interaction ${input.groupAlias}`,
+                title: 'Accept multisig interaction',
+                description:
+                    'Joins the proposed group interaction event and sends this member signature.',
+                kind: 'acceptMultisigInteraction',
+                resourceKeys: [
+                    `multisig:proposal:${input.exnSaid}`,
+                    `multisig:group:${input.groupAlias}:event`,
+                ],
+                resultRoute: { label: 'View multisig', path: '/multisig' },
+                successNotification: {
+                    title: 'Multisig interaction accepted',
+                    message: `${input.groupAlias} interaction was accepted.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Interaction acceptance failed',
+                    message: `${input.groupAlias} interaction acceptance failed.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startRotateMultisigGroup = (
+        draft: MultisigRotationDraft,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const requestId = options.requestId ?? createRequestId();
+        const groupAlias = draft.groupAlias.trim();
+
+        return this.startBackgroundWorkflow(
+            () => rotateMultisigGroupOp(draft, requestId),
+            {
+                requestId,
+                label: `Rotating multisig group ${groupAlias}`,
+                title: 'Rotate multisig group',
+                description:
+                    'Creates a group rotation event with refreshed member key states and sends it to members.',
+                kind: 'rotateMultisigGroup',
+                resourceKeys: [`multisig:group:${groupAlias}:event`],
+                resultRoute: { label: 'View multisig', path: '/multisig' },
+                successNotification: {
+                    title: 'Multisig rotation complete',
+                    message: `${groupAlias} rotation completed.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Multisig rotation failed',
+                    message: `${groupAlias} rotation failed.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startAcceptMultisigRotation = (
+        input: MultisigRequestActionInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const requestId = options.requestId ?? createRequestId();
+
+        return this.startBackgroundWorkflow(
+            () => acceptMultisigRotationOp(input, requestId),
+            {
+                requestId,
+                label: `Accepting multisig rotation ${input.groupAlias}`,
+                title: 'Accept multisig rotation',
+                description:
+                    'Joins the proposed group rotation event and sends this member signature.',
+                kind: 'acceptMultisigRotation',
+                resourceKeys: [
+                    `multisig:proposal:${input.exnSaid}`,
+                    `multisig:group:${input.groupAlias}:event`,
+                ],
+                resultRoute: { label: 'View multisig', path: '/multisig' },
+                successNotification: {
+                    title: 'Multisig rotation accepted',
+                    message: `${input.groupAlias} rotation was accepted.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Rotation acceptance failed',
+                    message: `${input.groupAlias} rotation acceptance failed.`,
+                    severity: 'error',
+                },
+            }
+        );
+    };
+
+    startJoinMultisigRotation = (
+        input: MultisigRequestActionInput,
+        options: Pick<WorkflowRunOptions, 'requestId'> = {}
+    ): BackgroundWorkflowStartResult => {
+        const requestId = options.requestId ?? createRequestId();
+
+        return this.startBackgroundWorkflow(
+            () => joinMultisigRotationOp(input, requestId),
+            {
+                requestId,
+                label: `Joining multisig group ${input.groupAlias}`,
+                title: 'Join multisig rotation',
+                description:
+                    'Signs the embedded rotation as a newly added member and joins the group.',
+                kind: 'joinMultisigRotation',
+                resourceKeys: [
+                    `multisig:proposal:${input.exnSaid}`,
+                    `multisig:group:${input.groupAlias}:join`,
+                ],
+                resultRoute: { label: 'View multisig', path: '/multisig' },
+                successNotification: {
+                    title: 'Multisig group joined',
+                    message: `${input.groupAlias} was joined.`,
+                    severity: 'success',
+                },
+                failureNotification: {
+                    title: 'Multisig join failed',
+                    message: `${input.groupAlias} could not be joined.`,
                     severity: 'error',
                 },
             }

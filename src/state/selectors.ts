@@ -6,6 +6,7 @@ import type {
     CredentialAdmitNotification,
     CredentialGrantNotification,
     DelegationRequestNotification,
+    MultisigRequestNotification,
     NotificationRecord,
 } from './notifications.slice';
 import type { ContactRecord } from './contacts.slice';
@@ -144,6 +145,7 @@ const notificationExnSaid = (notification: NotificationRecord): string | null =>
     notification.credentialGrant?.grantSaid ??
     notification.credentialAdmit?.admitSaid ??
     notification.delegationRequest?.delegateEventSaid ??
+    notification.multisigRequest?.exnSaid ??
     notification.anchorSaid;
 
 const isExchangeTombstoned = (
@@ -398,6 +400,11 @@ const byNewestDelegationRequestTimestamp = (
     right: DelegationRequestNotification
 ): number => right.createdAt.localeCompare(left.createdAt);
 
+const byNewestMultisigRequestTimestamp = (
+    left: MultisigRequestNotification,
+    right: MultisigRequestNotification
+): number => right.createdAt.localeCompare(left.createdAt);
+
 /** Select credential grant notifications newest first. */
 export const selectCredentialGrantNotifications = (state: RootState) =>
     selectKeriaNotifications(state)
@@ -460,6 +467,43 @@ export const selectDelegationRequestNotificationById =
     (state: RootState): DelegationRequestNotification | null =>
         selectKeriaNotificationById(notificationId)(state)?.delegationRequest ??
         null;
+
+/** Select hydrated multisig protocol requests newest first. */
+export const selectMultisigRequestNotifications = (state: RootState) =>
+    selectKeriaNotifications(state)
+        .flatMap((notification) =>
+            notification.multisigRequest === null ||
+            notification.multisigRequest === undefined
+                ? []
+                : [notification.multisigRequest]
+        )
+        .sort(byNewestMultisigRequestTimestamp);
+
+/** Select multisig requests that still need local action. */
+export const selectActionableMultisigRequestNotifications = (
+    state: RootState
+) =>
+    selectMultisigRequestNotifications(state).filter(
+        (notification) => notification.status === 'actionable'
+    );
+
+/** Select one multisig request by KERIA notification id. */
+export const selectMultisigRequestNotificationById =
+    (notificationId: string) =>
+    (state: RootState): MultisigRequestNotification | null =>
+        selectKeriaNotificationById(notificationId)(state)?.multisigRequest ??
+        null;
+
+/** Select group identifiers visible in the connected wallet. */
+export const selectMultisigGroupIdentifiers = (state: RootState) =>
+    selectIdentifiers(state).filter((identifier) => 'group' in identifier);
+
+/** Select durable multisig workflow records newest first. */
+export const selectMultisigGroups = (state: RootState) =>
+    state.multisig.groupIds
+        .map((id) => state.multisig.groupsById[id])
+        .filter((group) => group !== undefined)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 
 /** Select challenge-response records newest first. */
 export const selectChallenges = (state: RootState) =>

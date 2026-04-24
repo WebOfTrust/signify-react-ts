@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Box,
     Button,
     Divider,
     IconButton,
     Stack,
+    TextField,
     Tooltip,
     Typography,
 } from '@mui/material';
@@ -31,6 +32,7 @@ import { UI_SOUND_HOVER_VALUE } from '../../app/uiSound';
 import type {
     ContactActionData,
     CredentialActionData,
+    MultisigActionData,
     NotificationsLoaderData,
 } from '../../app/routeData';
 import { useAppSelector } from '../../state/hooks';
@@ -40,12 +42,24 @@ import {
     selectDelegationRequestNotificationById,
     selectIdentifiers,
     selectKeriaNotificationById,
+    selectMultisigRequestNotificationById,
 } from '../../state/selectors';
 import type {
     CredentialGrantNotification,
     DelegationRequestNotification,
+    MultisigRequestNotification,
 } from '../../state/notifications.slice';
 import { ChallengeRequestResponseForm } from './ChallengeRequestResponseForm';
+import { sithSummary } from '../multisig/multisigThresholds';
+import {
+    defaultMultisigRequestGroupAlias,
+    defaultMultisigRequestLocalMember,
+    displayMultisigRequestGroupAlias,
+    multisigRequestActionLabel,
+    multisigRequestIntent,
+    multisigRequestTitle,
+    requiresMultisigJoinLabel,
+} from '../multisig/multisigRequestUi';
 
 const timestampText = (value: string | null): string =>
     value === null ? 'Not available' : (formatTimestamp(value) ?? value);
@@ -86,6 +100,24 @@ const delegationStatusTone = (
     return 'info';
 };
 
+const multisigStatusTone = (
+    status: MultisigRequestNotification['status']
+): 'neutral' | 'success' | 'warning' | 'error' | 'info' => {
+    if (status === 'error') {
+        return 'error';
+    }
+
+    if (status === 'notForThisWallet') {
+        return 'warning';
+    }
+
+    if (status === 'approved') {
+        return 'success';
+    }
+
+    return 'info';
+};
+
 /**
  * Route view for one KERIA protocol notification or synthetic challenge item.
  */
@@ -96,6 +128,10 @@ export const NotificationDetailView = () => {
     const dismissFetcher = useFetcher<ContactActionData>();
     const credentialFetcher = useFetcher<CredentialActionData>();
     const delegationFetcher = useFetcher<ContactActionData>();
+    const multisigFetcher = useFetcher<MultisigActionData>();
+    const [multisigAliasDrafts, setMultisigAliasDrafts] = useState<
+        Record<string, string>
+    >({});
     const notification = useAppSelector(
         selectKeriaNotificationById(notificationId)
     );
@@ -107,6 +143,9 @@ export const NotificationDetailView = () => {
     );
     const delegationRequest = useAppSelector(
         selectDelegationRequestNotificationById(notificationId)
+    );
+    const multisigRequest = useAppSelector(
+        selectMultisigRequestNotificationById(notificationId)
     );
     const identifiers = useAppSelector(selectIdentifiers);
     const grantRecipient =
@@ -131,6 +170,33 @@ export const NotificationDetailView = () => {
         delegationRequest?.status === 'actionable' &&
         delegationApprover !== undefined &&
         delegationFetcher.state === 'idle';
+    const multisigMember =
+        multisigRequest === null
+            ? undefined
+            : (defaultMultisigRequestLocalMember(
+                  multisigRequest,
+                  identifiers
+              ) ?? undefined);
+    const multisigDefaultGroupAlias =
+        multisigRequest === null
+            ? ''
+            : defaultMultisigRequestGroupAlias(multisigRequest, identifiers);
+    const multisigGroupAlias =
+        multisigRequest === null
+            ? ''
+            : (multisigAliasDrafts[multisigRequest.notificationId] ??
+              multisigDefaultGroupAlias);
+    const multisigDisplayGroupAlias =
+        multisigRequest === null
+            ? 'Not available'
+            : displayMultisigRequestGroupAlias(multisigRequest, identifiers);
+    const multisigRequiresJoinLabel =
+        multisigRequest !== null && requiresMultisigJoinLabel(multisigRequest);
+    const canApproveMultisig =
+        multisigRequest?.status === 'actionable' &&
+        multisigMember !== undefined &&
+        multisigGroupAlias.trim().length > 0 &&
+        multisigFetcher.state === 'idle';
 
     useEffect(() => {
         if (
@@ -210,6 +276,24 @@ export const NotificationDetailView = () => {
         });
     };
 
+    const approveMultisigRequest = () => {
+        if (multisigRequest === null || multisigMember === undefined) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('intent', multisigRequestIntent(multisigRequest));
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('notificationId', multisigRequest.notificationId);
+        formData.set('exnSaid', multisigRequest.exnSaid);
+        formData.set('groupAlias', multisigGroupAlias.trim());
+        formData.set('localMemberName', multisigMember.name);
+        multisigFetcher.submit(formData, {
+            method: 'post',
+            action: '/multisig',
+        });
+    };
+
     return (
         <Box sx={{ display: 'grid', gap: 2.5 }}>
             <PageHeader
@@ -221,6 +305,8 @@ export const NotificationDetailView = () => {
                           ? 'Credential grant'
                           : delegationRequest !== null
                             ? 'Delegation request'
+                            : multisigRequest !== null
+                              ? 'Multisig request'
                             : notification.route
                 }
                 summary={notification.id}
@@ -545,6 +631,167 @@ export const NotificationDetailView = () => {
                             <EmptyState
                                 title="Delegator identifier unavailable"
                                 message="This request names a delegator AID that is not loaded as a local identifier in this wallet."
+                            />
+                        )}
+                    </Stack>
+                </ConsolePanel>
+            ) : multisigRequest !== null ? (
+                <ConsolePanel
+                    title={multisigRequestTitle(multisigRequest)}
+                    eyebrow="Group"
+                    actions={
+                        <StatusPill
+                            label={multisigRequest.status}
+                            tone={multisigStatusTone(multisigRequest.status)}
+                        />
+                    }
+                >
+                    <Stack spacing={2}>
+                        <Stack spacing={0.5}>
+                            <TelemetryRow
+                                label="Route"
+                                value={multisigRequest.route}
+                            />
+                            <TelemetryRow
+                                label="Group alias"
+                                value={multisigDisplayGroupAlias}
+                            />
+                            <TelemetryRow
+                                label="Group AID"
+                                value={
+                                    multisigRequest.groupAid ??
+                                    'Not available'
+                                }
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Local member"
+                                value={multisigMember?.name ?? 'Not available'}
+                            />
+                            <TelemetryRow
+                                label="Sender AID"
+                                value={
+                                    multisigRequest.senderAid ??
+                                    'Not available'
+                                }
+                                mono
+                            />
+                            <TelemetryRow
+                                label="EXN SAID"
+                                value={multisigRequest.exnSaid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Embedded event"
+                                value={
+                                    multisigRequest.embeddedEventType ??
+                                    'Not available'
+                                }
+                            />
+                            <TelemetryRow
+                                label="Responses"
+                                value={`${multisigRequest.progress.completed}/${multisigRequest.progress.total}`}
+                            />
+                            <TelemetryRow
+                                label="Responded"
+                                value={
+                                    multisigRequest.progress.respondedMemberAids
+                                        .join(', ') || 'None'
+                                }
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Waiting"
+                                value={
+                                    multisigRequest.progress.waitingMemberAids
+                                        .join(', ') || 'None'
+                                }
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Signing members"
+                                value={multisigRequest.signingMemberAids.length}
+                            />
+                            <TelemetryRow
+                                label="Rotation members"
+                                value={multisigRequest.rotationMemberAids.length}
+                            />
+                            <TelemetryRow
+                                label="Signing threshold"
+                                value={sithSummary(
+                                    multisigRequest.signingThreshold
+                                )}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Rotation threshold"
+                                value={sithSummary(
+                                    multisigRequest.rotationThreshold
+                                )}
+                                mono
+                            />
+                            {multisigRequest.embeddedPayloadSummary !== null && (
+                                <TelemetryRow
+                                    label="Payload"
+                                    value={
+                                        multisigRequest.embeddedPayloadSummary
+                                    }
+                                    mono
+                                />
+                            )}
+                            <TelemetryRow
+                                label="Created"
+                                value={timestampText(
+                                    multisigRequest.createdAt
+                                )}
+                            />
+                        </Stack>
+                        <Divider />
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1}
+                            sx={{
+                                alignItems: { xs: 'stretch', sm: 'center' },
+                            }}
+                        >
+                            {multisigRequiresJoinLabel && (
+                                <TextField
+                                    size="small"
+                                    label="New group label"
+                                    value={multisigGroupAlias}
+                                    helperText="Local label for this wallet after joining."
+                                    onChange={(event) =>
+                                        setMultisigAliasDrafts((current) => ({
+                                            ...current,
+                                            [multisigRequest.notificationId]:
+                                                event.target.value,
+                                        }))
+                                    }
+                                    data-testid="multisig-notification-detail-group-label"
+                                />
+                            )}
+                            <Button
+                                variant="contained"
+                                startIcon={<HowToRegIcon />}
+                                data-testid="multisig-notification-detail-approve"
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
+                                disabled={!canApproveMultisig}
+                                onClick={approveMultisigRequest}
+                            >
+                                {multisigRequestActionLabel(multisigRequest)}
+                            </Button>
+                            <Button
+                                component={RouterLink}
+                                to="/multisig"
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
+                            >
+                                Open multisig
+                            </Button>
+                        </Stack>
+                        {multisigMember === undefined && (
+                            <EmptyState
+                                title="Local member unavailable"
+                                message="This request does not name a loaded local member identifier. Open Multisig to review or resolve missing members."
                             />
                         )}
                     </Stack>

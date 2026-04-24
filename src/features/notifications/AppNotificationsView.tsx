@@ -222,7 +222,8 @@ export const AppNotificationsView = () => {
                                             }}
                                         >
                                             <Typography component="span">
-                                                {notification.route}
+                                                {notification.message ??
+                                                    notification.route}
                                             </Typography>
                                             <StatusPill
                                                 label={notification.status}
@@ -261,7 +262,7 @@ export const AppNotificationsView = () => {
                                                     variant="body2"
                                                     color="text.secondary"
                                                 >
-                                                    {notification.message}
+                                                    Route {notification.route}
                                                 </Typography>
                                             )}
                                             {notification.challengeRequest !==

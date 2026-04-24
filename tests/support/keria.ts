@@ -9,6 +9,8 @@ import {
     type Operation,
     type SignifyClient,
 } from 'signify-ts';
+import type { Operation as EffectionOperation } from 'effection';
+import { createAppRuntime } from '../../src/app/runtime';
 import { appConfig } from '../../src/config';
 import { identifiersFromResponse } from '../../src/features/identifiers/identifierHelpers';
 import {
@@ -56,6 +58,17 @@ export interface Role {
         operation: Operation,
         label: string
     ): Promise<CompletedOperation>;
+}
+
+export interface ScenarioNotification {
+    i: string;
+    r: boolean;
+    a: {
+        r: string;
+        d?: string;
+        m?: string;
+    };
+    dt?: string;
 }
 
 let sequence = 0;
@@ -237,13 +250,175 @@ export const exchangeAgentOobis = async (
     await resolveOobi(right, leftOobi, leftAlias);
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
+const stringValue = (value: unknown): string | null =>
+    typeof value === 'string' && value.trim().length > 0
+        ? value.trim()
+        : null;
+
+const notificationItems = (raw: unknown): ScenarioNotification[] => {
+    const notes = isRecord(raw) && Array.isArray(raw.notes) ? raw.notes : [];
+
+    return notes.flatMap((note) => {
+        if (!isRecord(note) || !isRecord(note.a)) {
+            return [];
+        }
+
+        const id = stringValue(note.i);
+        const route = stringValue(note.a.r);
+        if (id === null || route === null || typeof note.r !== 'boolean') {
+            return [];
+        }
+
+        return [
+            {
+                i: id,
+                r: note.r,
+                a: {
+                    r: route,
+                    d: stringValue(note.a.d) ?? undefined,
+                    m: stringValue(note.a.m) ?? undefined,
+                },
+                dt: stringValue(note.dt) ?? undefined,
+            },
+        ];
+    });
+};
+
+/**
+ * Run one app service operation under the same Effection runtime boundary that
+ * production route workflows use.
+ */
+export const runServiceOperation = async <T>(
+    operation: () => EffectionOperation<T>
+): Promise<T> => {
+    const runtime = createAppRuntime({ storage: null });
+    try {
+        return await runtime.runWorkflow(operation, {
+            scope: 'app',
+            track: false,
+        });
+    } finally {
+        await runtime.destroy();
+    }
+};
+
+/**
+ * Poll one role's KERIA notifications for a matching unread route.
+ */
+export const waitForNotification = async (
+    role: Role,
+    route: string,
+    predicate: (notification: ScenarioNotification) => boolean = () => true,
+    timeoutMs = appConfig.operations.timeoutMs
+): Promise<ScenarioNotification> => {
+    const timeoutAt = Date.now() + timeoutMs;
+
+    while (Date.now() < timeoutAt) {
+        const matches = notificationItems(
+            await role.client.notifications().list()
+        ).filter(
+            (notification) =>
+                !notification.r &&
+                notification.a.r === route &&
+                predicate(notification)
+        );
+        const match = matches[0];
+        if (match !== undefined) {
+            return match;
+        }
+
+        await new Promise((resolve) =>
+            globalThis.setTimeout(resolve, appConfig.operations.minSleepMs)
+        );
+    }
+
+    throw new Error(`Timed out waiting for ${role.name} ${route} notification.`);
+};
+
+/**
+ * Poll until at least count unread notifications match a route.
+ */
+export const waitForNotifications = async (
+    role: Role,
+    route: string,
+    count: number,
+    predicate: (notification: ScenarioNotification) => boolean = () => true,
+    timeoutMs = appConfig.operations.timeoutMs
+): Promise<ScenarioNotification[]> => {
+    const timeoutAt = Date.now() + timeoutMs;
+
+    while (Date.now() < timeoutAt) {
+        const seen = new Set<string>();
+        const matches = notificationItems(
+            await role.client.notifications().list()
+        ).filter((notification) => {
+            if (
+                notification.r ||
+                notification.a.r !== route ||
+                seen.has(notification.i) ||
+                !predicate(notification)
+            ) {
+                return false;
+            }
+
+            seen.add(notification.i);
+            return true;
+        });
+
+        if (matches.length >= count) {
+            return matches.slice(0, count);
+        }
+
+        await new Promise((resolve) =>
+            globalThis.setTimeout(resolve, appConfig.operations.minSleepMs)
+        );
+    }
+
+    throw new Error(
+        `Timed out waiting for ${count} ${role.name} ${route} notifications.`
+    );
+};
+
+/**
+ * Mark an exchange notification as handled and remove it from the inbox.
+ */
+export const markAndRemoveNotification = async (
+    role: Role,
+    notification: ScenarioNotification
+): Promise<void> => {
+    try {
+        await role.client.notifications().mark(notification.i);
+    } finally {
+        await role.client.notifications().delete(notification.i);
+    }
+};
+
+/**
+ * Force KERIA to refresh another member's key state before a multisig event.
+ */
+export const refreshKeyState = async (
+    role: Role,
+    aid: string,
+    sequenceNumber?: string
+): Promise<unknown> => {
+    const operation = await role.client.keyStates().query(aid, sequenceNumber);
+    await role.waitOperation(
+        operation,
+        `refreshes key state ${aid}${sequenceNumber ? ` at ${sequenceNumber}` : ''}`
+    );
+    return role.client.keyStates().get(aid);
+};
+
 type SerderSad = ConstructorParameters<typeof Serder>[0];
 
 /**
  * Runtime guard for operation responses that should be Serder-compatible SADs.
  */
 const isSerderSad = (response: unknown): response is SerderSad =>
-    typeof response === 'object' && response !== null;
+    isRecord(response);
 
 /**
  * Parse a completed operation response as a Serder with a useful failure.
