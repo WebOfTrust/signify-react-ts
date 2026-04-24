@@ -181,6 +181,33 @@ describe.sequential('multisig lifecycle quality gate', () => {
         ).rejects.toThrow('missing key state');
     });
 
+    it('rejects rotation before Signify when group signing members are unavailable', async () => {
+        const fakeClient = {
+            identifiers: () => ({
+                get: async () => ({ name: 'member-a', prefix: 'Ea' }),
+                members: async () => ({
+                    signing: [],
+                    rotation: [{ prefix: 'Ea' }],
+                }),
+            }),
+        } as unknown as SignifyClient;
+
+        await expect(
+            runServiceOperation(() =>
+                startMultisigRotationService({
+                    client: fakeClient,
+                    draft: {
+                        groupAlias: 'group-a',
+                        localMemberName: 'member-a',
+                        signingMemberAids: [],
+                        rotationMemberAids: ['Ea'],
+                        nextThreshold: thresholdSpecForMembers(['Ea']),
+                    },
+                })
+            )
+        ).rejects.toThrow('signing members could not be loaded');
+    });
+
     it(
         'surfaces two-member inception invitations through app notifications',
         async () => {

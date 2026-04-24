@@ -34,6 +34,7 @@ import type {
 import {
     thresholdSpecMemberAids,
     thresholdSpecToSith,
+    validateThresholdSpecForMembers,
     type MultisigThresholdSith,
 } from '../features/multisig/multisigThresholds';
 import {
@@ -301,6 +302,18 @@ const validateThreshold = (
                 error instanceof Error ? error.message : String(error)
             }`,
             { cause: error }
+        );
+    }
+};
+
+const requireMemberAids = (
+    label: string,
+    memberAids: readonly string[],
+    groupAlias: string
+): void => {
+    if (memberAids.length === 0) {
+        throw new Error(
+            `Cannot rotate multisig group ${groupAlias}: ${label} members could not be loaded. Refresh the group, resolve member OOBIs, and try again.`
         );
     }
 };
@@ -926,7 +939,21 @@ export function* startMultisigRotationService({
                   groupMemberAids(client, groupAlias, 'signing')
               );
     const smids = unique(currentSigningMemberAids);
-    const rmids = unique(draft.rotationMemberAids);
+    const thresholdMemberAids = thresholdSpecMemberAids(draft.nextThreshold);
+    const rmids = unique(
+        draft.rotationMemberAids.length > 0
+            ? draft.rotationMemberAids
+            : thresholdMemberAids
+    );
+    requireMemberAids('signing', smids, groupAlias);
+    requireMemberAids('next rotation', rmids, groupAlias);
+    const thresholdError = validateThresholdSpecForMembers({
+        spec: draft.nextThreshold,
+        memberAids: rmids,
+    });
+    if (thresholdError !== null) {
+        throw new Error(`Next rotation threshold is invalid: ${thresholdError}`);
+    }
     const nsith = thresholdSpecToSith(draft.nextThreshold);
     validateThreshold('Next rotation', nsith);
 
@@ -1000,6 +1027,8 @@ export function* acceptMultisigRotationService({
     const rot = request.exn.e.rot;
     const smids = unique(request.exn.a.smids);
     const rmids = unique(request.exn.a.rmids ?? smids);
+    requireMemberAids('signing', smids, input.groupAlias);
+    requireMemberAids('next rotation', rmids, input.groupAlias);
     const memberHab = yield* getIdentifierService({
         client,
         aid: input.localMemberName,
