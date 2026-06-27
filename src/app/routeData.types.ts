@@ -15,12 +15,15 @@ import type {
     MultisigRuntimeCommands,
     NotificationRuntimeCommands,
 } from './runtimeCommands';
+import type { W3CVerifierRequestPreset } from '../domain/credentials/w3cVerifierPresets';
 
 /**
  * Canonical route used for startup redirects, unknown paths, and successful
  * KERIA connection submissions.
  */
 export const DEFAULT_APP_PATH = '/dashboard';
+
+export type { W3CVerifierRequestPreset };
 
 /**
  * Loader result used when a connected Signify client is required.
@@ -43,8 +46,12 @@ export type IdentifiersLoaderData =
  * Loader data for `/dashboard`.
  */
 export type DashboardLoaderData =
-    | { status: 'ready' }
-    | { status: 'error'; message: string }
+    | { status: 'ready'; verifiers: W3CVerifierRequestPreset[] }
+    | {
+          status: 'error';
+          message: string;
+          verifiers: W3CVerifierRequestPreset[];
+      }
     | BlockedRouteData;
 
 /**
@@ -93,8 +100,12 @@ export type ClientLoaderData =
  * Loader data for the credentials route.
  */
 export type CredentialsLoaderData =
-    | { status: 'ready' }
-    | { status: 'error'; message: string }
+    | { status: 'ready'; verifiers: W3CVerifierRequestPreset[] }
+    | {
+          status: 'error';
+          message: string;
+          verifiers: W3CVerifierRequestPreset[];
+      }
     | BlockedRouteData;
 
 /**
@@ -139,6 +150,7 @@ export type ContactActionData =
               | 'respondChallenge'
               | 'verifyChallenge'
               | 'dismissExchangeNotification'
+              | 'markNotificationRead'
               | 'approveDelegationRequest'
               | 'delete'
               | 'updateAlias';
@@ -163,6 +175,7 @@ export type ContactActionData =
               | 'respondChallenge'
               | 'verifyChallenge'
               | 'dismissExchangeNotification'
+              | 'markNotificationRead'
               | 'approveDelegationRequest'
               | 'delete'
               | 'updateAlias'
@@ -183,7 +196,9 @@ export type CredentialActionData =
               | 'createRegistry'
               | 'issueCredential'
               | 'grantCredential'
+              | 'startW3CIssuance'
               | 'admitCredentialGrant'
+              | 'presentCredential'
               | 'refreshCredentials';
           ok: true;
           message: string;
@@ -196,7 +211,9 @@ export type CredentialActionData =
               | 'createRegistry'
               | 'issueCredential'
               | 'grantCredential'
+              | 'startW3CIssuance'
               | 'admitCredentialGrant'
+              | 'presentCredential'
               | 'refreshCredentials'
               | 'unsupported';
           ok: false;

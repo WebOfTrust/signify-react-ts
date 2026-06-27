@@ -36,6 +36,9 @@ export const selectDidWebsDidByAid =
             ? null
             : (state.didwebs.byAid[aid] ?? null);
 
+/** Select did:webs DID facts keyed by local AID. */
+export const selectDidWebsDidsByAid = (state: RootState) => state.didwebs.byAid;
+
 /** Select only the session status for shell rendering. */
 export const selectConnectionStatus = (state: RootState) =>
     state.session.status;

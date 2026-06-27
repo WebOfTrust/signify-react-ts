@@ -1,4 +1,9 @@
 import { Tier } from 'signify-ts';
+import {
+    DEFAULT_LOCAL_ISOMER_W3C_VERIFIER_PRESETS,
+    W3C_VERIFY_VP_PATH,
+    type W3CVerifierRequestPreset,
+} from './domain/credentials/w3cVerifierPresets';
 
 /**
  * Runtime configuration shared by browser code and Node-based smoke scripts.
@@ -158,6 +163,7 @@ export interface AppConfig {
     roles: RoleConfig;
     schemas: SchemaConfigs;
     verifier: VerifierConfig;
+    w3cVerifiers: W3CVerifierRequestPreset[];
     defaultTier: Tier;
 }
 
@@ -251,6 +257,67 @@ const buildConnectionOptions = (
 
     return options;
 };
+
+const defaultW3CVerifierPresetById = new Map(
+    DEFAULT_LOCAL_ISOMER_W3C_VERIFIER_PRESETS.map((preset) => [
+        preset.id,
+        preset,
+    ])
+);
+
+const buildW3CVerifierPreset = (
+    runtimeEnv: RuntimeEnv,
+    id: string,
+    publicUrlEnvName: string,
+    submissionUrlEnvName: string
+): W3CVerifierRequestPreset => {
+    const fallback = defaultW3CVerifierPresetById.get(id);
+    if (fallback === undefined) {
+        throw new Error(`Unknown local W3C verifier preset ${id}.`);
+    }
+
+    return {
+        ...fallback,
+        publicBaseUrl: stringFromEnv(
+            publicUrlEnvName,
+            runtimeEnv[publicUrlEnvName],
+            fallback.publicBaseUrl
+        ),
+        submissionBaseUrl: stringFromEnv(
+            submissionUrlEnvName,
+            runtimeEnv[submissionUrlEnvName],
+            fallback.submissionBaseUrl
+        ),
+        verifyVpPath: stringFromEnv(
+            'VITE_W3C_VERIFY_VP_PATH',
+            runtimeEnv.VITE_W3C_VERIFY_VP_PATH,
+            fallback.verifyVpPath || W3C_VERIFY_VP_PATH
+        ),
+    };
+};
+
+const buildW3CVerifierPresets = (
+    runtimeEnv: RuntimeEnv
+): W3CVerifierRequestPreset[] => [
+    buildW3CVerifierPreset(
+        runtimeEnv,
+        'isomer-python',
+        'VITE_W3C_ISOMER_PYTHON_PUBLIC_URL',
+        'VITE_W3C_ISOMER_PYTHON_SUBMISSION_URL'
+    ),
+    buildW3CVerifierPreset(
+        runtimeEnv,
+        'isomer-node',
+        'VITE_W3C_ISOMER_NODE_PUBLIC_URL',
+        'VITE_W3C_ISOMER_NODE_SUBMISSION_URL'
+    ),
+    buildW3CVerifierPreset(
+        runtimeEnv,
+        'isomer-go',
+        'VITE_W3C_ISOMER_GO_PUBLIC_URL',
+        'VITE_W3C_ISOMER_GO_SUBMISSION_URL'
+    ),
+];
 
 /**
  * Build app config from an explicit environment map.
@@ -386,6 +453,7 @@ export const buildAppConfig = (runtimeEnv: RuntimeEnv): AppConfig => {
                 runtimeEnv.VITE_TRUSTED_ISSUER_AID
             ),
         },
+        w3cVerifiers: buildW3CVerifierPresets(runtimeEnv),
         defaultTier: Tier.low,
     };
 };

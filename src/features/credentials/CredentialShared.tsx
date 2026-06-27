@@ -1,5 +1,14 @@
 import type { ReactNode } from 'react';
-import { Box, FormControl, InputLabel, MenuItem, Select, Stack, Typography } from '@mui/material';
+import {
+    Box,
+    FormControl,
+    InputLabel,
+    MenuItem,
+    Select,
+    Stack,
+    Typography,
+} from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { StatusPill, TelemetryRow } from '../../app/Console';
 import { clickablePanelSx, monoValueSx } from '../../app/consoleStyles';
 import type {
@@ -47,9 +56,21 @@ export const CredentialRecordRows = ({
             value={aidLabel(credential.said)}
             mono
         />
-        <TelemetryRow label="Issuer" value={aidLabel(credential.issuerAid)} mono />
-        <TelemetryRow label="Registry" value={aidLabel(credential.registryId)} mono />
-        <TelemetryRow label="Holder" value={aidLabel(credential.holderAid)} mono />
+        <TelemetryRow
+            label="Issuer"
+            value={aidLabel(credential.issuerAid)}
+            mono
+        />
+        <TelemetryRow
+            label="Registry"
+            value={aidLabel(credential.registryId)}
+            mono
+        />
+        <TelemetryRow
+            label="Holder"
+            value={aidLabel(credential.holderAid)}
+            mono
+        />
         <TelemetryRow
             label="Issued"
             value={timestampText(credential.issuedAt)}
@@ -87,7 +108,9 @@ export const AidSelector = ({
             labelId="credential-aid-label"
             label="AID"
             value={
-                identifiers.some((identifier) => identifier.prefix === selectedAid)
+                identifiers.some(
+                    (identifier) => identifier.prefix === selectedAid
+                )
                     ? selectedAid
                     : ''
             }
@@ -98,7 +121,8 @@ export const AidSelector = ({
             </MenuItem>
             {identifiers.map((identifier) => (
                 <MenuItem key={identifier.prefix} value={identifier.prefix}>
-                    {identifier.name} / {abbreviateMiddle(identifier.prefix, 14)}
+                    {identifier.name} /{' '}
+                    {abbreviateMiddle(identifier.prefix, 14)}
                 </MenuItem>
             ))}
         </Select>
@@ -129,7 +153,7 @@ export const WalletStackPreview = ({
                         borderRadius: 1,
                         height: 118,
                         p: 1.5,
-                        bgcolor: 'rgba(13, 23, 34, 0.72)',
+                        bgcolor: 'background.paper',
                     }}
                 >
                     <Typography sx={{ fontWeight: 800 }}>
@@ -156,8 +180,12 @@ export const WalletStackPreview = ({
                             bgcolor:
                                 index === 0
                                     ? 'background.paper'
-                                    : 'rgba(16, 29, 42, 0.96)',
-                            boxShadow: '0 16px 32px rgba(0, 0, 0, 0.24)',
+                                    : 'background.default',
+                            boxShadow: (theme) =>
+                                `0 16px 32px ${alpha(
+                                    theme.palette.common.black,
+                                    theme.palette.mode === 'dark' ? 0.24 : 0.1
+                                )}`,
                             zIndex: previewCredentials.length - index,
                         }}
                     >
@@ -195,7 +223,11 @@ export const OverviewMetric = ({
         <Typography
             variant="caption"
             color="text.secondary"
-            sx={{ display: 'block', fontWeight: 700, textTransform: 'uppercase' }}
+            sx={{
+                display: 'block',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+            }}
         >
             {label}
         </Typography>
@@ -248,7 +280,11 @@ export const OverviewChoiceCard = ({
                 borderColor: 'divider',
                 borderRadius: 1,
                 bgcolor: 'background.paper',
-                boxShadow: '0 18px 42px rgba(0, 0, 0, 0.2)',
+                boxShadow: (theme) =>
+                    `0 18px 42px ${alpha(
+                        theme.palette.common.black,
+                        theme.palette.mode === 'dark' ? 0.2 : 0.08
+                    )}`,
                 p: 2,
                 display: 'flex',
                 flexDirection: 'column',
@@ -260,7 +296,8 @@ export const OverviewChoiceCard = ({
                     position: 'absolute',
                     inset: 0,
                     pointerEvents: 'none',
-                    borderTop: '1px solid rgba(118, 232, 255, 0.16)',
+                    borderTop: (theme) =>
+                        `1px solid ${alpha(theme.palette.primary.light, 0.16)}`,
                 },
             },
             clickablePanelSx,

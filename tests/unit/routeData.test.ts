@@ -19,6 +19,7 @@ import {
     rootAction,
     type RouteDataRuntime,
 } from '../../src/app/routeData';
+import { appConfig } from '../../src/config';
 import { ISSUEABLE_CREDENTIAL_TYPES } from '../../src/config/credentialCatalog';
 import type {
     SignifyClientConfig,
@@ -177,6 +178,7 @@ const makeRuntime = (overrides: RuntimeOverrides = {}): RouteDataRuntime => {
             syncRegistries: vi.fn(async () => ({})),
             syncIpexActivity: vi.fn(async () => ({})),
             syncKnownSchemas: vi.fn(async () => ({})),
+            listW3CVerifiers: vi.fn(async () => []),
             startResolveSchema: vi.fn(() => ({
                 status: 'accepted',
                 requestId: 'resolve-schema-request-1',
@@ -197,10 +199,20 @@ const makeRuntime = (overrides: RuntimeOverrides = {}): RouteDataRuntime => {
                 requestId: 'grant-credential-request-1',
                 operationRoute: '/operations/grant-credential-request-1',
             })),
+            startW3CIssuance: vi.fn(() => ({
+                status: 'accepted',
+                requestId: 'w3c-issuance-request-1',
+                operationRoute: '/operations/w3c-issuance-request-1',
+            })),
             startAdmit: vi.fn(() => ({
                 status: 'accepted',
                 requestId: 'admit-credential-request-1',
                 operationRoute: '/operations/admit-credential-request-1',
+            })),
+            startPresent: vi.fn(() => ({
+                status: 'accepted',
+                requestId: 'present-credential-request-1',
+                operationRoute: '/operations/present-credential-request-1',
             })),
         },
         multisig: {
@@ -377,6 +389,7 @@ describe('route loaders', () => {
 
         await expect(loadDashboard(runtime)).resolves.toEqual({
             status: 'ready',
+            verifiers: appConfig.w3cVerifiers,
         });
         expect(runtime.refreshState).toHaveBeenCalledOnce();
         expect(runtime.identifiers.list).toHaveBeenCalledOnce();
@@ -397,6 +410,7 @@ describe('route loaders', () => {
 
         await expect(loadDashboard(runtime)).resolves.toEqual({
             status: 'ready',
+            verifiers: appConfig.w3cVerifiers,
         });
     });
 
@@ -505,6 +519,7 @@ describe('route loaders', () => {
 
         await expect(loadCredentials(runtime)).resolves.toEqual({
             status: 'ready',
+            verifiers: appConfig.w3cVerifiers,
         });
         expect(calls[0]).toBe('identifiers');
         expect(calls).toEqual(
@@ -1334,6 +1349,102 @@ describe('route actions', () => {
             },
             expect.objectContaining({ requestId: 'admit-credential-request-1' })
         );
+    });
+
+    it('starts W3C issuance through the credentials action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            credentialsAction(
+                runtime,
+                makeRequest('/credentials', {
+                    intent: 'startW3CIssuance',
+                    requestId: 'w3c-issuance-request-1',
+                    issuerAlias: 'issuer',
+                    issuerAid: 'Eissuer',
+                    credentialSaid: 'Ecredential',
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'startW3CIssuance',
+            ok: true,
+            message: 'Starting W3C issuance for Ecredential',
+            requestId: 'w3c-issuance-request-1',
+            operationRoute: '/operations/w3c-issuance-request-1',
+        });
+        expect(runtime.credentials.startW3CIssuance).toHaveBeenCalledWith(
+            {
+                issuerAlias: 'issuer',
+                issuerAid: 'Eissuer',
+                credentialSaid: 'Ecredential',
+            },
+            expect.objectContaining({ requestId: 'w3c-issuance-request-1' })
+        );
+    });
+
+    it('starts W3C credential presentation through the credentials action', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            credentialsAction(
+                runtime,
+                makeRequest('/credentials', {
+                    intent: 'presentCredential',
+                    requestId: 'present-credential-request-1',
+                    presenterAlias: 'issuer',
+                    presenterAid: 'Eissuer',
+                    credentialSaid: 'Ecredential',
+                    verifierRequest: JSON.stringify({
+                        aud: 'https://verifier.example',
+                        nonce: 'nonce-1',
+                    }),
+                })
+            )
+        ).resolves.toEqual({
+            intent: 'presentCredential',
+            ok: true,
+            message: 'Presenting credential Ecredential',
+            requestId: 'present-credential-request-1',
+            operationRoute: '/operations/present-credential-request-1',
+        });
+        expect(runtime.credentials.startPresent).toHaveBeenCalledWith(
+            {
+                presenterAlias: 'issuer',
+                presenterAid: 'Eissuer',
+                credentialSaid: 'Ecredential',
+                verifierRequest: {
+                    aud: 'https://verifier.example',
+                    nonce: 'nonce-1',
+                },
+            },
+            expect.objectContaining({
+                requestId: 'present-credential-request-1',
+            })
+        );
+    });
+
+    it('rejects W3C credential presentation without a local presenter', async () => {
+        const runtime = makeRuntime();
+
+        await expect(
+            credentialsAction(
+                runtime,
+                makeRequest('/credentials', {
+                    intent: 'presentCredential',
+                    credentialSaid: 'Ecredential',
+                    verifierRequest: JSON.stringify({
+                        aud: 'https://verifier.example',
+                        nonce: 'nonce-1',
+                    }),
+                })
+            )
+        ).resolves.toMatchObject({
+            intent: 'presentCredential',
+            ok: false,
+            message:
+                'Presenter identifier, credential, and verifier request JSON are required.',
+        });
+        expect(runtime.credentials.startPresent).not.toHaveBeenCalled();
     });
 
     it('rejects malformed challenge word submissions', async () => {

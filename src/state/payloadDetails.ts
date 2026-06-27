@@ -1,5 +1,11 @@
 /** Payload detail type for meaningful workflow artifacts. */
-export type PayloadDetailKind = 'oobi' | 'aid' | 'url' | 'text';
+export type PayloadDetailKind =
+    | 'oobi'
+    | 'aid'
+    | 'url'
+    | 'text'
+    | 'jwt'
+    | 'json';
 
 /** Serializable, copyable payload surfaced on operations and notifications. */
 export interface PayloadDetailRecord {

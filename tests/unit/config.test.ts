@@ -41,6 +41,29 @@ describe('buildAppConfig', () => {
             oobiUrl: null,
             trustedIssuerAid: null,
         });
+        expect(config.w3cVerifiers).toEqual([
+            {
+                id: 'isomer-python',
+                label: 'Isomer Python',
+                publicBaseUrl: 'http://127.0.0.1:8788',
+                submissionBaseUrl: 'http://isomer-python:8788',
+                verifyVpPath: '/verify/vp',
+            },
+            {
+                id: 'isomer-node',
+                label: 'Isomer Node',
+                publicBaseUrl: 'http://127.0.0.1:8789',
+                submissionBaseUrl: 'http://isomer-node:8788',
+                verifyVpPath: '/verify/vp',
+            },
+            {
+                id: 'isomer-go',
+                label: 'Isomer Go',
+                publicBaseUrl: 'http://127.0.0.1:8790',
+                submissionBaseUrl: 'http://isomer-go:8788',
+                verifyVpPath: '/verify/vp',
+            },
+        ]);
     });
 
     it('parses app runtime overrides and optional cloud connection options', () => {
@@ -72,6 +95,18 @@ describe('buildAppConfig', () => {
             VITE_VERIFIER_DASHBOARD_URL: 'http://verifier.example.test:9923',
             VITE_VERIFIER_OOBI_URL: 'http://verifier.example.test/oobi',
             VITE_TRUSTED_ISSUER_AID: 'trusted-issuer-aid',
+            VITE_W3C_ISOMER_PYTHON_PUBLIC_URL:
+                'http://python-public.example.test',
+            VITE_W3C_ISOMER_PYTHON_SUBMISSION_URL:
+                'http://python-submit.example.test',
+            VITE_W3C_ISOMER_NODE_PUBLIC_URL:
+                'http://node-public.example.test',
+            VITE_W3C_ISOMER_NODE_SUBMISSION_URL:
+                'http://node-submit.example.test',
+            VITE_W3C_ISOMER_GO_PUBLIC_URL: 'http://go-public.example.test',
+            VITE_W3C_ISOMER_GO_SUBMISSION_URL:
+                'http://go-submit.example.test',
+            VITE_W3C_VERIFY_VP_PATH: '/custom/verify/vp',
         });
 
         expect(config.connectionOptions).toEqual([
@@ -117,6 +152,26 @@ describe('buildAppConfig', () => {
             oobiUrl: 'http://verifier.example.test/oobi',
             trustedIssuerAid: 'trusted-issuer-aid',
         });
+        expect(config.w3cVerifiers).toMatchObject([
+            {
+                id: 'isomer-python',
+                publicBaseUrl: 'http://python-public.example.test',
+                submissionBaseUrl: 'http://python-submit.example.test',
+                verifyVpPath: '/custom/verify/vp',
+            },
+            {
+                id: 'isomer-node',
+                publicBaseUrl: 'http://node-public.example.test',
+                submissionBaseUrl: 'http://node-submit.example.test',
+                verifyVpPath: '/custom/verify/vp',
+            },
+            {
+                id: 'isomer-go',
+                publicBaseUrl: 'http://go-public.example.test',
+                submissionBaseUrl: 'http://go-submit.example.test',
+                verifyVpPath: '/custom/verify/vp',
+            },
+        ]);
     });
 
     it('supports the legacy credential schema env names', () => {

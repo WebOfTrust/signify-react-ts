@@ -10,6 +10,10 @@ import {
     listCredentialInventoryService,
     listCredentialRegistriesService,
     listKnownCredentialSchemasService,
+    presentCredentialService,
+    startW3CIssuanceService,
+    type W3CIssuanceView,
+    type W3CPresentTxView,
     resolveCredentialSchemaService,
 } from '../services/credentials.service';
 import {
@@ -34,7 +38,9 @@ import type {
     CreateCredentialRegistryInput,
     GrantCredentialInput,
     IssueSediCredentialInput,
+    PresentCredentialInput,
     ResolveCredentialSchemaInput,
+    StartW3CIssuanceInput,
 } from '../domain/credentials/credentialCommands';
 import { localIdentifierAids, syncSessionInventoryOp } from './contacts.op';
 
@@ -43,7 +49,9 @@ export type {
     CreateCredentialRegistryInput,
     GrantCredentialInput,
     IssueSediCredentialInput,
+    PresentCredentialInput,
     ResolveCredentialSchemaInput,
+    StartW3CIssuanceInput,
 } from '../domain/credentials/credentialCommands';
 
 /**
@@ -216,6 +224,39 @@ export function* admitCredentialGrantOp(
     yield* syncCredentialInventoryOp();
     yield* syncSessionInventoryOp();
     return credential;
+}
+
+/**
+ * Workflow for QVI-side W3C VRD issuance from a native VRD credential.
+ */
+export function* startW3CIssuanceOp(
+    input: StartW3CIssuanceInput
+): EffectionOperation<W3CIssuanceView> {
+    const services = yield* AppServicesContext.expect();
+    return yield* startW3CIssuanceService({
+        client: services.runtime.requireConnectedClient(),
+        issuerAlias: input.issuerAlias,
+        issuerAid: input.issuerAid,
+        credentialSaid: input.credentialSaid,
+        timeoutMs: services.config.operations.timeoutMs,
+    });
+}
+
+/**
+ * Workflow for presenting a VRD credential through the W3C VC-JWT path.
+ */
+export function* presentCredentialOp(
+    input: PresentCredentialInput
+): EffectionOperation<W3CPresentTxView> {
+    const services = yield* AppServicesContext.expect();
+    return yield* presentCredentialService({
+        client: services.runtime.requireConnectedClient(),
+        presenterAlias: input.presenterAlias,
+        presenterAid: input.presenterAid,
+        credentialSaid: input.credentialSaid,
+        verifierRequest: input.verifierRequest,
+        timeoutMs: services.config.operations.timeoutMs,
+    });
 }
 
 /**

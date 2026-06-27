@@ -15,6 +15,7 @@ export type {
     CredentialActionData,
     MultisigActionData,
     RouteDataRuntime,
+    W3CVerifierRequestPreset,
 } from './routeData.types';
 export { loadDashboard } from './routeData.dashboard';
 export { loadClient, rootAction } from './routeData.root';

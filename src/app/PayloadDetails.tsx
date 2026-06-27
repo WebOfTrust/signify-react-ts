@@ -1,6 +1,11 @@
 import { Box, Stack, Tooltip, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { monoValueSx } from './consoleStyles';
+import {
+    JsonArtifactDetails,
+    W3CJwtArtifactDetails,
+} from './W3CArtifactDetails';
 import type { PayloadDetailRecord } from '../state/payloadDetails';
 
 const abbreviate = (value: string, maxLength: number): string => {
@@ -23,6 +28,7 @@ export interface PayloadDetailsProps {
     details: readonly PayloadDetailRecord[];
     dense?: boolean;
     maxLength?: number;
+    showStructured?: boolean;
 }
 
 /**
@@ -32,14 +38,34 @@ export const PayloadDetails = ({
     details,
     dense = false,
     maxLength = dense ? 52 : 84,
+    showStructured = !dense,
 }: PayloadDetailsProps) => {
-    if (details.length === 0) {
+    const visibleDetails = showStructured
+        ? details
+        : details.filter(
+              (detail) => detail.kind !== 'jwt' && detail.kind !== 'json'
+          );
+
+    if (visibleDetails.length === 0) {
         return null;
     }
 
     return (
         <Stack spacing={dense ? 0.5 : 0.75} sx={{ mt: dense ? 0.75 : 1 }}>
-            {details.map((detail) => (
+            {visibleDetails.map((detail) =>
+                detail.kind === 'jwt' ? (
+                    <W3CJwtArtifactDetails
+                        key={detail.id}
+                        label={detail.label}
+                        token={detail.value}
+                    />
+                ) : detail.kind === 'json' ? (
+                    <JsonArtifactDetails
+                        key={detail.id}
+                        label={detail.label}
+                        value={detail.value}
+                    />
+                ) : (
                 <Tooltip
                     key={detail.id}
                     title={
@@ -85,7 +111,8 @@ export const PayloadDetails = ({
                             borderRadius: 1,
                             px: dense ? 0.75 : 1,
                             py: dense ? 0.5 : 0.75,
-                            bgcolor: 'rgba(39, 215, 255, 0.06)',
+                            bgcolor: (theme) =>
+                                alpha(theme.palette.primary.main, 0.06),
                             cursor: detail.copyable ? 'copy' : 'default',
                             minWidth: 0,
                         }}
@@ -120,7 +147,8 @@ export const PayloadDetails = ({
                         )}
                     </Box>
                 </Tooltip>
-            ))}
+                )
+            )}
         </Stack>
     );
 };

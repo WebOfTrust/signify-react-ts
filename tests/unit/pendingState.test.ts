@@ -87,6 +87,26 @@ describe('derivePendingState', () => {
         });
     });
 
+    it('labels W3C issuance fallback submissions', () => {
+        const fetcher: PendingFetcher = {
+            state: 'submitting',
+            formData: formData('startW3CIssuance'),
+            formAction: '/credentials',
+        };
+
+        expect(
+            derivePendingState({
+                navigation: idleNavigation,
+                fetchers: [fetcher],
+                connectionStatus: 'connected',
+            })
+        ).toEqual({
+            active: true,
+            label: 'Starting W3C issuance...',
+            source: 'fetcher',
+        });
+    });
+
     it('keeps runtime connection pending after router state settles', () => {
         expect(
             derivePendingState({

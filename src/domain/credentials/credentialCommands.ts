@@ -37,10 +37,25 @@ export interface GrantCredentialInput {
     credentialSaid: string;
 }
 
+/** Command data for QVI-side W3C issuance from a native VRD credential. */
+export interface StartW3CIssuanceInput {
+    issuerAlias: string;
+    issuerAid: string;
+    credentialSaid: string;
+}
+
 /** Command data for holder-side admission of an inbound credential grant. */
 export interface AdmitCredentialGrantInput {
     holderAlias: string;
     holderAid: string;
     notificationId: string;
     grantSaid: string;
+}
+
+/** Command data for presenting one VRD ACDC through the W3C VC-JWT path. */
+export interface PresentCredentialInput {
+    presenterAlias: string;
+    presenterAid: string;
+    credentialSaid: string;
+    verifierRequest: Record<string, unknown>;
 }

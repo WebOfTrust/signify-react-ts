@@ -159,8 +159,7 @@ describe('runtime command adapters', () => {
             resultRoute: { label: 'View identifiers', path: '/identifiers' },
             successNotification: {
                 title: 'Delegated rotation complete',
-                message:
-                    'The delegator approved the rotation for Edelegate.',
+                message: 'The delegator approved the rotation for Edelegate.',
                 severity: 'success',
             },
             failureNotification: {
@@ -327,11 +326,25 @@ describe('runtime command adapters', () => {
             holderAid: 'Eholder',
             credentialSaid: 'Ecredential',
         });
+        commands.startW3CIssuance({
+            issuerAlias: 'issuer',
+            issuerAid: 'Eissuer',
+            credentialSaid: 'Ecredential',
+        });
         commands.startAdmit({
             holderAlias: 'holder',
             holderAid: 'Eholder',
             notificationId: 'note-1',
             grantSaid: 'Egrant',
+        });
+        commands.startPresent({
+            presenterAlias: 'issuer',
+            presenterAid: 'Eissuer',
+            credentialSaid: 'Ecredential',
+            verifierRequest: {
+                aud: 'https://verifier.example',
+                nonce: 'nonce-1',
+            },
         });
 
         expect(startedOptions[0]).toMatchObject({
@@ -405,6 +418,24 @@ describe('runtime command adapters', () => {
             },
         });
         expect(startedOptions[4]).toMatchObject({
+            label: 'Starting W3C issuance for Ecredential',
+            title: 'Start W3C issuance',
+            kind: 'w3cIssuance',
+            resourceKeys: ['credential:Ecredential:w3c-issue'],
+            resultRoute: { label: 'View credentials', path: '/credentials' },
+            successNotification: {
+                title: 'W3C VRD issued',
+                message:
+                    'The W3C VC-JWT was issued from the native VRD credential.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'W3C issuance failed',
+                message: 'The W3C VRD could not be issued.',
+                severity: 'error',
+            },
+        });
+        expect(startedOptions[5]).toMatchObject({
             label: 'Admitting credential grant Egrant',
             title: 'Admit credential grant',
             kind: 'admitCredential',
@@ -418,6 +449,25 @@ describe('runtime command adapters', () => {
             failureNotification: {
                 title: 'Credential admit failed',
                 message: 'The credential grant could not be admitted.',
+                severity: 'error',
+            },
+        });
+        expect(startedOptions[6]).toMatchObject({
+            label: 'Presenting credential Ecredential',
+            title: 'Present credential',
+            kind: 'presentCredential',
+            resourceKeys: ['credential:Ecredential:w3c-present'],
+            resultRoute: { label: 'View credentials', path: '/credentials' },
+            successNotification: {
+                title: 'Credential presented',
+                message:
+                    'KERIA recorded the W3C presentation transaction result.',
+                severity: 'success',
+            },
+            failureNotification: {
+                title: 'Credential presentation failed',
+                message:
+                    'The credential could not be presented through the verifier request.',
                 severity: 'error',
             },
         });
@@ -604,7 +654,10 @@ describe('runtime command adapters', () => {
             label: 'Joining multisig group team',
             title: 'Join multisig group',
             kind: 'acceptMultisigInception',
-            resourceKeys: ['multisig:proposal:Eexn-inception', 'multisig:group:team'],
+            resourceKeys: [
+                'multisig:proposal:Eexn-inception',
+                'multisig:group:team',
+            ],
         });
         expect(startedOptions[5]).toMatchObject({
             label: 'Approving multisig role for team',

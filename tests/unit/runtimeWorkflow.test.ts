@@ -5,6 +5,7 @@ import { createAppRuntime, type AppRuntime } from '../../src/app/runtime';
 import {
     delegationPayloadDetails,
     oobiPayloadDetails,
+    w3cPresentationPayloadDetails,
 } from '../../src/app/runtimeCommands/payloadDetails';
 import type { IdentifierSummary } from '../../src/domain/identifiers/identifierTypes';
 import { appNotificationRecorded } from '../../src/state/appNotifications.slice';
@@ -110,6 +111,14 @@ const makeWorkflowClient = ({
 };
 
 describe('AppRuntime workflow bridge', () => {
+    const jwt = (payload: Record<string, unknown>): string => {
+        const encode = (value: Record<string, unknown>) =>
+            Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+        return `${encode({ alg: 'EdDSA', kid: 'kid-1', typ: 'JWT' })}.${encode(
+            payload
+        )}.signature`;
+    };
+
     it('records successful Effection workflow completion', async () => {
         const store = createAppStore();
         const runtime = createAppRuntime({ store, storage: null });
@@ -466,6 +475,79 @@ describe('AppRuntime workflow bridge', () => {
         });
 
         await runtime.destroy();
+    });
+
+    it('extracts W3C presentation JWT and verifier payload details', () => {
+        const vcJwt = jwt({
+            iss: 'did:webs:issuer',
+            sub: 'did:webs:holder',
+            jti: 'urn:said:Ecredential',
+            vc: { type: ['VerifiableCredential', 'VRDCredential'] },
+        });
+        const vpJwt = jwt({
+            iss: 'did:webs:holder',
+            jti: 'urn:uuid:presentation',
+            aud: 'https://verifier.example/verify/vp',
+            nonce: 'nonce-1',
+            vp: {
+                type: ['VerifiablePresentation'],
+                verifiableCredential: [vcJwt],
+            },
+        });
+
+        const details = w3cPresentationPayloadDetails({
+            presentTxId: 'presentation-1',
+            state: 'submitted',
+            submissionState: 'accepted',
+            submissionEndpoint: 'http://isomer-python:8788/verify/vp',
+            vpJwt,
+            vcJwt,
+            verifierRequest: {
+                aud: 'https://verifier.example/verify/vp',
+                nonce: 'nonce-1',
+            },
+            verifierResponse: {
+                name: 'verifier-op-1',
+                done: true,
+            },
+        });
+
+        expect(details).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    label: 'Present Tx',
+                    value: 'presentation-1',
+                    kind: 'text',
+                }),
+                expect.objectContaining({
+                    label: 'Submission Endpoint',
+                    value: 'http://isomer-python:8788/verify/vp',
+                    kind: 'url',
+                }),
+                expect.objectContaining({
+                    label: 'VP-JWT',
+                    value: vpJwt,
+                    kind: 'jwt',
+                    copyable: true,
+                }),
+                expect.objectContaining({
+                    label: 'VC-JWT',
+                    value: vcJwt,
+                    kind: 'jwt',
+                    copyable: true,
+                }),
+                expect.objectContaining({
+                    label: 'Verifier Request',
+                    value: expect.stringContaining('"nonce": "nonce-1"'),
+                    kind: 'json',
+                }),
+                expect.objectContaining({
+                    label: 'Verifier Response',
+                    value: expect.stringContaining('"name": "verifier-op-1"'),
+                    kind: 'json',
+                }),
+            ])
+        );
     });
 
     it('shows known aliases before delegated operation AID payload values', async () => {

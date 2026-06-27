@@ -48,6 +48,7 @@ export type OperationKind =
     | 'createRegistry'
     | 'issueCredential'
     | 'grantCredential'
+    | 'w3cIssuance'
     | 'admitCredential'
     | 'presentCredential'
     | 'pollNotifications'

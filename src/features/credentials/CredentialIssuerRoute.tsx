@@ -20,6 +20,7 @@ import { useAppSelector } from '../../state/hooks';
 import {
     selectCredentialRegistries,
     selectCredentialSchemas,
+    selectDidWebsDidsByAid,
     selectIssueableCredentialTypeViews,
     selectIssuedCredentials,
 } from '../../state/selectors';
@@ -37,6 +38,9 @@ import {
     timestampText,
 } from './credentialDisplay';
 import { useCredentialsRouteContext } from './CredentialsRouteContext';
+import { CredentialW3CIssuanceControls } from './CredentialW3CIssuanceControls';
+import type { CredentialSummaryRecord } from '../../domain/credentials/credentialTypes';
+import type { IdentifierSummary } from '../../domain/identifiers/identifierTypes';
 
 /**
  * Issuer route for one selected local AID.
@@ -47,15 +51,19 @@ import { useCredentialsRouteContext } from './CredentialsRouteContext';
  */
 export const CredentialIssuerRoute = () => {
     const {
+        actionStatus,
         actionRunning,
+        identifiers,
         selectedIdentifier,
         submitResolveSchema,
+        submitCredentialForm,
     } = useCredentialsRouteContext();
     const navigate = useNavigate();
     const credentialTypes = useAppSelector(selectIssueableCredentialTypeViews);
     const schemas = useAppSelector(selectCredentialSchemas);
     const issuedCredentials = useAppSelector(selectIssuedCredentials);
     const registries = useAppSelector(selectCredentialRegistries);
+    const didWebsByAid = useAppSelector(selectDidWebsDidsByAid);
 
     if (selectedIdentifier === null) {
         return null;
@@ -85,6 +93,29 @@ export const CredentialIssuerRoute = () => {
         issuedCredentials,
         selectedIdentifier.prefix
     );
+    const didWebsReadyByAid = new Map(
+        Object.entries(didWebsByAid).map(([aid, did]) => [
+            aid,
+            did.loadState === 'ready' && did.did !== null,
+        ])
+    );
+    const issuanceAction =
+        actionStatus !== null &&
+        'intent' in actionStatus &&
+        actionStatus.intent === 'startW3CIssuance'
+            ? actionStatus
+            : null;
+    const submitStartW3CIssuance = (
+        credential: CredentialSummaryRecord,
+        issuer: IdentifierSummary
+    ) => {
+        const formData = new FormData();
+        formData.set('intent', 'startW3CIssuance');
+        formData.set('issuerAlias', issuer.name);
+        formData.set('issuerAid', issuer.prefix);
+        formData.set('credentialSaid', credential.said);
+        submitCredentialForm(formData);
+    };
 
     return (
         <Stack spacing={2}>
@@ -270,7 +301,7 @@ export const CredentialIssuerRoute = () => {
                     />
                 ) : (
                     <Box sx={{ overflowX: 'auto' }}>
-                        <Table size="small" sx={{ minWidth: 840 }}>
+                        <Table size="small" sx={{ minWidth: 1040 }}>
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Type</TableCell>
@@ -279,6 +310,7 @@ export const CredentialIssuerRoute = () => {
                                     <TableCell>Status</TableCell>
                                     <TableCell>Issued</TableCell>
                                     <TableCell>Credential</TableCell>
+                                    <TableCell>W3C Issue</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -323,6 +355,24 @@ export const CredentialIssuerRoute = () => {
                                                     credential.said,
                                                     24
                                                 )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <CredentialW3CIssuanceControls
+                                                    credential={credential}
+                                                    identifiers={identifiers}
+                                                    didWebsReadyByAid={
+                                                        didWebsReadyByAid
+                                                    }
+                                                    actionRunning={
+                                                        actionRunning
+                                                    }
+                                                    issuanceAction={
+                                                        issuanceAction
+                                                    }
+                                                    onStartIssuance={
+                                                        submitStartW3CIssuance
+                                                    }
+                                                />
                                             </TableCell>
                                         </TableRow>
                                     )

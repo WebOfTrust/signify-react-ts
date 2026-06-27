@@ -4,6 +4,8 @@ import type {
     AdmitCredentialGrantInput,
     GrantCredentialInput,
     IssueSediCredentialInput,
+    PresentCredentialInput,
+    StartW3CIssuanceInput,
 } from '../domain/credentials/credentialCommands';
 import type {
     CredentialActionData,
@@ -11,6 +13,7 @@ import type {
     RouteDataRuntime,
 } from './routeData.types';
 import { formString, toRouteError } from './routeData.shared';
+import { appConfig } from '../config';
 
 /**
  * Credential route action boundary.
@@ -35,7 +38,9 @@ const credentialIntentFromString = (value: string): CredentialIntent =>
     value === 'createRegistry' ||
     value === 'issueCredential' ||
     value === 'grantCredential' ||
+    value === 'startW3CIssuance' ||
     value === 'admitCredentialGrant' ||
+    value === 'presentCredential' ||
     value === 'refreshCredentials'
         ? value
         : 'resolveSchema';
@@ -66,10 +71,14 @@ export const loadCredentials = async (
             runtime.credentials.syncInventory({ signal: request?.signal }),
         ]);
         await runtime.credentials.syncIpexActivity({ signal: request?.signal });
-        return { status: 'ready' };
+        return {
+            status: 'ready',
+            verifiers: [...appConfig.w3cVerifiers],
+        };
     } catch (error) {
         return {
             status: 'error',
+            verifiers: [...appConfig.w3cVerifiers],
             message: `Unable to refresh credential inventory: ${toRouteError(error).message}`,
         };
     }
@@ -79,6 +88,23 @@ export const loadCredentials = async (
 const formBoolean = (formData: FormData, field: string): boolean => {
     const value = formString(formData, field).trim().toLowerCase();
     return value === 'true' || value === 'on' || value === '1';
+};
+
+const verifierRequestFromForm = (
+    formData: FormData
+): Record<string, unknown> | null => {
+    const raw = formString(formData, 'verifierRequest').trim();
+    if (raw.length === 0) {
+        return null;
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : null;
+    } catch {
+        return null;
+    }
 };
 
 /**
@@ -324,6 +350,43 @@ const grantCredentialAction = ({
 };
 
 /**
+ * Starts QVI-side W3C issuance from an already issued native VRD credential.
+ */
+const startW3CIssuanceAction = ({
+    runtime,
+    formData,
+    requestId,
+}: CredentialActionContext): CredentialActionData => {
+    const intent = 'startW3CIssuance';
+    const input: StartW3CIssuanceInput = {
+        issuerAlias: formString(formData, 'issuerAlias').trim(),
+        issuerAid: formString(formData, 'issuerAid').trim(),
+        credentialSaid: formString(formData, 'credentialSaid').trim(),
+    };
+    if (
+        input.issuerAlias.length === 0 ||
+        input.issuerAid.length === 0 ||
+        input.credentialSaid.length === 0
+    ) {
+        return {
+            intent,
+            ok: false,
+            message: 'Issuer identifier, issuer AID, and credential SAID are required.',
+            requestId,
+        };
+    }
+
+    return credentialStartedResult(
+        intent,
+        runtime.credentials.startW3CIssuance(
+            input,
+            requestIdOption(requestId)
+        ),
+        `Starting W3C issuance for ${input.credentialSaid}`
+    );
+};
+
+/**
  * Starts holder-side admission of a received credential grant. The handler
  * narrows notification form data into the workflow input and keeps IPEX admit
  * semantics out of presentational components.
@@ -363,6 +426,44 @@ const admitCredentialGrantAction = ({
 };
 
 /**
+ * Starts W3C presentation for an admitted VRD credential.
+ */
+const presentCredentialAction = ({
+    runtime,
+    formData,
+    requestId,
+}: CredentialActionContext): CredentialActionData => {
+    const intent = 'presentCredential';
+    const verifierRequest = verifierRequestFromForm(formData);
+    const input: PresentCredentialInput = {
+        presenterAlias: formString(formData, 'presenterAlias').trim(),
+        presenterAid: formString(formData, 'presenterAid').trim(),
+        credentialSaid: formString(formData, 'credentialSaid').trim(),
+        verifierRequest: verifierRequest ?? {},
+    };
+    if (
+        input.presenterAlias.length === 0 ||
+        input.presenterAid.length === 0 ||
+        input.credentialSaid.length === 0 ||
+        verifierRequest === null
+    ) {
+        return {
+            intent,
+            ok: false,
+            message:
+                'Presenter identifier, credential, and verifier request JSON are required.',
+            requestId,
+        };
+    }
+
+    return credentialStartedResult(
+        intent,
+        runtime.credentials.startPresent(input, requestIdOption(requestId)),
+        `Presenting credential ${input.credentialSaid}`
+    );
+};
+
+/**
  * Dispatches credential route intents to named handlers. The explicit switch
  * is the local command map for this route family and should stay small enough
  * that each new credential workflow has to justify a branch.
@@ -381,8 +482,12 @@ const runCredentialIntentAction = (
             return issueCredentialAction(context);
         case 'grantCredential':
             return grantCredentialAction(context);
+        case 'startW3CIssuance':
+            return startW3CIssuanceAction(context);
         case 'admitCredentialGrant':
             return admitCredentialGrantAction(context);
+        case 'presentCredential':
+            return presentCredentialAction(context);
         default:
             return {
                 intent: 'unsupported',

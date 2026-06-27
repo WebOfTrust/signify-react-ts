@@ -1,13 +1,14 @@
-import {
-    Box,
-    Button,
-    Stack,
-    Typography,
-} from '@mui/material';
+import { Box, Button, Stack, Typography } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { ConsolePanel, EmptyState, StatusPill, TelemetryRow } from '../../app/Console';
-import { clickablePanelSx, monoValueSx } from '../../app/consoleStyles';
+import {
+    ConsolePanel,
+    EmptyState,
+    StatusPill,
+    TelemetryRow,
+} from '../../app/Console';
+import type { CredentialActionData } from '../../app/routeData';
+import { monoValueSx } from '../../app/consoleStyles';
 import { abbreviateMiddle } from '../../domain/contacts/contactHelpers';
 import type { IssueableCredentialTypeView } from '../../domain/credentials/credentialCatalog';
 import type {
@@ -15,12 +16,11 @@ import type {
     CredentialSummaryRecord,
     SchemaRecord,
 } from '../../domain/credentials/credentialTypes';
+import type { W3CVerifierRequestPreset } from '../../domain/credentials/w3cVerifierPresets';
+import type { IdentifierSummary } from '../../domain/identifiers/identifierTypes';
 import type { CredentialWalletStats } from './credentialViewModels';
-import {
-    schemaLabel,
-    schemaStatusTone,
-    statusTone,
-} from './credentialDisplay';
+import { schemaLabel, schemaStatusTone, statusTone } from './credentialDisplay';
+import { W3CPresentCtrls } from './W3CPresentCtrls.tsx';
 
 /**
  * Holder-side credential type readiness panel.
@@ -263,19 +263,36 @@ export const InboundGrantsPanel = ({
 );
 
 /**
- * Holder-side admitted credential list. Rows navigate to the full dashboard
- * credential detail route.
+ * Holder-side admitted credential list. W3C Present stays a row-local command.
  */
 export const HeldCredentialsPanel = ({
     credentials,
     credentialTypesBySchema,
     schemasBySaid,
-    onOpenCredential,
+    identifiers,
+    didWebsReadyByAid,
+    verifiers,
+    selectedVerifierId,
+    presentationAction,
+    actionRunning,
+    onVerifierChange,
+    onPresent,
 }: {
     credentials: readonly CredentialSummaryRecord[];
     credentialTypesBySchema: ReadonlyMap<string, IssueableCredentialTypeView>;
     schemasBySaid: ReadonlyMap<string, SchemaRecord>;
-    onOpenCredential: (credentialSaid: string) => void;
+    identifiers: readonly IdentifierSummary[];
+    didWebsReadyByAid: ReadonlyMap<string, boolean>;
+    verifiers: readonly W3CVerifierRequestPreset[];
+    selectedVerifierId: string;
+    presentationAction?: CredentialActionData | null;
+    actionRunning: boolean;
+    onVerifierChange: (verifierRequestJson: string) => void;
+    onPresent: (
+        credential: CredentialSummaryRecord,
+        presenter: IdentifierSummary,
+        verifierRequestJson: string
+    ) => void;
 }) => (
     <ConsolePanel title="Held credentials">
         {credentials.length === 0 ? (
@@ -288,25 +305,13 @@ export const HeldCredentialsPanel = ({
                 {credentials.map((credential) => (
                     <Box
                         key={credential.said}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => onOpenCredential(credential.said)}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                onOpenCredential(credential.said);
-                            }
+                        sx={{
+                            border: 1,
+                            borderColor: 'divider',
+                            borderRadius: 1,
+                            p: 1.5,
+                            bgcolor: 'background.paper',
                         }}
-                        sx={[
-                            {
-                                border: 1,
-                                borderColor: 'divider',
-                                borderRadius: 1,
-                                p: 1.5,
-                                bgcolor: 'rgba(13, 23, 34, 0.72)',
-                            },
-                            clickablePanelSx,
-                        ]}
                     >
                         <Stack spacing={1}>
                             <Stack
@@ -335,6 +340,17 @@ export const HeldCredentialsPanel = ({
                             <Typography variant="body2" sx={monoValueSx}>
                                 {abbreviateMiddle(credential.said, 28)}
                             </Typography>
+                            <W3CPresentCtrls
+                                credential={credential}
+                                identifiers={identifiers}
+                                didWebsReadyByAid={didWebsReadyByAid}
+                                verifiers={verifiers}
+                                selectedVerifierId={selectedVerifierId}
+                                presentationAction={presentationAction}
+                                actionRunning={actionRunning}
+                                onVerifierChange={onVerifierChange}
+                                onPresent={onPresent}
+                            />
                         </Stack>
                     </Box>
                 ))}

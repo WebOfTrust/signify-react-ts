@@ -1,4 +1,6 @@
 allowBuilds:
   esbuild: true
   puppeteer: true
+  signify-did-webs: true
   signify-ts: true
+  signify-w3c: true

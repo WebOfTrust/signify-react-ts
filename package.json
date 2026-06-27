@@ -42,7 +42,9 @@
         "react-dom": "^19.2.5",
         "react-redux": "^9.2.0",
         "react-router-dom": "^7.14.2",
-        "signify-ts": "github:kentbull/signify-ts#8bdeb48516b4a9d8d7e6818e0bc37e4b26908ec3"
+        "signify-did-webs": "github:GLEIF-IT/w3c-crosswalk#2d057b19cb8475b8113b55990f09828f9b030b2f&path:/packages/signify-did-webs",
+        "signify-ts": "github:kentbull/signify-ts#8bdeb48516b4a9d8d7e6818e0bc37e4b26908ec3",
+        "signify-w3c": "github:GLEIF-IT/w3c-crosswalk#2d057b19cb8475b8113b55990f09828f9b030b2f&path:/packages/signify-w3c"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",

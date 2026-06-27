@@ -7,6 +7,15 @@ import {
     type Operation as KeriaOperation,
     type SignifyClient,
 } from 'signify-ts';
+import {
+    issueW3CCredential,
+    presentW3CCredential,
+    W3CKeriaClient,
+    type W3CHeldCredential,
+    type W3CIssuanceContext,
+    type W3CPresentationResult,
+} from '../integrations/signifyW3c';
+import { ensureDidWebsSetup } from 'signify-did-webs';
 import { callPromise, toErrorText } from '../effects/promise';
 import type { OperationLogger } from '../signify/client';
 import type {
@@ -60,6 +69,16 @@ const DEFAULT_REGISTRY_NAME = SEDI_VOTER_ID_DEFAULT_REGISTRY_NAME;
 const CREDENTIAL_FETCH_RETRIES = 10;
 const CREDENTIAL_FETCH_RETRY_MS = 1000;
 const EXCHANGE_QUERY_LIMIT = 200;
+
+export type W3CIssuanceView = W3CIssuanceContext;
+
+export interface W3CPresentTxView extends W3CPresentationResult {
+    presentTxId: string;
+    vcJwt: string | null;
+    verifierRequest: Record<string, unknown>;
+    submissionEndpoint: string | null;
+    sourceCredentialSaid: string;
+}
 
 const keriaTimestamp = (): string =>
     new Date().toISOString().replace('Z', '000+00:00');
@@ -162,9 +181,7 @@ export function* createCredentialRegistryService({
         'Registry name'
     );
 
-    const registries = yield* callPromise(() =>
-        client.registries().list(name)
-    );
+    const registries = yield* callPromise(() => client.registries().list(name));
     const existing =
         registries.find(
             (registry) =>
@@ -315,9 +332,7 @@ export function* issueSediCredentialService({
         throw new Error('Issued credential response did not include a SAID.');
     }
 
-    const credential = yield* callPromise(() =>
-        client.credentials().get(said)
-    );
+    const credential = yield* callPromise(() => client.credentials().get(said));
     return credentialRecordFromKeriaCredential({
         credential,
         credentialTypes: ISSUEABLE_CREDENTIAL_TYPES,
@@ -356,7 +371,9 @@ export function* grantIssuedCredentialService({
             recipient,
             acdc: new Serder(serderSad(credential.sad, 'Credential SAD')),
             anc: new Serder(serderSad(credential.anc, 'Credential anchor')),
-            iss: new Serder(serderSad(credential.iss, 'Credential issue event')),
+            iss: new Serder(
+                serderSad(credential.iss, 'Credential issue event')
+            ),
             ancAttachment: stringValue(credential.ancatc) ?? undefined,
             datetime: keriaTimestamp(),
         })
@@ -701,6 +718,174 @@ export function* admitCredentialGrantService({
         admittedAt: recordDate(admitSad, 'dt') ?? new Date().toISOString(),
     });
 }
+
+/**
+ * Start QVI-side W3C VC-JWT issuance from a native VRD source credential.
+ *
+ * The browser edge runtime builds and signs the VC-JWT, submits it to KERIA
+ * for validation, then signs the grant EXN that delivers the artifact.
+ */
+export function* startW3CIssuanceService({
+    client,
+    issuerAlias,
+    issuerAid,
+    credentialSaid,
+    timeoutMs,
+    pollMs,
+}: {
+    client: SignifyClient;
+    issuerAlias: string;
+    issuerAid: string;
+    credentialSaid: string;
+    timeoutMs: number;
+    pollMs?: number;
+}): EffectionOperation<W3CIssuanceView> {
+    const name = requireNonEmpty(issuerAlias, 'Issuer identifier');
+    requireNonEmpty(issuerAid, 'Issuer AID');
+    const sourceSaid = requireNonEmpty(credentialSaid, 'Credential SAID');
+    yield* callPromise(() =>
+        ensureDidWebsSetup({
+            client,
+            name,
+            timeoutMs,
+            pollMs,
+        })
+    );
+    return yield* callPromise(() =>
+        issueW3CCredential({
+            client,
+            issuerName: name,
+            sourceCredentialSaid: sourceSaid,
+            timeoutMs,
+            pollMs,
+        })
+    );
+}
+
+/**
+ * Build and submit a holder-signed W3C VP-JWT from a runtime verifier request.
+ *
+ * The browser edge runtime owns VP assembly and signing. KERIA validates the
+ * submitted VP-JWT against the selected held credential and verifier request,
+ * forwards it, and records the result.
+ */
+export function* presentCredentialService({
+    client,
+    presenterAlias,
+    presenterAid,
+    credentialSaid,
+    verifierRequest,
+    timeoutMs,
+    pollMs,
+}: {
+    client: SignifyClient;
+    presenterAlias: string;
+    presenterAid: string;
+    credentialSaid: string;
+    verifierRequest: Record<string, unknown>;
+    timeoutMs: number;
+    pollMs?: number;
+}): EffectionOperation<W3CPresentTxView> {
+    const name = requireNonEmpty(presenterAlias, 'Presenter identifier');
+    requireNonEmpty(presenterAid, 'Presenter AID');
+    const said = requireNonEmpty(credentialSaid, 'Credential SAID');
+    if (Object.keys(verifierRequest).length === 0) {
+        throw new Error('Verifier request JSON is required.');
+    }
+    yield* callPromise(() =>
+        ensureDidWebsSetup({
+            client,
+            name,
+            timeoutMs,
+            pollMs,
+        })
+    );
+    const requestDescriptor = {
+        ...verifierRequest,
+        credentialSaid: said,
+    };
+    const w3c = new W3CKeriaClient(client);
+    const credentials = yield* callPromise(() => w3c.credentials(name));
+    const held = selectHeldW3CCredential(credentials, said);
+    if (held === null) {
+        throw new Error(
+            `No held W3C credential was found for source credential ${said}.`
+        );
+    }
+    const credentialId = requireNonEmpty(
+        String(held.credentialId ?? ''),
+        'W3C held credential id'
+    );
+    const result = yield* callPromise(() =>
+        presentW3CCredential({
+            client,
+            holderName: name,
+            credentialId,
+            verifierRequest: requestDescriptor,
+        })
+    );
+    const view = presentationViewFromResult({
+        result,
+        held,
+        requestDescriptor,
+        sourceCredentialSaid: said,
+    });
+    if (view.state === 'failed') {
+        throw new Error(
+            view.error ??
+                `W3C presentation ${view.presentationId} ended as failed.`
+        );
+    }
+    return view;
+}
+
+const selectHeldW3CCredential = (
+    credentials: readonly W3CHeldCredential[],
+    credentialSaid: string
+): W3CHeldCredential | null =>
+    credentials.find((credential) => {
+        const credentialId = stringValue(credential.credentialId);
+        const sourceCredentialSaid = stringValue(
+            credential.sourceCredentialSaid
+        );
+        return (
+            credentialId === credentialSaid ||
+            sourceCredentialSaid === credentialSaid
+        );
+    }) ?? null;
+
+const presentationViewFromResult = ({
+    result,
+    held,
+    requestDescriptor,
+    sourceCredentialSaid,
+}: {
+    result: W3CPresentationResult;
+    held: W3CHeldCredential;
+    requestDescriptor: Record<string, unknown>;
+    sourceCredentialSaid: string;
+}): W3CPresentTxView => {
+    const presentationId = requireNonEmpty(
+        String(result.presentationId ?? result.presentTxId ?? ''),
+        'W3C presentation id'
+    );
+    const submissionEndpoint =
+        stringValue(result.submissionEndpoint) ??
+        stringValue(requestDescriptor.submissionEndpoint) ??
+        stringValue(requestDescriptor.response_uri);
+    return {
+        ...result,
+        presentationId,
+        presentTxId: presentationId,
+        selectedCredentialId:
+            result.selectedCredentialId ?? String(held.credentialId ?? ''),
+        vcJwt: stringValue(held.vcJwt) ?? null,
+        verifierRequest: requestDescriptor,
+        requestDescriptor: result.requestDescriptor ?? requestDescriptor,
+        submissionEndpoint,
+        sourceCredentialSaid,
+    };
+};
 
 /**
  * Load issued and held credentials for local AIDs and project them into
