@@ -40,6 +40,7 @@ const contactIntentFromString = (value: string): ContactIntent =>
     value === 'respondChallenge' ||
     value === 'verifyChallenge' ||
     value === 'dismissExchangeNotification' ||
+    value === 'markNotificationRead' ||
     value === 'approveDelegationRequest' ||
     value === 'delete' ||
     value === 'updateAlias'
@@ -442,6 +443,37 @@ const dismissExchangeNotificationAction = async ({
     };
 };
 
+const markNotificationReadAction = async ({
+    runtime,
+    request,
+    formData,
+    requestId,
+}: ContactActionContext): Promise<ContactActionData> => {
+    const intent = 'markNotificationRead';
+    const notificationId = formString(formData, 'notificationId').trim();
+    if (notificationId.length === 0) {
+        return {
+            intent,
+            ok: false,
+            message: 'Notification id is required.',
+            requestId,
+        };
+    }
+
+    await runtime.notifications.markRead(
+        { notificationId },
+        { ...requestIdOption(requestId), signal: request.signal }
+    );
+
+    return {
+        intent,
+        ok: true,
+        message: 'Notification marked read.',
+        requestId,
+        operationRoute: '/notifications',
+    };
+};
+
 /**
  * Converts an actionable delegation notification into the approve-delegation
  * workflow input. The handler rebuilds the anchor from submitted fields so the
@@ -588,6 +620,8 @@ const runContactIntentAction = (
             return verifyChallengeAction(context);
         case 'dismissExchangeNotification':
             return dismissExchangeNotificationAction(context);
+        case 'markNotificationRead':
+            return markNotificationReadAction(context);
         case 'approveDelegationRequest':
             return approveDelegationRequestAction(context);
         case 'delete':

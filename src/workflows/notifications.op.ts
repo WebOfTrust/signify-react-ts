@@ -14,6 +14,10 @@ export interface DismissExchangeNotificationInput {
     route: string;
 }
 
+export interface MarkNotificationReadInput {
+    notificationId: string;
+}
+
 const requireNonEmpty = (value: string, label: string): string => {
     const normalized = value.trim();
     if (normalized.length === 0) {
@@ -65,5 +69,28 @@ export function* dismissExchangeNotificationOp(
     } catch {
         // The live sync loop will retry. The tombstone above is enough for
         // immediate local suppression even when the refresh is unavailable.
+    }
+}
+
+/**
+ * Mark a real KERIA notification read without hiding its exchange history.
+ */
+export function* markNotificationReadOp(
+    input: MarkNotificationReadInput
+): EffectionOperation<void> {
+    const services = yield* AppServicesContext.expect();
+    const client = services.runtime.requireConnectedClient();
+    const notificationId = requireNonEmpty(
+        input.notificationId,
+        'Notification id'
+    );
+
+    yield* callPromise(() => client.notifications().mark(notificationId));
+
+    try {
+        yield* syncSessionInventoryOp();
+    } catch {
+        // The live sync loop will retry. Marking the KERIA note is the
+        // authoritative effect.
     }
 }

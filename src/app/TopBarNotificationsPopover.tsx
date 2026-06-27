@@ -29,7 +29,10 @@ import type {
     DelegationRequestNotification,
     MultisigRequestNotification,
 } from '../state/notifications.slice';
-import type { CredentialGrantNotification } from '../domain/credentials/credentialTypes';
+import type {
+    CredentialGrantNotification,
+    W3CVcGrantNotification,
+} from '../domain/credentials/credentialTypes';
 import type { IdentifierSummary } from '../domain/identifiers/identifierTypes';
 import { ChallengeRequestResponseForm } from '../features/notifications/ChallengeRequestResponseForm';
 import { abbreviateMiddle } from '../domain/contacts/contactHelpers';
@@ -65,6 +68,7 @@ interface TopBarNotificationsPopoverProps {
     visibleNotifications: readonly AppNotificationRecord[];
     visibleChallengeRequests: readonly ChallengeRequestNotification[];
     visibleCredentialGrants: readonly CredentialGrantNotification[];
+    visibleW3CVcGrants: readonly W3CVcGrantNotification[];
     visibleDelegationRequests: readonly DelegationRequestNotification[];
     visibleMultisigRequests: readonly MultisigRequestNotification[];
     identifiers: readonly IdentifierSummary[];
@@ -74,10 +78,12 @@ interface TopBarNotificationsPopoverProps {
     multisigLocalMemberOptions: ReturnType<typeof multisigRequestLocalMembers>;
     canDismissChallengeRequests: boolean;
     canSubmitCredentialGrants: boolean;
+    canMarkW3CGrantsRead: boolean;
     canSubmitDelegationRequests: boolean;
     canSubmitMultisigRequests: boolean;
     dismissChallengeRequest: (request: ChallengeRequestNotification) => void;
     admitCredentialGrant: (grant: CredentialGrantNotification) => void;
+    markW3CGrantRead: (grant: W3CVcGrantNotification) => void;
     approveDelegationRequest: (request: DelegationRequestNotification) => void;
     submitMultisigRequest: (
         request: MultisigRequestNotification,
@@ -97,6 +103,7 @@ export const TopBarNotificationsPopover = ({
     visibleNotifications,
     visibleChallengeRequests,
     visibleCredentialGrants,
+    visibleW3CVcGrants,
     visibleDelegationRequests,
     visibleMultisigRequests,
     identifiers,
@@ -105,10 +112,12 @@ export const TopBarNotificationsPopover = ({
     multisigLocalMemberOptions,
     canDismissChallengeRequests,
     canSubmitCredentialGrants,
+    canMarkW3CGrantsRead,
     canSubmitDelegationRequests,
     canSubmitMultisigRequests,
     dismissChallengeRequest,
     admitCredentialGrant,
+    markW3CGrantRead,
     approveDelegationRequest,
     submitMultisigRequest,
     onClose,
@@ -124,6 +133,7 @@ export const TopBarNotificationsPopover = ({
             {recentNotifications.length === 0 &&
             visibleChallengeRequests.length === 0 &&
             visibleCredentialGrants.length === 0 &&
+            visibleW3CVcGrants.length === 0 &&
             visibleDelegationRequests.length === 0 &&
             visibleMultisigRequests.length === 0 ? (
                 <ListItemText
@@ -834,9 +844,201 @@ export const TopBarNotificationsPopover = ({
                             </Box>
                         );
                     })}
+                    {visibleW3CVcGrants.map((grant) => {
+                        const holder = identifiers.find(
+                            (identifier) => identifier.prefix === grant.holderAid
+                        );
+                        const holderLabel =
+                            holder === undefined
+                                ? abbreviateMiddle(grant.holderAid, 28)
+                                : `${holder.name} / ${abbreviateMiddle(
+                                      grant.holderAid,
+                                      20
+                                  )}`;
+
+                        return (
+                            <Box
+                                key={grant.notificationId}
+                                data-testid="w3c-grant-notification-card"
+                                sx={{
+                                    border: 1,
+                                    borderColor: 'primary.main',
+                                    borderRadius: 1,
+                                    bgcolor: 'action.selected',
+                                    p: 1.25,
+                                    mb: 0.75,
+                                }}
+                            >
+                                <Stack spacing={1}>
+                                    <Stack
+                                        direction={{
+                                            xs: 'column',
+                                            sm: 'row',
+                                        }}
+                                        spacing={1}
+                                        sx={{
+                                            alignItems: {
+                                                xs: 'stretch',
+                                                sm: 'flex-start',
+                                            },
+                                            justifyContent: 'space-between',
+                                            gap: 1,
+                                        }}
+                                    >
+                                        <Box
+                                            sx={{
+                                                minWidth: 0,
+                                                flex: '1 1 auto',
+                                            }}
+                                        >
+                                            <Typography
+                                                variant="subtitle2"
+                                                noWrap
+                                            >
+                                                W3C VC-JWT grant
+                                            </Typography>
+                                            <Typography
+                                                component="div"
+                                                variant="caption"
+                                                color="text.secondary"
+                                                noWrap
+                                                sx={{
+                                                    display: 'block',
+                                                    minWidth: 0,
+                                                }}
+                                            >
+                                                From{' '}
+                                                {abbreviateMiddle(
+                                                    grant.issuerAid,
+                                                    28
+                                                )}
+                                            </Typography>
+                                            <Typography
+                                                component="div"
+                                                variant="caption"
+                                                color="text.secondary"
+                                                noWrap
+                                                sx={{
+                                                    display: 'block',
+                                                    mt: 0.25,
+                                                }}
+                                            >
+                                                Holder {holderLabel}
+                                            </Typography>
+                                            <Typography
+                                                component="div"
+                                                variant="caption"
+                                                color="text.secondary"
+                                                noWrap
+                                                sx={{
+                                                    display: 'block',
+                                                    mt: 0.25,
+                                                }}
+                                            >
+                                                Status {grant.status}
+                                            </Typography>
+                                            <Typography
+                                                component="div"
+                                                variant="caption"
+                                                color="text.secondary"
+                                                noWrap
+                                                sx={{
+                                                    display: 'block',
+                                                    mt: 0.25,
+                                                }}
+                                            >
+                                                Source{' '}
+                                                {abbreviateMiddle(
+                                                    grant.sourceCredentialSaid,
+                                                    28
+                                                )}
+                                            </Typography>
+                                            {formatTimestamp(
+                                                grant.createdAt
+                                            ) !== null && (
+                                                <Typography
+                                                    component="div"
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                    sx={{
+                                                        display: 'block',
+                                                        mt: 0.25,
+                                                    }}
+                                                >
+                                                    {formatTimestamp(
+                                                        grant.createdAt
+                                                    )}
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                        <Stack
+                                            direction="row"
+                                            spacing={0.75}
+                                            sx={{
+                                                flex: '0 0 auto',
+                                                alignItems: 'center',
+                                                justifyContent: {
+                                                    xs: 'flex-start',
+                                                    sm: 'flex-end',
+                                                },
+                                                flexWrap: 'wrap',
+                                            }}
+                                        >
+                                            <Button
+                                                component={RouterLink}
+                                                to={`/notifications/${encodeURIComponent(
+                                                    grant.notificationId
+                                                )}`}
+                                                size="small"
+                                                data-testid="w3c-grant-notification-detail-link"
+                                                data-ui-sound={
+                                                    UI_SOUND_HOVER_VALUE
+                                                }
+                                                onClick={() => onClose()}
+                                            >
+                                                Open
+                                            </Button>
+                                            <Button
+                                                component={RouterLink}
+                                                to={`/credentials/${encodeURIComponent(
+                                                    grant.holderAid
+                                                )}/wallet`}
+                                                size="small"
+                                                data-testid="w3c-grant-notification-wallet-link"
+                                                data-ui-sound={
+                                                    UI_SOUND_HOVER_VALUE
+                                                }
+                                                onClick={() => onClose()}
+                                            >
+                                                Wallet
+                                            </Button>
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                data-testid="w3c-grant-notification-mark-read"
+                                                data-ui-sound={
+                                                    UI_SOUND_HOVER_VALUE
+                                                }
+                                                disabled={
+                                                    !canMarkW3CGrantsRead
+                                                }
+                                                onClick={() =>
+                                                    markW3CGrantRead(grant)
+                                                }
+                                            >
+                                                Mark read
+                                            </Button>
+                                        </Stack>
+                                    </Stack>
+                                </Stack>
+                            </Box>
+                        );
+                    })}
                     {(visibleChallengeRequests.length > 0 ||
                         visibleDelegationRequests.length > 0 ||
                         visibleCredentialGrants.length > 0 ||
+                        visibleW3CVcGrants.length > 0 ||
                         visibleMultisigRequests.length > 0) &&
                         visibleNotifications.length > 0 && (
                             <Divider sx={{ my: 0.75 }} />
@@ -869,6 +1071,9 @@ export const TopBarNotificationsPopover = ({
                         >
                             <ListItemText
                                 primary={notification.title}
+                                slotProps={{
+                                    secondary: { component: 'div' },
+                                }}
                                 secondary={
                                     <Box>
                                         {formatTimestamp(

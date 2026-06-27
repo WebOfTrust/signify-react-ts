@@ -17,7 +17,7 @@ export type AppNotificationSeverity = 'info' | 'success' | 'warning' | 'error';
 export type AppNotificationStatus = 'unread' | 'read';
 
 /** Link relationships supported by app notification cards and popovers. */
-export type AppNotificationLinkRel = 'operation' | 'result';
+export type AppNotificationLinkRel = 'notification' | 'operation' | 'result';
 
 /** Serializable app route link attached to a user notification. */
 export interface AppNotificationLink {

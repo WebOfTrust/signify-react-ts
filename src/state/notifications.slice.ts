@@ -3,6 +3,7 @@ import type { MultisigThresholdSith } from '../domain/multisig/multisigThreshold
 import type {
     CredentialAdmitNotification,
     CredentialGrantNotification,
+    W3CVcGrantNotification,
 } from '../domain/credentials/credentialTypes';
 import {
     sessionConnectionFailed,
@@ -130,6 +131,7 @@ export interface NotificationRecord {
     challengeRequest?: ChallengeRequestNotification | null;
     credentialGrant?: CredentialGrantNotification | null;
     credentialAdmit?: CredentialAdmitNotification | null;
+    w3cVcGrant?: W3CVcGrantNotification | null;
     delegationRequest?: DelegationRequestNotification | null;
     multisigRequest?: MultisigRequestNotification | null;
     updatedAt: string;

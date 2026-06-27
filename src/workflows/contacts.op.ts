@@ -34,6 +34,7 @@ import {
 import { notificationInventoryLoaded } from '../state/notifications.slice';
 import type { AppDispatch, AppStore } from '../state/store';
 import type { ChallengeRecord } from '../domain/challenges/challengeTypes';
+import type { IdentifierSummary } from '../domain/identifiers/identifierTypes';
 
 /**
  * Workflow command for creating one identifier OOBI by role.
@@ -163,6 +164,18 @@ export const localIdentifierAids = (
     return [...new Set(aids)];
 };
 
+export const localIdentifierSummaries = (
+    store: Pick<AppStore, 'getState'>
+): IdentifierSummary[] => {
+    const { identifiers } = store.getState();
+    return identifiers.prefixes
+        .map((prefix) => identifiers.byPrefix[prefix])
+        .filter(
+            (identifier): identifier is IdentifierSummary =>
+                identifier !== undefined
+        );
+};
+
 /**
  * Return app-local EXN tombstones that should be hidden from future inventory.
  */
@@ -210,6 +223,7 @@ export function* syncSessionInventoryOp(): EffectionOperation<SessionInventorySn
         client,
         contacts: contactInventory.contacts,
         localAids: localIdentifierAids(services.store),
+        localIdentifiers: localIdentifierSummaries(services.store),
         tombstonedExnSaids: tombstonedExchangeSaids(services.store),
         respondedChallengeIds: responded.ids,
         respondedWordsHashes: responded.wordsHashes,

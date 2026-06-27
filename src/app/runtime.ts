@@ -297,8 +297,7 @@ export class AppRuntime {
         this.identifiers = createIdentifierRuntimeCommands(commandContext);
         this.contacts = createContactRuntimeCommands(commandContext);
         this.challenges = createChallengeRuntimeCommands(commandContext);
-        this.notifications =
-            createNotificationRuntimeCommands(commandContext);
+        this.notifications = createNotificationRuntimeCommands(commandContext);
         this.delegations = createDelegationRuntimeCommands(commandContext);
         this.credentials = createCredentialRuntimeCommands(commandContext);
         this.multisig = createMultisigRuntimeCommands(commandContext);
@@ -748,6 +747,11 @@ export class AppRuntime {
         const id = notificationId(requestId);
         const links: AppNotificationLink[] = [
             {
+                rel: 'notification',
+                label: 'View notification',
+                path: `/notifications/${encodeURIComponent(id)}`,
+            },
+            {
                 rel: 'operation',
                 label: 'View operation',
                 path: operationRoute(requestId),
@@ -890,32 +894,37 @@ export class AppRuntime {
         const task = this.scopes.run(this.contacts.liveInventory, 'session');
         this.liveSyncTask = task;
 
-        void (async () => {
-            try {
-                await task;
-            } catch (error) {
-                if (!isHaltedOrAborted(error)) {
-                    this.store.dispatch(
-                        appNotificationRecorded({
-                            id: `live-sync-failed-${Date.now()}`,
-                            severity: 'warning',
-                            status: 'unread',
-                            title: 'Live inventory sync stopped',
-                            message: toErrorText(error),
-                            createdAt: new Date().toISOString(),
-                            readAt: null,
-                            operationId: null,
-                            links: [],
-                            payloadDetails: [],
-                        })
-                    );
-                }
-            } finally {
-                if (this.liveSyncTask === task) {
-                    this.liveSyncTask = null;
-                }
+        void this.watchLiveSyncTask(task);
+    };
+
+    /**
+     * Record unexpected live-inventory failures and clear the retained handle.
+     */
+    private watchLiveSyncTask = async (task: Task<void>): Promise<void> => {
+        try {
+            await task;
+        } catch (error) {
+            if (!isHaltedOrAborted(error)) {
+                this.store.dispatch(
+                    appNotificationRecorded({
+                        id: `live-sync-failed-${Date.now()}`,
+                        severity: 'warning',
+                        status: 'unread',
+                        title: 'Live inventory sync stopped',
+                        message: toErrorText(error),
+                        createdAt: new Date().toISOString(),
+                        readAt: null,
+                        operationId: null,
+                        links: [],
+                        payloadDetails: [],
+                    })
+                );
             }
-        })();
+        } finally {
+            if (this.liveSyncTask === task) {
+                this.liveSyncTask = null;
+            }
+        }
     };
 
     /**

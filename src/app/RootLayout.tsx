@@ -21,6 +21,7 @@ import {
     selectAppNotifications,
     selectIdentifiers,
     selectUnreadAppNotifications,
+    selectUnreadW3CVcGrantNotifications,
 } from '../state/selectors';
 
 /**
@@ -61,6 +62,7 @@ const RootLayoutContent = () => {
     const multisigRequests = useAppSelector(
         selectActionableMultisigRequestNotifications
     );
+    const w3cVcGrants = useAppSelector(selectUnreadW3CVcGrantNotifications);
     const identifiers = useAppSelector(selectIdentifiers);
     const connectDialogOpen = connectOpen && connection.status !== 'connected';
     const pending = derivePendingState({
@@ -84,6 +86,7 @@ const RootLayoutContent = () => {
                 recentNotifications={appNotifications}
                 challengeRequests={challengeRequests}
                 credentialGrants={credentialGrants}
+                w3cVcGrants={w3cVcGrants}
                 delegationRequests={delegationRequests}
                 multisigRequests={multisigRequests}
                 identifiers={identifiers}
@@ -91,6 +94,7 @@ const RootLayoutContent = () => {
                     unreadAppNotifications.length +
                     challengeRequests.length +
                     credentialGrants.length +
+                    w3cVcGrants.length +
                     delegationRequests.length +
                     multisigRequests.length
                 }

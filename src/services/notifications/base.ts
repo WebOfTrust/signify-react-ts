@@ -161,6 +161,7 @@ export const notificationResponseProjectionFromNotes = (
             challengeRequest: null,
             credentialGrant: null,
             credentialAdmit: null,
+            w3cVcGrant: null,
             delegationRequest: null,
             updatedAt: note.dt ?? loadedAt,
         } satisfies NotificationRecord;

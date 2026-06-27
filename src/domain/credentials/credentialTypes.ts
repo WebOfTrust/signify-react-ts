@@ -176,6 +176,13 @@ export type CredentialAdmitNotificationStatus =
     | 'notForThisWallet'
     | 'error';
 
+/** Holder-facing state for inbound W3C VC-JWT grant notifications. */
+export type W3CVcGrantNotificationStatus =
+    | 'received'
+    | 'materialized'
+    | 'notForThisWallet'
+    | 'error';
+
 /**
  * Credential grant metadata hydrated from an IPEX grant EXN.
  */
@@ -202,6 +209,31 @@ export interface CredentialAdmitNotification {
     holderAid: string;
     createdAt: string;
     status: CredentialAdmitNotificationStatus;
+}
+
+/**
+ * W3C VC-JWT grant metadata hydrated from a `/w3c/vc/grant` EXN.
+ *
+ * These grants are informational for the holder: KERIA materializes the held
+ * W3C credential automatically after validating the grant payload.
+ */
+export interface W3CVcGrantNotification {
+    notificationId: string;
+    grantSaid: string;
+    issuerAid: string;
+    issuerDid: string;
+    holderAid: string;
+    holderDid: string;
+    sourceCredentialSaid: string;
+    schemaSaid: string;
+    issuanceId: string;
+    profile: string;
+    statusUrl: string;
+    vcJwt: string;
+    heldCredentialId: string | null;
+    createdAt: string;
+    status: W3CVcGrantNotificationStatus;
+    error: string | null;
 }
 
 /**

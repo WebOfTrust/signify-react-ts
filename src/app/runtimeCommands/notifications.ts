@@ -1,6 +1,8 @@
 import {
     dismissExchangeNotificationOp,
     type DismissExchangeNotificationInput,
+    markNotificationReadOp,
+    type MarkNotificationReadInput,
 } from '../../workflows/notifications.op';
 import type {
     RequestSignalOptions,
@@ -12,6 +14,10 @@ export interface NotificationRuntimeCommands {
         input: DismissExchangeNotificationInput,
         options?: RequestSignalOptions
     ): Promise<void>;
+    markRead(
+        input: MarkNotificationReadInput,
+        options?: RequestSignalOptions
+    ): Promise<void>;
 }
 
 /**
@@ -21,6 +27,7 @@ export const createNotificationRuntimeCommands = (
     context: RuntimeCommandContext
 ): NotificationRuntimeCommands => ({
     dismissExchange: dismissExchangeNotification(context),
+    markRead: markNotificationRead(context),
 });
 
 const dismissExchangeNotification =
@@ -30,6 +37,18 @@ const dismissExchangeNotification =
         options: RequestSignalOptions = {}
     ): Promise<void> =>
         context.runWorkflow(() => dismissExchangeNotificationOp(input), {
+            ...options,
+            kind: 'workflow',
+            track: false,
+        });
+
+const markNotificationRead =
+    (context: RuntimeCommandContext) =>
+    (
+        input: MarkNotificationReadInput,
+        options: RequestSignalOptions = {}
+    ): Promise<void> =>
+        context.runWorkflow(() => markNotificationReadOp(input), {
             ...options,
             kind: 'workflow',
             track: false,

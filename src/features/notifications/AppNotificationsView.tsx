@@ -9,6 +9,7 @@ import {
     Stack,
     Typography,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { Link as RouterLink, useLoaderData } from 'react-router-dom';
 import {
     ConsolePanel,
@@ -73,7 +74,8 @@ export const AppNotificationsView = () => {
                         border: 1,
                         borderColor: 'warning.main',
                         borderRadius: 1,
-                        bgcolor: 'rgba(255, 196, 87, 0.08)',
+                        bgcolor: (theme) =>
+                            alpha(theme.palette.warning.main, 0.08),
                         px: 2,
                         py: 1.25,
                     }}
@@ -135,6 +137,9 @@ export const AppNotificationsView = () => {
                                         />
                                     </Stack>
                                 }
+                                slotProps={{
+                                    secondary: { component: 'div' },
+                                }}
                                 secondary={
                                     <Stack spacing={0.5}>
                                         {formatTimestamp(
@@ -160,6 +165,7 @@ export const AppNotificationsView = () => {
                                             details={
                                                 notification.payloadDetails
                                             }
+                                            showStructured={false}
                                         />
                                         <Stack
                                             direction="row"
@@ -208,7 +214,7 @@ export const AppNotificationsView = () => {
                                     borderRadius: 1,
                                     mb: 1,
                                     alignItems: 'flex-start',
-                                    bgcolor: 'rgba(5, 9, 13, 0.4)',
+                                    bgcolor: 'background.paper',
                                 }}
                             >
                                 <ListItemText
@@ -242,6 +248,9 @@ export const AppNotificationsView = () => {
                                             />
                                         </Stack>
                                     }
+                                    slotProps={{
+                                        secondary: { component: 'div' },
+                                    }}
                                     secondary={
                                         <Stack spacing={0.5}>
                                             {formatTimestamp(
@@ -300,6 +309,27 @@ export const AppNotificationsView = () => {
                                                             notification
                                                                 .delegationRequest
                                                                 .delegateAid
+                                                        }
+                                                    </Typography>
+                                                )}
+                                            {notification.w3cVcGrant !== null &&
+                                                notification.w3cVcGrant !==
+                                                    undefined && (
+                                                    <Typography
+                                                        variant="body2"
+                                                        color="text.secondary"
+                                                    >
+                                                        W3C source{' '}
+                                                        {
+                                                            notification
+                                                                .w3cVcGrant
+                                                                .sourceCredentialSaid
+                                                        }{' '}
+                                                        / status{' '}
+                                                        {
+                                                            notification
+                                                                .w3cVcGrant
+                                                                .status
                                                         }
                                                     </Typography>
                                                 )}

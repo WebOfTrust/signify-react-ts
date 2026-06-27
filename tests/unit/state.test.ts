@@ -31,6 +31,8 @@ import {
     selectKeriaNotifications,
     selectResolvedCredentialSchemas,
     selectStoredChallengeWordsForContact,
+    selectUnreadW3CVcGrantNotifications,
+    selectW3CVcGrantNotificationById,
 } from '../../src/state/selectors';
 import {
     sessionConnected,
@@ -237,6 +239,86 @@ describe('RTK state foundation', () => {
                 status: 'actionable',
             }),
         ]);
+    });
+
+    it('selects unread W3C VC-JWT grant notifications separately from actionable IPEX grants', () => {
+        const store = createAppStore();
+
+        store.dispatch(
+            notificationRecorded({
+                id: 'w3c-note-1',
+                dt: '2026-04-21T00:00:00.000Z',
+                read: false,
+                route: '/w3c/vc/grant',
+                anchorSaid: 'Ew3cgrant',
+                status: 'unread',
+                message: 'W3C VC-JWT grant materialized from Eissuer',
+                updatedAt: '2026-04-21T00:00:00.000Z',
+                w3cVcGrant: {
+                    notificationId: 'w3c-note-1',
+                    grantSaid: 'Ew3cgrant',
+                    issuerAid: 'Eissuer',
+                    issuerDid: 'did:webs:example.com:dws:Eissuer',
+                    holderAid: 'Eholder',
+                    holderDid: 'did:webs:example.com:dws:Eholder',
+                    sourceCredentialSaid: 'Ecredential',
+                    schemaSaid: 'Eschema',
+                    issuanceId: 'issuance-1',
+                    profile: 'gleif-vrd-isomer-v1',
+                    statusUrl: 'http://127.0.0.1:3901/status/Ecredential',
+                    vcJwt: 'vc.jwt.token',
+                    heldCredentialId: 'Ecredential',
+                    createdAt: '2026-04-21T00:00:00.000Z',
+                    status: 'materialized',
+                    error: null,
+                },
+            })
+        );
+        store.dispatch(
+            notificationRecorded({
+                id: 'w3c-note-read',
+                dt: '2026-04-22T00:00:00.000Z',
+                read: true,
+                route: '/w3c/vc/grant',
+                anchorSaid: 'Ew3cgrant-read',
+                status: 'processed',
+                message: 'W3C VC-JWT grant materialized from Eissuer',
+                updatedAt: '2026-04-22T00:00:00.000Z',
+                w3cVcGrant: {
+                    notificationId: 'w3c-note-read',
+                    grantSaid: 'Ew3cgrant-read',
+                    issuerAid: 'Eissuer',
+                    issuerDid: 'did:webs:example.com:dws:Eissuer',
+                    holderAid: 'Eholder',
+                    holderDid: 'did:webs:example.com:dws:Eholder',
+                    sourceCredentialSaid: 'Ecredential-read',
+                    schemaSaid: 'Eschema',
+                    issuanceId: 'issuance-read',
+                    profile: 'gleif-vrd-isomer-v1',
+                    statusUrl: 'http://127.0.0.1:3901/status/Ecredential-read',
+                    vcJwt: 'vc.jwt.token',
+                    heldCredentialId: 'Ecredential-read',
+                    createdAt: '2026-04-22T00:00:00.000Z',
+                    status: 'materialized',
+                    error: null,
+                },
+            })
+        );
+
+        expect(selectUnreadW3CVcGrantNotifications(store.getState())).toEqual([
+            expect.objectContaining({
+                notificationId: 'w3c-note-1',
+                sourceCredentialSaid: 'Ecredential',
+            }),
+        ]);
+        expect(
+            selectW3CVcGrantNotificationById('w3c-note-1')(store.getState())
+        ).toEqual(
+            expect.objectContaining({
+                heldCredentialId: 'Ecredential',
+                status: 'materialized',
+            })
+        );
     });
 
     it('filters locally tombstoned EXN notifications from selectors', () => {

@@ -67,6 +67,9 @@ describe('runtime command adapters', () => {
             exnSaid: 'Eexn',
             route: '/challenge/request',
         });
+        await createNotificationRuntimeCommands(context).markRead({
+            notificationId: 'note-2',
+        });
 
         expect(workflowOptions).toMatchObject([
             {
@@ -85,6 +88,10 @@ describe('runtime command adapters', () => {
             },
             {
                 kind: 'generateChallenge',
+                track: false,
+            },
+            {
+                kind: 'workflow',
                 track: false,
             },
             {

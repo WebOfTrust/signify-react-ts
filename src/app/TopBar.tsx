@@ -12,7 +12,10 @@ import type {
     DelegationRequestNotification,
     MultisigRequestNotification,
 } from '../state/notifications.slice';
-import type { CredentialGrantNotification } from '../domain/credentials/credentialTypes';
+import type {
+    CredentialGrantNotification,
+    W3CVcGrantNotification,
+} from '../domain/credentials/credentialTypes';
 import type { OperationRecord } from '../state/operations.slice';
 import type { IdentifierSummary } from '../domain/identifiers/identifierTypes';
 import { allAppNotificationsRead } from '../state/appNotifications.slice';
@@ -58,6 +61,8 @@ export interface TopBarProps {
     challengeRequests: readonly ChallengeRequestNotification[];
     /** Actionable credential grants discovered from KERIA notifications. */
     credentialGrants: readonly CredentialGrantNotification[];
+    /** Informational W3C VC-JWT grants discovered from KERIA notifications. */
+    w3cVcGrants: readonly W3CVcGrantNotification[];
     /** Actionable delegation requests discovered from KERIA notifications. */
     delegationRequests: readonly DelegationRequestNotification[];
     /** Actionable multisig requests discovered from KERIA notifications. */
@@ -85,6 +90,7 @@ export const TopBar = ({
     recentNotifications,
     challengeRequests,
     credentialGrants,
+    w3cVcGrants,
     delegationRequests,
     multisigRequests,
     identifiers,
@@ -117,6 +123,7 @@ export const TopBar = ({
         [recentNotifications]
     );
     const credentialFetcher = useFetcher<CredentialActionData>();
+    const markReadFetcher = useFetcher<ContactActionData>();
     const delegationFetcher = useFetcher<ContactActionData>();
     const multisigFetcher = useFetcher<MultisigActionData>();
     const visibleChallengeRequests = useMemo(
@@ -126,6 +133,10 @@ export const TopBar = ({
     const visibleCredentialGrants = useMemo(
         () => credentialGrants.slice(0, 3),
         [credentialGrants]
+    );
+    const visibleW3CVcGrants = useMemo(
+        () => w3cVcGrants.slice(0, 3),
+        [w3cVcGrants]
     );
     const visibleDelegationRequests = useMemo(
         () => delegationRequests.slice(0, 3),
@@ -273,6 +284,18 @@ export const TopBar = ({
         closeNotifications();
     };
 
+    const markW3CGrantRead = (grant: W3CVcGrantNotification) => {
+        const formData = new FormData();
+        formData.set('intent', 'markNotificationRead');
+        formData.set('requestId', globalThis.crypto.randomUUID());
+        formData.set('notificationId', grant.notificationId);
+        markReadFetcher.submit(formData, {
+            method: 'post',
+            action: '/notifications',
+        });
+        closeNotifications();
+    };
+
     const submitMultisigRequest = (
         request: MultisigRequestNotification,
         groupAlias: string,
@@ -326,6 +349,7 @@ export const TopBar = ({
                 visibleNotifications={visibleNotifications}
                 visibleChallengeRequests={visibleChallengeRequests}
                 visibleCredentialGrants={visibleCredentialGrants}
+                visibleW3CVcGrants={visibleW3CVcGrants}
                 visibleDelegationRequests={visibleDelegationRequests}
                 visibleMultisigRequests={visibleMultisigRequests}
                 identifiers={identifiers}
@@ -334,10 +358,12 @@ export const TopBar = ({
                 multisigLocalMemberOptions={multisigLocalMemberOptions}
                 canDismissChallengeRequests={dismissFetcher.state === 'idle'}
                 canSubmitCredentialGrants={credentialFetcher.state === 'idle'}
+                canMarkW3CGrantsRead={markReadFetcher.state === 'idle'}
                 canSubmitDelegationRequests={delegationFetcher.state === 'idle'}
                 canSubmitMultisigRequests={multisigFetcher.state === 'idle'}
                 dismissChallengeRequest={dismissChallengeRequest}
                 admitCredentialGrant={admitCredentialGrant}
+                markW3CGrantRead={markW3CGrantRead}
                 approveDelegationRequest={approveDelegationRequest}
                 submitMultisigRequest={submitMultisigRequest}
                 onClose={closeNotifications}

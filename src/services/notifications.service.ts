@@ -1,6 +1,7 @@
 import type { Operation as EffectionOperation } from 'effection';
 import type { SignifyClient } from 'signify-ts';
 import type { ContactRecord } from '../domain/contacts/contactTypes';
+import type { IdentifierSummary } from '../domain/identifiers/identifierTypes';
 import { callPromise } from '../effects/promise';
 import {
     aidSet,
@@ -13,6 +14,8 @@ import {
     hydrateChallengeRequestNotifications,
 } from './notifications/challenge';
 import { hydrateCredentialIpexNotifications } from './notifications/credentialIpex';
+import { hydrateW3CVcGrantNotifications } from './notifications/w3cGrant';
+import { W3C_VC_GRANT_NOTIFICATION_ROUTE } from './notifications/w3cGrant';
 import {
     DELEGATION_REQUEST_NOTIFICATION_ROUTE,
     hydrateDelegationRequestNotifications,
@@ -51,6 +54,7 @@ export {
     SYNTHETIC_EXCHANGE_NOTIFICATION_PREFIX,
     syntheticChallengeNotificationId,
     syntheticExchangeNotificationId,
+    W3C_VC_GRANT_NOTIFICATION_ROUTE,
 };
 
 /**
@@ -63,10 +67,12 @@ export function* listNotificationsService({
     tombstonedExnSaids = [],
     respondedChallengeIds = [],
     respondedWordsHashes = [],
+    localIdentifiers = [],
 }: {
     client: SignifyClient;
     contacts?: readonly ContactRecord[];
     localAids?: readonly string[];
+    localIdentifiers?: readonly IdentifierSummary[];
     tombstonedExnSaids?: readonly string[];
     respondedChallengeIds?: readonly string[];
     respondedWordsHashes?: readonly string[];
@@ -96,9 +102,16 @@ export function* listNotificationsService({
         localAids: localAidSet,
         loadedAt,
     });
-    const delegationHydrated = yield* hydrateDelegationRequestNotifications({
+    const w3cGrantHydrated = yield* hydrateW3CVcGrantNotifications({
         client,
         notifications: ipexHydrated,
+        localAids: localAidSet,
+        localIdentifiers,
+        loadedAt,
+    });
+    const delegationHydrated = yield* hydrateDelegationRequestNotifications({
+        client,
+        notifications: w3cGrantHydrated,
         noteAttrsById: projection.noteAttrsById,
         localAids: localAidSet,
         loadedAt,

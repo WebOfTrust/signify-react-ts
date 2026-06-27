@@ -12,13 +12,17 @@ import type {
     NotificationRecord,
 } from '../../state/notifications.slice';
 import type { IdentifierSummary } from '../../domain/identifiers/identifierTypes';
-import type { CredentialGrantNotification } from '../../domain/credentials/credentialTypes';
+import type {
+    CredentialGrantNotification,
+    W3CVcGrantNotification,
+} from '../../domain/credentials/credentialTypes';
 import { ChallengeRequestResponseForm } from './ChallengeRequestResponseForm';
 import { sithSummary } from '../../domain/multisig/multisigThresholds';
 import {
     multisigRequestActionLabel,
     multisigRequestTitle,
 } from '../multisig/multisigRequestUi';
+import { W3CJwtArtifactDetails } from '../../app/W3CArtifactDetails';
 
 const timestampText = (value: string | null): string =>
     value === null ? 'Not available' : (formatTimestamp(value) ?? value);
@@ -36,6 +40,21 @@ const grantStatusTone = (
         return 'warning';
     }
     if (status === 'admitted') {
+        return 'success';
+    }
+    return 'info';
+};
+
+const w3cGrantStatusTone = (
+    status: W3CVcGrantNotification['status']
+): 'neutral' | 'success' | 'warning' | 'error' | 'info' => {
+    if (status === 'error') {
+        return 'error';
+    }
+    if (status === 'notForThisWallet') {
+        return 'warning';
+    }
+    if (status === 'materialized') {
         return 'success';
     }
     return 'info';
@@ -89,6 +108,8 @@ interface NotificationProtocolPanelsProps {
     challengeRequest: ChallengeRequestNotification | null;
     /** Matched credential grant/admit request for this notification, when present. */
     credentialGrant: CredentialGrantNotification | null;
+    /** Matched W3C VC-JWT grant notification, when present. */
+    w3cVcGrant: W3CVcGrantNotification | null;
     /** Matched delegation approval request for this notification, when present. */
     delegationRequest: DelegationRequestNotification | null;
     /** Matched multisig protocol request for this notification, when present. */
@@ -96,7 +117,10 @@ interface NotificationProtocolPanelsProps {
     identifiers: readonly IdentifierSummary[];
     /** Local holder AID that can admit the grant, if the wallet owns it. */
     grantRecipient: IdentifierSummary | undefined;
+    /** Local holder AID named by a W3C VC-JWT grant, if loaded. */
+    w3cGrantHolder: IdentifierSummary | undefined;
     canAdmitGrant: boolean;
+    canMarkRead: boolean;
     /** Local delegator AID that can approve the delegation, if available. */
     delegationApprover: IdentifierSummary | undefined;
     canApproveDelegation: boolean;
@@ -110,6 +134,7 @@ interface NotificationProtocolPanelsProps {
     setMultisigAliasDrafts: Dispatch<SetStateAction<Record<string, string>>>;
     /** Route-owned protocol commands that preserve notification action semantics. */
     admitCredentialGrant: () => void;
+    markNotificationRead: () => void;
     approveDelegationRequest: () => void;
     approveMultisigRequest: () => void;
 }
@@ -121,11 +146,14 @@ export const NotificationProtocolPanels = ({
     notification,
     challengeRequest,
     credentialGrant,
+    w3cVcGrant,
     delegationRequest,
     multisigRequest,
     identifiers,
     grantRecipient,
+    w3cGrantHolder,
     canAdmitGrant,
+    canMarkRead,
     delegationApprover,
     canApproveDelegation,
     multisigMember,
@@ -137,6 +165,7 @@ export const NotificationProtocolPanels = ({
     admitCredentialGrant,
     approveDelegationRequest,
     approveMultisigRequest,
+    markNotificationRead,
 }: NotificationProtocolPanelsProps) => (
 <>
             {challengeRequest !== null ? (
@@ -287,6 +316,135 @@ export const NotificationProtocolPanels = ({
                                 title="Recipient identifier unavailable"
                                 message="This grant names a recipient AID that is not loaded as a local identifier in this wallet."
                             />
+                        )}
+                    </Stack>
+                </ConsolePanel>
+            ) : w3cVcGrant !== null ? (
+                <ConsolePanel
+                    title="W3C VC-JWT grant"
+                    eyebrow="Holder"
+                    actions={
+                        <StatusPill
+                            label={w3cVcGrant.status}
+                            tone={w3cGrantStatusTone(w3cVcGrant.status)}
+                        />
+                    }
+                >
+                    <Stack spacing={2}>
+                        <Stack spacing={0.5}>
+                            <TelemetryRow
+                                label="Issuer AID"
+                                value={w3cVcGrant.issuerAid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Issuer DID"
+                                value={w3cVcGrant.issuerDid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Holder"
+                                value={w3cGrantHolder?.name ?? 'Not available'}
+                            />
+                            <TelemetryRow
+                                label="Holder AID"
+                                value={w3cVcGrant.holderAid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Holder DID"
+                                value={w3cVcGrant.holderDid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Source credential SAID"
+                                value={w3cVcGrant.sourceCredentialSaid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Held W3C credential"
+                                value={
+                                    w3cVcGrant.heldCredentialId ??
+                                    'Not available'
+                                }
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Schema SAID"
+                                value={w3cVcGrant.schemaSaid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Issuance ID"
+                                value={w3cVcGrant.issuanceId}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Grant SAID"
+                                value={w3cVcGrant.grantSaid}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Profile"
+                                value={w3cVcGrant.profile}
+                            />
+                            <TelemetryRow
+                                label="Status URL"
+                                value={w3cVcGrant.statusUrl}
+                                mono
+                            />
+                            <TelemetryRow
+                                label="Created"
+                                value={timestampText(w3cVcGrant.createdAt)}
+                            />
+                            {w3cVcGrant.error !== null && (
+                                <TelemetryRow
+                                    label="Error"
+                                    value={w3cVcGrant.error}
+                                />
+                            )}
+                        </Stack>
+                        <Divider />
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            spacing={1}
+                            sx={{
+                                alignItems: { xs: 'stretch', sm: 'center' },
+                            }}
+                        >
+                            <Button
+                                variant="contained"
+                                data-testid="w3c-grant-notification-detail-mark-read"
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
+                                disabled={!canMarkRead}
+                                onClick={markNotificationRead}
+                            >
+                                Mark read
+                            </Button>
+                            <Button
+                                component={RouterLink}
+                                to={`/credentials/${encodeURIComponent(
+                                    w3cVcGrant.holderAid
+                                )}/wallet`}
+                                data-ui-sound={UI_SOUND_HOVER_VALUE}
+                            >
+                                Open wallet
+                            </Button>
+                        </Stack>
+                        {w3cGrantHolder === undefined && (
+                            <EmptyState
+                                title="Holder identifier unavailable"
+                                message="This W3C grant names a holder AID that is not loaded as a local identifier in this wallet."
+                            />
+                        )}
+                        {w3cVcGrant.vcJwt.length > 0 && (
+                            <>
+                                <Divider />
+                                <W3CJwtArtifactDetails
+                                    label="Granted VC-JWT"
+                                    token={w3cVcGrant.vcJwt}
+                                />
+                            </>
                         )}
                     </Stack>
                 </ConsolePanel>
