@@ -28,7 +28,7 @@ The live KERIA job:
 3. sets up Node.js and pnpm,
 4. installs Node dependencies from `pnpm-lock.yaml`,
 5. installs a Puppeteer browser,
-6. installs pinned KERIpy and KERIA from GitHub commits,
+6. installs pinned KERIpy, KERIA, and vLEI from GitHub commits,
 7. starts local KERI demo witnesses,
 8. starts local KERIA,
 9. runs `pnpm ci:live`,
@@ -78,10 +78,11 @@ immutable SHAs, not floating branches.
 
 CI installs these exact repositories:
 
-| Project | Branch | Commit | Version |
-| --- | --- | --- | --- |
-| KERIpy | `v1.2.13` | `cbbf700fa8091587b96b5475c5f50d1d8bf3ca40` | `keri==1.2.13` |
-| KERIA | `main` | `aba457cab3813078bfedb65a7d819f48d86974b8` | `keria==0.4.0` |
+| Project | Branch    | Commit                                     | Version        |
+|---------|-----------|--------------------------------------------|----------------|
+| KERIpy  | `v1.2.13` | `cbbf700fa8091587b96b5475c5f50d1d8bf3ca40` | `keri==1.2.13` |
+| KERIA   | `main`    | `aba457cab3813078bfedb65a7d819f48d86974b8` | `keria==0.4.0` |
+| vLEI    | `main`    | `f514b9431c5f965b5f7f64a8693e19df2f181564` | `vlei==1.0.2`  |
 
 The install script is `scripts/ci/install-keri-stack.sh`.
 
@@ -90,10 +91,12 @@ requested KERIpy `1.2.13` commit. To make that explicit, the script:
 
 1. installs KERIA runtime dependencies from
    `.github/ci/keria-runtime-requirements.txt`,
-2. installs KERIpy from the pinned commit,
-3. installs KERIA from the pinned commit with `--no-deps`,
-4. verifies `keri.__version__ == "1.2.13"` and
-   `keria.__version__ == "0.4.0"`.
+2. restores or builds local wheels for the pinned KERIpy, KERIA, and vLEI
+   commits,
+3. installs KERIpy from the pinned wheel,
+4. installs KERIA and vLEI from pinned wheels with `--no-deps`,
+5. verifies `keri.__version__ == "1.2.13"`,
+   `keria.__version__ == "0.4.0"`, and `vlei.__version__ == "1.0.2"`.
 
 Do not replace this with an unconstrained `pip install keria`; that would allow
 the resolver to choose a different KERIpy version.
@@ -133,14 +136,14 @@ WITNESS_LOGLEVEL=DEBUG KERIA_LOGLEVEL=DEBUG scripts/ci/start-keri-stack.sh
 
 Expected ports:
 
-| Service | Port |
-| --- | --- |
+| Service          | Port   |
+|------------------|--------|
 | Wan witness HTTP | `5642` |
 | Wil witness HTTP | `5643` |
 | Wes witness HTTP | `5644` |
-| KERIA admin API | `3901` |
+| KERIA admin API  | `3901` |
 | KERIA router API | `3902` |
-| KERIA boot API | `3903` |
+| KERIA boot API   | `3903` |
 
 The start script waits for all ports before returning. Logs are written under
 `${RUNNER_TEMP}/keri-stack/logs` in GitHub Actions and uploaded as the
@@ -152,17 +155,24 @@ CI uses these caches:
 
 - pnpm dependency cache via `actions/setup-node`.
 - pip cache via `actions/setup-python`.
+- apt package cache for `libsodium-dev` under `.ci/apt`.
+- static tool caches under `.cache/eslint`, `.cache/tsc`, `.cache/vite`, and
+  `.cache/vitest-unit`.
+- live tool caches under `.cache/vite` and `.cache/vitest`.
 - pinned KERI repository clones under `.ci/deps`.
+- pinned KERI wheels under `.ci/wheels`.
 - Puppeteer browser cache under `~/.cache/puppeteer`.
 
-The KERI repository cache key includes the pinned KERIpy and KERIA commits, so
-changing either commit creates a fresh cache.
+The KERI repository and wheel cache keys include the pinned KERIpy, KERIA, and
+vLEI commits, so changing any pinned commit creates a fresh cache. The wheel key
+also includes Python version, the KERIA runtime requirements file, and
+`scripts/ci/install-keri-stack.sh`.
 
 ## Updating Pinned KERI Versions
 
-To update KERIpy or KERIA:
+To update KERIpy, KERIA, or vLEI:
 
-1. update `KERIPY_BRANCH` / `KERIPY_REF` or `KERIA_BRANCH` / `KERIA_REF` in
+1. update the corresponding branch/ref environment variables in
    `.github/workflows/ci.yml`,
 2. update the version assertions in `scripts/ci/install-keri-stack.sh`,
 3. update this document,

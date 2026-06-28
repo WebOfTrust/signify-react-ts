@@ -3,10 +3,11 @@ import wasm from 'vite-plugin-wasm';
 
 export default defineConfig({
     plugins: [wasm()],
+    cacheDir: '.cache/vitest-unit',
     test: {
         environment: 'node',
         fileParallelism: true,
-        hookTimeout: 180_000,
-        testTimeout: 180_000,
+        hookTimeout: 10_000,
+        testTimeout: 15_000,
     },
 });

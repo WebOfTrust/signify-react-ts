@@ -12,6 +12,8 @@
         "isolatedModules": true,
         "strict": true,
         "noEmit": true,
+        "incremental": true,
+        "tsBuildInfoFile": ".cache/tsc/tsconfig.tsbuildinfo",
         "jsx": "react-jsx"
     },
     "include": ["src"]

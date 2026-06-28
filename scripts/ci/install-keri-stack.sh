@@ -18,6 +18,7 @@ KERIA_REF="${KERIA_REF:-aba457cab3813078bfedb65a7d819f48d86974b8}"
 VLEI_REPO="${VLEI_REPO:-https://github.com/WebOfTrust/vLEI.git}"
 VLEI_BRANCH="${VLEI_BRANCH:-main}"
 VLEI_REF="${VLEI_REF:-f514b9431c5f965b5f7f64a8693e19df2f181564}"
+WHEEL_DIR="${WHEEL_DIR:-${ROOT_DIR}/.ci/wheels/${KERIPY_REF}-${KERIA_REF}-${VLEI_REF}}"
 
 sync_repo() {
   local dir="$1"
@@ -30,6 +31,17 @@ sync_repo() {
   if [[ ! -d "${dir}/.git" ]]; then
     rm -rf "$dir"
     git clone --no-checkout "$repo" "$dir"
+  else
+    local actual
+    local remote
+    actual="$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)"
+    remote="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
+    if [[ "$actual" == "$ref" && "$remote" == "$repo" ]]; then
+      git -C "$dir" reset --hard "$ref" >/dev/null
+      git -C "$dir" clean -xdf >/dev/null
+      echo "Using cached ${dir} at ${ref}"
+      return
+    fi
   fi
 
   git -C "$dir" remote set-url origin "$repo"
@@ -50,16 +62,50 @@ sync_repo() {
   fi
 }
 
+build_wheel() {
+  local dir="$1"
+  local distribution="$2"
+  local wheel
+
+  if wheel="$(find_wheel "$distribution" 2>/dev/null)"; then
+    echo "Using cached wheel ${wheel}"
+    return
+  fi
+
+  python -m pip wheel --no-deps --wheel-dir "$WHEEL_DIR" "$dir"
+}
+
+find_wheel() {
+  local distribution="$1"
+
+  python - "$WHEEL_DIR" "$distribution" <<'PY'
+from pathlib import Path
+import sys
+
+wheel_dir = Path(sys.argv[1])
+distribution = sys.argv[2].replace("-", "_").lower()
+wheels = sorted(wheel_dir.glob(f"{distribution}-*.whl"))
+if not wheels:
+    raise SystemExit(f"No wheel found for {distribution} in {wheel_dir}")
+print(wheels[-1])
+PY
+}
+
 python -m pip install --upgrade pip wheel setuptools
 
 sync_repo "$KERIPY_DIR" "$KERIPY_REPO" "$KERIPY_BRANCH" "$KERIPY_REF"
 sync_repo "$KERIA_DIR" "$KERIA_REPO" "$KERIA_BRANCH" "$KERIA_REF"
 sync_repo "$VLEI_DIR" "$VLEI_REPO" "$VLEI_BRANCH" "$VLEI_REF"
 
+mkdir -p "$WHEEL_DIR"
+build_wheel "$KERIPY_DIR" keri
+build_wheel "$KERIA_DIR" keria
+build_wheel "$VLEI_DIR" vlei
+
 python -m pip install -r "${ROOT_DIR}/.github/ci/keria-runtime-requirements.txt"
-python -m pip install "$KERIPY_DIR"
-python -m pip install --no-deps "$KERIA_DIR"
-python -m pip install --no-deps "$VLEI_DIR"
+python -m pip install "$(find_wheel keri)"
+python -m pip install --no-deps "$(find_wheel keria)"
+python -m pip install --no-deps "$(find_wheel vlei)"
 
 python - <<'PY'
 import keri
