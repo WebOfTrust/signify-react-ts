@@ -32,6 +32,18 @@ jobs:
           node-version: "22"
           cache: pnpm
 
+      - name: Cache static tool outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/eslint
+            .cache/tsc
+            .cache/vite
+            .cache/vitest-unit
+          key: static-tools-${{ runner.os }}-node-22-${{ hashFiles('pnpm-lock.yaml', 'package.json', 'tsconfig.json', 'eslint.config.mjs', 'vite.config.ts', 'vitest.unit.config.ts') }}
+          restore-keys: |
+            static-tools-${{ runner.os }}-node-22-
+
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
 
@@ -48,22 +60,29 @@ jobs:
       KERIPY_REF: cbbf700fa8091587b96b5475c5f50d1d8bf3ca40
       KERIA_BRANCH: main
       KERIA_REF: aba457cab3813078bfedb65a7d819f48d86974b8
+      VLEI_BRANCH: main
+      VLEI_REF: f514b9431c5f965b5f7f64a8693e19df2f181564
       PUPPETEER_CACHE_DIR: /home/runner/.cache/puppeteer
+      PYTHON_VERSION: "3.12.8"
       VITE_OPERATION_TIMEOUT_MS: "45000"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: .ci/apt
+          key: apt-${{ runner.os }}-${{ runner.arch }}-libsodium-dev-v1
+
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libsodium-dev
+        run: scripts/ci/install-system-deps.sh
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12.8"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: .github/ci/keria-runtime-requirements.txt
 
@@ -83,7 +102,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ci/deps
-          key: keri-repos-${{ runner.os }}-${{ env.KERIPY_REF }}-${{ env.KERIA_REF }}
+          key: keri-repos-${{ runner.os }}-${{ env.KERIPY_REF }}-${{ env.KERIA_REF }}-${{ env.VLEI_REF }}
+
+      - name: Cache pinned KERI wheels
+        uses: actions/cache@v4
+        with:
+          path: .ci/wheels
+          key: keri-wheels-${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-${{ hashFiles('.github/ci/keria-runtime-requirements.txt', 'scripts/ci/install-keri-stack.sh') }}-${{ env.KERIPY_REF }}-${{ env.KERIA_REF }}-${{ env.VLEI_REF }}
+
+      - name: Cache live tool outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/vite
+            .cache/vitest
+          key: live-tools-${{ runner.os }}-node-22-${{ hashFiles('pnpm-lock.yaml', 'package.json', 'vite.config.ts', 'vitest.config.ts') }}
+          restore-keys: |
+            live-tools-${{ runner.os }}-node-22-
 
       - name: Cache Puppeteer browser
         uses: actions/cache@v4
@@ -99,7 +134,7 @@ jobs:
       - name: Install Puppeteer browser
         run: pnpm exec puppeteer browsers install chrome
 
-      - name: Install pinned KERIpy and KERIA
+      - name: Install pinned KERIpy, KERIA, and vLEI
         run: scripts/ci/install-keri-stack.sh
 
       - name: Start KERIA and demo witnesses
